@@ -91,6 +91,7 @@ export interface ClientDiagnosticEventInput {
 
 export type UpdateStatus =
   | { type: 'checking' }
+  | { type: 'downloading'; percent: number }
   | { type: 'downloaded'; version: string }
   | { type: 'not-available' }
   | { type: 'error'; message: string }

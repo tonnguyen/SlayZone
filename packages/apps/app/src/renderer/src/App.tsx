@@ -492,6 +492,9 @@ function App(): React.JSX.Element {
         case 'checking':
           toast.loading('Checking for updates...', { id: 'update-check' })
           break
+        case 'downloading':
+          toast.loading(`Downloading update... ${status.percent}%`, { id: 'update-check' })
+          break
         case 'downloaded':
           toast.dismiss('update-check')
           setUpdateVersion(status.version)
@@ -500,7 +503,8 @@ function App(): React.JSX.Element {
           toast.success('You\'re on the latest version', { id: 'update-check' })
           break
         case 'error':
-          toast.error(`Update check failed: ${status.message}`, { id: 'update-check' })
+          toast.dismiss('update-check')
+          toast.error(`Update failed: ${status.message}`, { duration: 8000 })
           break
       }
     })
