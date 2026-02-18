@@ -8,6 +8,7 @@
 ### 🩹 Fixes
 
 - Push specific tag instead of all tags on release ([f2bc8db](https://github.com/debuglebowski/SlayZone/commit/f2bc8db))
+- Surface update errors to UI, show download progress ([262706a](https://github.com/debuglebowski/SlayZone/commit/262706a))
 
 ### ❤️ Contributors
 
