@@ -164,10 +164,14 @@ export function CreateTaskDialog({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.metaKey && e.shiftKey) {
                 e.preventDefault()
-                form.handleSubmit((data) => createTask(data, { statusOverride: 'in_progress', andOpen: true }))()
+                form.handleSubmit(onSubmit)()
               } else if (e.key === 'Enter' && e.metaKey) {
                 e.preventDefault()
-                form.handleSubmit(onSubmit)()
+                if (onCreatedAndOpen) {
+                  form.handleSubmit((data) => createTask(data, { andOpen: true }))()
+                } else {
+                  form.handleSubmit(onSubmit)()
+                }
               }
             }}
             className="space-y-4"
@@ -393,20 +397,21 @@ export function CreateTaskDialog({
                 Cancel
               </Button>
               <div className="flex-1" />
+              <Button type="submit" variant={onCreatedAndOpen ? 'outline' : 'default'}>
+                Create
+                <kbd className="ml-2 opacity-70" style={{ fontFamily: 'system-ui' }}>
+                  {onCreatedAndOpen ? '⇧⌘↩' : '⌘↩'}
+                </kbd>
+              </Button>
               {onCreatedAndOpen && (
                 <Button
                   type="button"
-                  variant="outline"
                   onClick={() => form.handleSubmit((data) => createTask(data, { andOpen: true }))()}
                 >
-                  Create and open
-                  <kbd className="ml-2 text-muted-foreground" style={{ fontFamily: 'system-ui' }}>⇧⌘↩</kbd>
+                  Create + open
+                  <kbd className="ml-2 text-muted-foreground" style={{ fontFamily: 'system-ui' }}>⌘↩</kbd>
                 </Button>
               )}
-              <Button type="submit">
-                Create
-                <kbd className="ml-2 opacity-70" style={{ fontFamily: 'system-ui' }}>⌘↩</kbd>
-              </Button>
             </div>
           </form>
         </Form>
