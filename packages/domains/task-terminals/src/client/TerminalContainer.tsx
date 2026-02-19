@@ -101,14 +101,14 @@ export const TerminalContainer = forwardRef<TerminalContainerHandle, TerminalCon
       // Cmd+T: New group
       if (e.metaKey && e.key === 't' && !e.shiftKey) {
         e.preventDefault()
-        createTab()
+        createTab().then(tab => focusGroupTerminal(`${taskId}:${tab.id}`))
       }
       // Cmd+D: Split current group
       if (e.metaKey && e.key === 'd' && !e.shiftKey && activeGroup) {
         e.preventDefault()
         // Split the last pane in the active group
         const lastPane = activeGroup.tabs[activeGroup.tabs.length - 1]
-        if (lastPane) splitTab(lastPane.id)
+        if (lastPane) splitTab(lastPane.id).then(tab => { if (tab) focusGroupTerminal(`${taskId}:${tab.id}`) })
       }
     }
 
@@ -144,15 +144,43 @@ export const TerminalContainer = forwardRef<TerminalContainerHandle, TerminalCon
   const closeGroup = useCallback(async (groupId: string) => {
     const group = groups.find(g => g.id === groupId)
     if (!group || group.isMain) return
-    // Close all tabs in the group
     for (const tab of [...group.tabs].reverse()) {
       await closeTab(tab.id)
     }
   }, [groups, closeTab])
 
+  // Focus the xterm textarea for a given session ID.
+  // If the element isn't in the DOM yet (new terminal initializing), wait via MutationObserver.
+  const focusGroupTerminal = useCallback((sessionId: string) => {
+    const selector = `[data-session-id="${sessionId}"] .xterm-helper-textarea`
+    const tryNow = () => {
+      const el = document.querySelector<HTMLElement>(selector)
+      if (el) { el.focus(); return true }
+      return false
+    }
+    if (tryNow()) return
+    // Element not yet in DOM — wait for it
+    const observer = new MutationObserver(() => {
+      if (tryNow()) observer.disconnect()
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    setTimeout(() => observer.disconnect(), 3000)
+  }, [])
+
+  // Close a group and focus the adjacent group's terminal
+  const closeGroupAndFocusAdjacent = useCallback(async (groupId: string) => {
+    const groupIndex = groups.findIndex(g => g.id === groupId)
+    if (groupIndex === -1 || groups[groupIndex]?.isMain) return
+    const adjacentGroup = groups[groupIndex > 0 ? groupIndex - 1 : 1]
+    await closeGroup(groupId)
+    if (adjacentGroup) {
+      setActiveGroupId(adjacentGroup.id)
+      focusGroupTerminal(`${taskId}:${adjacentGroup.tabs[0].id}`)
+    }
+  }, [groups, closeGroup, setActiveGroupId, taskId, focusGroupTerminal])
+
   useImperativeHandle(ref, () => ({
     closeActiveGroup: async () => {
-      // Find which pane is focused via data-session-id attribute
       const active = document.activeElement as HTMLElement | null
       const paneEl = active?.closest('[data-session-id]')
       const sessionId = paneEl?.getAttribute('data-session-id')
@@ -160,15 +188,25 @@ export const TerminalContainer = forwardRef<TerminalContainerHandle, TerminalCon
       if (sessionId) {
         const tabId = sessionId.substring(taskId.length + 1)
         const group = groups.find(g => g.tabs.some(t => t.id === tabId))
-        // Don't close the only pane in the main group
-        if (group?.isMain && group.tabs.length === 1) return
-        await closeTab(tabId)
+        if (!group) return
+        if (group.isMain && group.tabs.length === 1) return
+
+        if (group.tabs.length > 1) {
+          // Multiple panes: close focused pane, focus adjacent pane in same group
+          const paneIndex = group.tabs.findIndex(t => t.id === tabId)
+          const adjacentTab = group.tabs[paneIndex > 0 ? paneIndex - 1 : 1]
+          await closeTab(tabId)
+          if (adjacentTab) focusGroupTerminal(`${taskId}:${adjacentTab.id}`)
+        } else {
+          // Last pane in group: close group and focus adjacent group
+          await closeGroupAndFocusAdjacent(group.id)
+        }
       } else {
-        // Fallback: close whole group (only if not main)
-        await closeGroup(activeGroupId)
+        // No focused pane: close active group and focus adjacent group
+        await closeGroupAndFocusAdjacent(activeGroupId)
       }
     }
-  }), [taskId, groups, closeTab, closeGroup, activeGroupId])
+  }), [taskId, groups, closeTab, closeGroupAndFocusAdjacent, focusGroupTerminal, activeGroupId])
 
   // Build pane props for the active group
   const paneProps = useMemo(() => {
@@ -205,7 +243,7 @@ export const TerminalContainer = forwardRef<TerminalContainerHandle, TerminalCon
         groups={groups}
         activeGroupId={activeGroupId}
         onGroupSelect={setActiveGroupId}
-        onGroupCreate={() => createTab()}
+        onGroupCreate={() => createTab().then(tab => focusGroupTerminal(`${taskId}:${tab.id}`))}
         onGroupClose={closeGroup}
         onGroupSplit={handleSplitGroup}
         onPaneClose={closeTab}
