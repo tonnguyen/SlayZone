@@ -4,6 +4,7 @@ import type { TaskStatus } from '@slayzone/task/shared'
 // Tab type (matches TabBar.tsx in app)
 export type Tab =
   | { type: 'home' }
+  | { type: 'leaderboard'; title: string }
   | { type: 'task'; taskId: string; title: string; status?: TaskStatus; isSubTask?: boolean; isTemporary?: boolean }
 
 interface ViewState {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Home, X } from 'lucide-react'
+import { Home, Trophy, X } from 'lucide-react'
 import { cn, Tooltip, TooltipTrigger, TooltipContent, getTerminalStateStyle } from '@slayzone/ui'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import {
@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 export type Tab =
   | { type: 'home' }
+  | { type: 'leaderboard'; title: string }
   | { type: 'task'; taskId: string; title: string; terminalState?: TerminalState; isSubTask?: boolean; isTemporary?: boolean }
 
 interface TabBarProps {
@@ -164,6 +165,8 @@ export function TabBar({
   const taskTabs = tabs.filter((t): t is Tab & { type: 'task' } => t.type === 'task')
   const taskIds = taskTabs.map((t) => t.taskId)
   const activeTab = activeId ? taskTabs.find((t) => t.taskId === activeId) : null
+  const homeIndex = tabs.findIndex((t) => t.type === 'home')
+  const leaderboardIndex = tabs.findIndex((t) => t.type === 'leaderboard')
 
   function handleDragStart(event: DragStartEvent): void {
     setActiveId(event.active.id as string)
@@ -186,14 +189,32 @@ export function TabBar({
     <div className="flex items-center h-11 pl-4 pr-2 gap-1 bg-surface-1">
       {/* Scrollable tabs area */}
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1 min-w-0">
+        {/* Leaderboard tab-like button */}
+        {leaderboardIndex >= 0 && (
+          <div
+            className={cn(
+              'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
+              'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
+              activeIndex === leaderboardIndex
+                ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
+                : 'text-neutral-500 dark:text-neutral-400'
+            )}
+            onClick={() => onTabClick(leaderboardIndex)}
+          >
+            <Trophy className="h-4 w-4" />
+          </div>
+        )}
+
         {/* Home tab - not draggable */}
         <div
           className={cn(
             'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
             'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
-            activeIndex === 0 ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600' : 'text-neutral-500 dark:text-neutral-400'
+            activeIndex === homeIndex
+              ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
+              : 'text-neutral-500 dark:text-neutral-400'
           )}
-          onClick={() => onTabClick(0)}
+          onClick={() => onTabClick(homeIndex)}
         >
           <Home className="h-4 w-4" />
         </div>

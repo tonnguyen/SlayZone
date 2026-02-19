@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Clock3, Flame, Layers3, Sparkles, Timer } from 'lucide-react'
+import { CheckCheck, Sparkles } from 'lucide-react'
 import { Button } from '@slayzone/ui'
 
 type Period = 'daily' | 'weekly' | 'monthly'
-type MetricId = 'cycle_time' | 'tokens_used' | 'simultaneous_tasks' | 'streak' | 'focus_ratio'
+type MetricId = 'total_tokens' | 'total_completed_tasks'
 
 interface MetricDef {
   id: MetricId
@@ -50,63 +50,31 @@ const USERS = [
 
 const METRICS: MetricDef[] = [
   {
-    id: 'cycle_time',
-    label: 'Top 10 Fastest Average Task Cycle Time',
-    description: 'Average created-to-done duration',
-    lowerIsBetter: true,
-    icon: <Timer className="size-4" />
-  },
-  {
-    id: 'tokens_used',
+    id: 'total_tokens',
     label: 'Top 10 Most AI Tokens Used',
-    description: 'Total AI token usage',
+    description: 'Total tokens',
     lowerIsBetter: false,
     icon: <Sparkles className="size-4" />
   },
   {
-    id: 'simultaneous_tasks',
-    label: 'Top 10 Most Simultaneous Active Tasks',
-    description: 'Highest concurrent task count',
+    id: 'total_completed_tasks',
+    label: 'Top 10 Most Completed Tasks',
+    description: 'Total completed tasks',
     lowerIsBetter: false,
-    icon: <Layers3 className="size-4" />
-  },
-  {
-    id: 'streak',
-    label: 'Top 10 Highest Task Completion Streak',
-    description: 'Consecutive active completion days',
-    lowerIsBetter: false,
-    icon: <Flame className="size-4" />
-  },
-  {
-    id: 'focus_ratio',
-    label: 'Best Focus Ratio',
-    description: 'Focused time over active time',
-    lowerIsBetter: false,
-    icon: <Clock3 className="size-4" />
+    icon: <CheckCheck className="size-4" />
   }
 ]
 const COLUMN_METRICS: MetricDef[] = [
-  METRICS.find((metric) => metric.id === 'cycle_time')!,
-  METRICS.find((metric) => metric.id === 'tokens_used')!,
-  METRICS.find((metric) => metric.id === 'simultaneous_tasks')!,
-  METRICS.find((metric) => metric.id === 'streak')!
+  METRICS.find((metric) => metric.id === 'total_tokens')!,
+  METRICS.find((metric) => metric.id === 'total_completed_tasks')!
 ]
 
 function formatValue(metric: MetricId, value: number): string {
   switch (metric) {
-    case 'cycle_time': {
-      const hours = Math.floor(value / 60)
-      const minutes = value % 60
-      return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m`
-    }
-    case 'tokens_used':
+    case 'total_tokens':
       return value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)}M` : `${Math.round(value / 1_000)}k`
-    case 'simultaneous_tasks':
+    case 'total_completed_tasks':
       return `${value}`
-    case 'streak':
-      return `${value} days`
-    case 'focus_ratio':
-      return `${value}%`
     default:
       return `${value}`
   }
@@ -119,20 +87,11 @@ function buildRows(metric: MetricDef, period: Period): LeaderboardRow[] {
     let value = 0
 
     switch (metric.id) {
-      case 'cycle_time':
-        value = 55 + seed * 6 + periodFactor * 10
-        break
-      case 'tokens_used':
+      case 'total_tokens':
         value = 100_000 + seed * 52_000 * periodFactor
         break
-      case 'simultaneous_tasks':
-        value = Math.min(14, 2 + ((seed * 3 + periodFactor) % 11))
-        break
-      case 'streak':
-        value = 2 + seed + periodFactor * 3
-        break
-      case 'focus_ratio':
-        value = Math.min(96, 54 + ((seed * 5 + periodFactor * 4) % 43))
+      case 'total_completed_tasks':
+        value = 4 + seed * periodFactor
         break
     }
 
@@ -171,7 +130,7 @@ export function LeaderboardPage(): React.JSX.Element {
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">Leaderboard</h1>
               <p className="text-sm text-muted-foreground mt-2">
-                See who&rsquo;s slaying cycle time, AI usage, concurrent workload, and completion streaks.
+                See who&rsquo;s slaying total tokens and completed tasks.
               </p>
             </div>
             <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
@@ -190,7 +149,7 @@ export function LeaderboardPage(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 flex-1 min-h-0">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
           {lists.map(({ metric, rows }) => (
             <div key={metric.id} className="rounded-xl border bg-background overflow-hidden min-w-0 h-full flex flex-col">
               <div className="px-4 py-3 border-b bg-muted/20">
