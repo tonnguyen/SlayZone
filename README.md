@@ -21,12 +21,10 @@
 ### Get started
 
 1. Download the app for your platform above and run the installer.
+   - **macOS:** Right-click **SlayZone.app** after the installer runs → **Open** → **Open** again to bypass Gatekeeper (unsigned app, one-time only).
+   - **If that doesn't work:** System Settings → Privacy & Security → **Open Anyway**.
 2. Create a project — click **+** in the sidebar and point it to a folder on your machine.
 3. Add a task — click **+** inside the project, then open the card to access the terminal, browser, and git panels.
-
-> **macOS — allowing the app to run:** SlayZone isn't yet signed with an Apple certificate, so Gatekeeper will block the first launch. Right-click the `.app` → **Open** → click **Open** again. This only happens once.
->
-> If that doesn't work (some machines require this): open **System Settings → Privacy & Security**, scroll to the Security section, and click **Open Anyway** next to the SlayZone entry.
 
 <br />
 
