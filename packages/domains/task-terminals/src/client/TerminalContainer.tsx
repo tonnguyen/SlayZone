@@ -151,8 +151,24 @@ export const TerminalContainer = forwardRef<TerminalContainerHandle, TerminalCon
   }, [groups, closeTab])
 
   useImperativeHandle(ref, () => ({
-    closeActiveGroup: () => closeGroup(activeGroupId)
-  }), [closeGroup, activeGroupId])
+    closeActiveGroup: async () => {
+      // Find which pane is focused via data-session-id attribute
+      const active = document.activeElement as HTMLElement | null
+      const paneEl = active?.closest('[data-session-id]')
+      const sessionId = paneEl?.getAttribute('data-session-id')
+
+      if (sessionId) {
+        const tabId = sessionId.substring(taskId.length + 1)
+        const group = groups.find(g => g.tabs.some(t => t.id === tabId))
+        // Don't close the only pane in the main group
+        if (group?.isMain && group.tabs.length === 1) return
+        await closeTab(tabId)
+      } else {
+        // Fallback: close whole group (only if not main)
+        await closeGroup(activeGroupId)
+      }
+    }
+  }), [taskId, groups, closeTab, closeGroup, activeGroupId])
 
   // Build pane props for the active group
   const paneProps = useMemo(() => {

@@ -45,8 +45,6 @@ export function UserSettingsDialog({
   const [newTagColor, setNewTagColor] = useState('#6b7280')
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
   const [dbPath, setDbPath] = useState<string>('')
-  const [shellSetting, setShellSetting] = useState('')
-  const [defaultShell, setDefaultShell] = useState('')
   const [worktreeBasePath, setWorktreeBasePath] = useState('')
   const [autoCreateWorktreeOnTaskCreate, setAutoCreateWorktreeOnTaskCreate] = useState(false)
   const [devServerToastEnabled, setDevServerToastEnabled] = useState(true)
@@ -111,11 +109,10 @@ export function UserSettingsDialog({
 
     try {
       const providerFlagKeys = Object.values(PROVIDER_DEFAULTS).map(d => d.settingsKey)
-      const [loadedTags, loadedProjects, path, shell, wtBasePath, autoCreateWorktree, termMode, ...flagResults] = await Promise.allSettled([
+      const [loadedTags, loadedProjects, path, wtBasePath, autoCreateWorktree, termMode, ...flagResults] = await Promise.allSettled([
         window.api.tags.getTags(),
         window.api.db.getProjects(),
         window.api.settings.get('database_path'),
-        window.api.settings.get('shell'),
         window.api.settings.get('worktree_base_path'),
         window.api.settings.get('auto_create_worktree_on_task_create'),
         window.api.settings.get('default_terminal_mode'),
@@ -131,9 +128,6 @@ export function UserSettingsDialog({
       setTags(loadedTags.status === 'fulfilled' ? loadedTags.value : [])
       setProjects(loadedProjects.status === 'fulfilled' ? loadedProjects.value : [])
       setDbPath(path.status === 'fulfilled' ? (path.value ?? 'Default location (userData)') : 'Default location (userData)')
-      setShellSetting(shell.status === 'fulfilled' ? (shell.value ?? '') : '')
-      const envShell = typeof process !== 'undefined' ? process.env?.SHELL : undefined
-      setDefaultShell(envShell || '/bin/bash')
       setWorktreeBasePath(wtBasePath.status === 'fulfilled' ? (wtBasePath.value ?? '') : '')
       setAutoCreateWorktreeOnTaskCreate(
         autoCreateWorktree.status === 'fulfilled' ? autoCreateWorktree.value === '1' : false
@@ -572,16 +566,6 @@ export function UserSettingsDialog({
                                 <SelectItem value="terminal">Terminal</SelectItem>
                               </SelectContent>
                             </Select>
-                          </div>
-                          <div className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-3">
-                            <span className="text-xs text-muted-foreground">Shell</span>
-                            <Input
-                              className="h-8 text-xs"
-                              placeholder={defaultShell}
-                              value={shellSetting}
-                              onChange={(e) => setShellSetting(e.target.value)}
-                              onBlur={() => window.api.settings.set('shell', shellSetting.trim())}
-                            />
                           </div>
                           {Object.entries(PROVIDER_DEFAULTS).map(([mode, def]) => (
                           <div key={mode} className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-3">

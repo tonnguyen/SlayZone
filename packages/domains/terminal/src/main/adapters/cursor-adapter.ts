@@ -1,5 +1,5 @@
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
-import { whichBinary } from '../shell-env'
+import { whichBinary, validateShellEnv } from '../shell-env'
 
 /**
  * Adapter for Cursor Agent CLI.
@@ -12,7 +12,7 @@ export class CursorAdapter implements TerminalAdapter {
   // Full-screen TUI constantly redraws — detect working from user input, not output
   readonly transitionOnInput = true
 
-  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, _shellOverride?: string, initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
+  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
     const args: string[] = []
 
     if (resuming && conversationId) {
@@ -60,13 +60,16 @@ export class CursorAdapter implements TerminalAdapter {
   }
 
   async validate(): Promise<ValidationResult[]> {
-    const found = await whichBinary('cursor-agent')
-    return [{
+    const [shell, found] = await Promise.all([validateShellEnv(), whichBinary('cursor-agent')])
+    const results: ValidationResult[] = []
+    if (!shell.ok) results.push(shell)
+    results.push({
       check: 'Binary found',
       ok: !!found,
       detail: found ?? 'cursor-agent not found in PATH',
       fix: found ? undefined : 'Enable via Cursor settings → Background Agent'
-    }]
+    })
+    return results
   }
 
   detectPrompt(_data: string): PromptInfo | null {

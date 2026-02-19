@@ -78,7 +78,7 @@ test('resumes codex session when existing conversation ID is provided', () => {
 })
 
 test('includes provider flags while resuming', () => {
-  const result = adapter.buildSpawnConfig('/tmp', 'thread-123', true, undefined, undefined, ['--search'])
+  const result = adapter.buildSpawnConfig('/tmp', 'thread-123', true, undefined, ['--search'])
   expect(result.postSpawnCommand).toBe("codex resume 'thread-123' '--search'")
 })
 

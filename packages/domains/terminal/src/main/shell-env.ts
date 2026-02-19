@@ -1,7 +1,22 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { platform, userInfo } from 'os'
+import type { ValidationResult } from './adapters/types'
 
 const execAsync = promisify(exec)
+
+/**
+ * The user's login shell, resolved from (in order):
+ * 1. SHELL env var
+ * 2. os.userInfo().shell — reads /etc/passwd, works even when launched from dock
+ * 3. COMSPEC on Windows
+ * Returns null if none can be determined.
+ */
+export function getDefaultShell(): string | null {
+  if (process.env.SHELL) return process.env.SHELL
+  if (platform() === 'win32') return process.env.COMSPEC || null
+  try { return userInfo().shell || null } catch { return null }
+}
 
 let cachedShellPath: string | null = null
 
@@ -13,11 +28,13 @@ let cachedShellPath: string | null = null
 export async function getUserShellPath(): Promise<string> {
   if (cachedShellPath !== null) return cachedShellPath
   try {
-    const shell = process.env.SHELL || '/bin/zsh'
+    const shell = getDefaultShell()
+    if (!shell) throw new Error('Could not determine user shell')
     const isFish = shell.endsWith('/fish') || shell === 'fish'
     const isBashOrZsh = /\/(bash|zsh)$/.test(shell)
     if (!isFish && !isBashOrZsh) {
-      console.warn(`[shell-env] Unsupported shell: ${shell}. PATH enrichment may not work correctly.`)
+      cachedShellPath = process.env.PATH || ''
+      return cachedShellPath
     }
     // Fish: use -i (interactive) so config guarded by `status is-interactive` runs.
     // bash/zsh: use -l (login) so .bash_profile/.zprofile runs.
@@ -31,6 +48,33 @@ export async function getUserShellPath(): Promise<string> {
     cachedShellPath = process.env.PATH || ''
   }
   return cachedShellPath
+}
+
+/**
+ * Check if the user's shell is supported for PATH enrichment.
+ * Returns a ValidationResult for use in adapter Doctor checks.
+ */
+export function validateShellEnv(): ValidationResult {
+  const shell = getDefaultShell()
+  if (!shell) {
+    return {
+      check: 'Shell detected',
+      ok: false,
+      detail: 'No shell detected — SHELL env var is not set',
+      fix: 'export SHELL=/bin/zsh  (or bash, fish)'
+    }
+  }
+  const isFish = shell.endsWith('/fish') || shell === 'fish'
+  const isBashOrZsh = /\/(bash|zsh)$/.test(shell)
+  if (!isFish && !isBashOrZsh) {
+    return {
+      check: 'Shell detected',
+      ok: false,
+      detail: `Unsupported shell: ${shell} — PATH enrichment disabled`,
+      fix: 'Set SHELL to bash, zsh, or fish in your environment'
+    }
+  }
+  return { check: 'Shell detected', ok: true, detail: shell }
 }
 
 /**

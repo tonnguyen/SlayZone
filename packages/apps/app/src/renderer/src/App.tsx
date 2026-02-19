@@ -426,14 +426,26 @@ function App(): React.JSX.Element {
     setSearchOpen(true)
   }, { enableOnFormTags: true })
 
-  useHotkeys('mod+w', (e) => {
-    e.preventDefault()
-    if (activeTabIndex === 0) {
-      window.api.window.close()
-    } else {
-      closeTab(activeTabIndex)
-    }
-  }, { enableOnFormTags: true })
+  // Stable refs so IPC listeners don't need to re-subscribe on every render
+  const closeActiveTaskRef = useRef<() => void>(() => {})
+  closeActiveTaskRef.current = () => {
+    if (activeTabIndex === 0) void window.api.window.close()
+    else closeTab(activeTabIndex)
+  }
+  const closeCurrentHomeRef = useRef<() => void>(() => {})
+  closeCurrentHomeRef.current = () => {
+    if (activeTabIndex === 0) void window.api.window.close()
+  }
+
+  // Cmd+Shift+W: close active task tab (or window on home tab)
+  useEffect(() => {
+    return window.api.app.onCloseActiveTask(() => closeActiveTaskRef.current())
+  }, [])
+
+  // Cmd+W on home tab: close window (task tab cases handled in TaskDetailPage)
+  useEffect(() => {
+    return window.api.app.onCloseCurrent(() => closeCurrentHomeRef.current())
+  }, [])
 
   useEffect(() => {
     return window.api.app.onCloseTask((taskId) => {

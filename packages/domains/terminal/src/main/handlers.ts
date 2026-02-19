@@ -26,10 +26,6 @@ export function registerPtyHandlers(ipcMain: IpcMain, db: Database): void {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'No window found' }
 
-      // Read global shell setting from DB
-      const shellRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('shell') as { value: string } | undefined
-      const globalShell = shellRow?.value || null
-
       let providerArgs: string[] = []
       try {
         providerArgs = parseShellArgs(providerFlags)
@@ -37,7 +33,7 @@ export function registerPtyHandlers(ipcMain: IpcMain, db: Database): void {
         console.warn('[pty:create] Invalid provider flags, ignoring:', (err as Error).message)
       }
 
-      return createPty(win, sessionId, cwd, conversationId, existingConversationId, mode, globalShell, initialPrompt, providerArgs, codeMode)
+      return createPty(win, sessionId, cwd, conversationId, existingConversationId, mode, initialPrompt, providerArgs, codeMode)
     }
   )
 

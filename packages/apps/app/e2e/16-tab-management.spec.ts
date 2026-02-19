@@ -100,8 +100,8 @@ test.describe('Tab management & keyboard shortcuts', () => {
     const closedTitle = await getVisibleInputValue(mainWindow)
     expect(closedTitle).toBe('Tab task C')
 
-    // Close tab via Cmd+W (useHotkeys intercepts this for task tabs)
-    await mainWindow.keyboard.press('Meta+w')
+    // Close tab via Cmd+Shift+W (closes active task tab)
+    await mainWindow.keyboard.press('Meta+Shift+W')
     await expect(mainWindow.getByText('Tab task C').first()).toBeVisible({ timeout: 5_000 })
 
     // Reopen

@@ -1,5 +1,5 @@
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
-import { whichBinary } from '../shell-env'
+import { whichBinary, validateShellEnv } from '../shell-env'
 
 /**
  * Adapter for Claude Code CLI.
@@ -9,7 +9,7 @@ export class ClaudeAdapter implements TerminalAdapter {
   readonly mode = 'claude-code' as const
   readonly idleTimeoutMs = null // use default 60s
 
-  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, _shellOverride?: string, initialPrompt?: string, providerArgs: string[] = [], codeMode?: CodeMode): SpawnConfig {
+  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, initialPrompt?: string, providerArgs: string[] = [], codeMode?: CodeMode): SpawnConfig {
     const claudeArgs: string[] = []
 
     // Pass --resume for existing sessions, --session-id for new ones
@@ -95,13 +95,16 @@ export class ClaudeAdapter implements TerminalAdapter {
   }
 
   async validate(): Promise<ValidationResult[]> {
-    const found = await whichBinary('claude')
-    return [{
+    const [shell, found] = await Promise.all([validateShellEnv(), whichBinary('claude')])
+    const results: ValidationResult[] = []
+    if (!shell.ok) results.push(shell)
+    results.push({
       check: 'Binary found',
       ok: !!found,
       detail: found ?? 'claude not found in PATH',
       fix: found ? undefined : 'npm install -g @anthropic-ai/claude-code'
-    }]
+    })
+    return results
   }
 
   detectPrompt(data: string): PromptInfo | null {

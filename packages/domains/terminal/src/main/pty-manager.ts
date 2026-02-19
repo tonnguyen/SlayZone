@@ -255,7 +255,6 @@ export async function createPty(
   conversationId?: string | null,
   existingConversationId?: string | null,
   mode?: TerminalMode,
-  globalShell?: string | null,
   initialPrompt?: string | null,
   providerArgs?: string[],
   codeMode?: CodeMode | null
@@ -268,7 +267,6 @@ export async function createPty(
     taskId: taskIdFromSessionId(sessionId),
     payload: {
       mode: mode ?? null,
-      shell: globalShell ?? null,
       providerArgs: providerArgs ?? [],
       codeMode: codeMode ?? null,
       hasConversationId: Boolean(conversationId),
@@ -295,7 +293,7 @@ export async function createPty(
     const effectiveConversationId = existingConversationId || conversationId
 
     // Get spawn config from adapter
-    const spawnConfig = adapter.buildSpawnConfig(cwd || homedir(), effectiveConversationId || undefined, resuming, globalShell || undefined, initialPrompt || undefined, providerArgs ?? [], codeMode || undefined)
+    const spawnConfig = adapter.buildSpawnConfig(cwd || homedir(), effectiveConversationId || undefined, resuming, initialPrompt || undefined, providerArgs ?? [], codeMode || undefined)
 
     // Inject MCP env vars so AI terminals know their task and MCP server
     const mcpEnv: Record<string, string> = {}

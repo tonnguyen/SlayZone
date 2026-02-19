@@ -715,20 +715,37 @@ export function TaskDetailPage({
   const browserTabsRef = useRef(browserTabs)
   useEffect(() => { browserTabsRef.current = browserTabs }, [browserTabs])
 
+  // Track last-focused sub-panel via focusin (macOS native menu accelerators clear activeElement by callback time)
+  const lastFocusedPanelRef = useRef<'terminal' | 'editor' | 'browser' | null>(null)
+  useEffect(() => {
+    const handleFocusIn = (e: FocusEvent): void => {
+      const target = e.target as HTMLElement | null
+      if (target?.classList.contains('xterm-helper-textarea') || target?.closest('.xterm')) {
+        lastFocusedPanelRef.current = 'terminal'
+      } else if (target?.closest('.cm-editor')) {
+        lastFocusedPanelRef.current = 'editor'
+      } else if (target?.closest('[data-browser-panel]')) {
+        lastFocusedPanelRef.current = 'browser'
+      }
+    }
+    window.addEventListener('focusin', handleFocusIn)
+    return () => window.removeEventListener('focusin', handleFocusIn)
+  }, [])
+
   // Cmd+W: close focused sub-item (terminal group, browser tab, editor file)
   useEffect(() => {
     if (!isActive) return
     return window.api.app.onCloseCurrent(async () => {
-      const active = document.activeElement as HTMLElement | null
-      if (active?.classList.contains('xterm-helper-textarea') || active?.closest('.xterm')) {
+      const panel = lastFocusedPanelRef.current
+      if (panel === 'terminal') {
         await terminalContainerRef.current?.closeActiveGroup()
         return
       }
-      if (active?.closest('.cm-editor')) {
+      if (panel === 'editor') {
         fileEditorRef.current?.closeActiveFile()
         return
       }
-      if (active?.closest('[data-browser-panel]')) {
+      if (panel === 'browser') {
         const bt = browserTabsRef.current
         if (bt.tabs.length > 1) {
           const idx = bt.tabs.findIndex(t => t.id === bt.activeTabId)

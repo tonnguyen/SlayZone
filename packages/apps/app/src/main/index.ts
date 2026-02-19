@@ -7,8 +7,13 @@ import { electronApp, is } from '@electron-toolkit/utils'
 
 // Custom protocol for serving local files in browser panel webviews
 // (must be registered before app ready — Chromium blocks file:// in webviews)
+// External app protocols registered here so Chromium routes them through our session handler
+// instead of passing them to the OS (which would launch desktop apps like Figma, Slack, etc.)
+const BLOCKED_EXTERNAL_PROTOCOLS = ['figma', 'notion', 'slack', 'linear', 'vscode', 'cursor']
+
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'slz-file', privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } }
+  { scheme: 'slz-file', privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } },
+  ...BLOCKED_EXTERNAL_PROTOCOLS.map(scheme => ({ scheme, privileges: { standard: true, secure: true } })),
 ])
 
 // Use consistent app name for userData path (paired with legacy DB migration)
@@ -411,6 +416,16 @@ app.whenReady().then(async () => {
         submenu: [
           { role: 'minimize' },
           { role: 'zoom' },
+          {
+            label: 'Close Tab',
+            accelerator: 'CmdOrCtrl+W',
+            click: () => mainWindow?.webContents.send('app:close-current-focus')
+          },
+          {
+            label: 'Close Task',
+            accelerator: 'CmdOrCtrl+Shift+W',
+            click: () => mainWindow?.webContents.send('app:close-active-task')
+          },
           { type: 'separator' },
           { role: 'front' },
           { type: 'separator' },
@@ -506,8 +521,28 @@ app.whenReady().then(async () => {
       return new Response('Not found', { status: 404 })
     }
   }
+  const webPanelSession = session.fromPartition('persist:web-panels')
+
+  // Block external protocol navigation from inside webview pages (e.g. window.location = 'figma://...')
+  // session.protocol.handle only intercepts loadURL from the main process — page-initiated
+  // navigation bypasses it. A session preload patches window.open/location before page JS runs.
+  const webviewPreload = join(__dirname, '../preload/webview-preload.js')
+  browserSession.setPreloads([webviewPreload])
+  webPanelSession.setPreloads([webviewPreload])
+
   browserSession.protocol.handle('slz-file', slzFileHandler)
+  webPanelSession.protocol.handle('slz-file', slzFileHandler)
   session.defaultSession.protocol.handle('slz-file', slzFileHandler)
+
+  // Block external app protocol launches from webviews by registering no-op handlers.
+  // External protocol URLs (figma://, slack://, etc.) bypass will-navigate entirely —
+  // Chromium passes them straight to the OS. Registering the scheme in the session
+  // routes them through our handler instead, returning 204 so the webview stays put.
+  const blockProtocol = () => new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } })
+  for (const scheme of BLOCKED_EXTERNAL_PROTOCOLS) {
+    browserSession.protocol.handle(scheme, blockProtocol)
+    webPanelSession.protocol.handle(scheme, blockProtocol)
+  }
 
   browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     const allowedPermissions = ['hid', 'usb', 'clipboard-read', 'clipboard-write']
@@ -635,6 +670,7 @@ app.whenReady().then(async () => {
     return true
   })
 
+
   createWindow()
 
   app.on('activate', function () {
@@ -648,6 +684,16 @@ app.whenReady().then(async () => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
+// Block non-http(s) protocol navigations in all webviews (e.g. figma://, slack://)
+app.on('web-contents-created', (_, wc) => {
+  if (wc.getType() !== 'webview') return
+  wc.on('will-navigate', (event, url) => {
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('about:') && !url.startsWith('slz-file://')) {
+      event.preventDefault()
+    }
+  })
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()

@@ -18,7 +18,15 @@
   <a href="https://github.com/debuglebowski/SlayZone/releases/latest/download/SlayZone.AppImage"><img src="https://img.shields.io/badge/Download_for-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" /></a>
 </p>
 
-> **macOS:** On first launch, macOS will show _"SlayZone can't be opened because Apple cannot check it for malicious software."_ Right-click the app → **Open** → click **Open** again to trust it. This only happens once.
+### Get started
+
+1. Download the app for your platform above and run the installer.
+2. Create a project — click **+** in the sidebar and point it to a folder on your machine.
+3. Add a task — click **+** inside the project, then open the card to access the terminal, browser, and git panels.
+
+> **macOS — allowing the app to run:** SlayZone isn't yet signed with an Apple certificate, so Gatekeeper will block the first launch. Right-click the `.app` → **Open** → click **Open** again. This only happens once.
+>
+> If that doesn't work (some machines require this): open **System Settings → Privacy & Security**, scroll to the Security section, and click **Open Anyway** next to the SlayZone entry.
 
 <br />
 

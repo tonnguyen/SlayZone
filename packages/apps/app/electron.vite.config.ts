@@ -28,6 +28,10 @@ export default defineConfig(({ mode }) => {
       plugins: [externalizeDepsPlugin({ exclude: slayzoneDeps })],
       build: {
         rollupOptions: {
+          input: {
+            index: resolve('src/preload/index.ts'),
+            'webview-preload': resolve('src/preload/webview-preload.ts'),
+          },
           output: {
             format: 'cjs',
             entryFileNames: '[name].js'

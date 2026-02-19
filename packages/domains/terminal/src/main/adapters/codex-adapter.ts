@@ -1,6 +1,5 @@
-import { platform } from 'os'
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
-import { whichBinary } from '../shell-env'
+import { whichBinary, getDefaultShell, validateShellEnv } from '../shell-env'
 
 /**
  * Adapter for OpenAI Codex CLI.
@@ -14,20 +13,12 @@ export class CodexAdapter implements TerminalAdapter {
   readonly idleTimeoutMs = 2500
   readonly sessionIdCommand = '/status'
 
-  private getShell(override?: string): string {
-    if (override) return override
-    if (platform() === 'win32') {
-      return process.env.COMSPEC || 'cmd.exe'
-    }
-    return process.env.SHELL || '/bin/bash'
-  }
-
   private static shellEscape(arg: string): string {
     if (arg.length === 0) return "''"
     return `'${arg.replace(/'/g, `'\"'\"'`)}'`
   }
 
-  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, shellOverride?: string, _initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
+  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, _initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
     const escapedFlags = providerArgs.map((arg) => CodexAdapter.shellEscape(arg)).join(' ')
     const shouldResume = !!conversationId && !!resuming
     const baseCommand = shouldResume
@@ -35,7 +26,7 @@ export class CodexAdapter implements TerminalAdapter {
       : 'codex'
     const postSpawnCommand = escapedFlags.length > 0 ? `${baseCommand} ${escapedFlags}` : baseCommand
     return {
-      shell: this.getShell(shellOverride),
+      shell: getDefaultShell() ?? '/bin/sh',
       args: [],
       postSpawnCommand
     }
@@ -76,8 +67,10 @@ export class CodexAdapter implements TerminalAdapter {
   }
 
   async validate(): Promise<ValidationResult[]> {
-    const [node, codex] = await Promise.all([whichBinary('node'), whichBinary('codex')])
-    return [
+    const [shell, node, codex] = await Promise.all([validateShellEnv(), whichBinary('node'), whichBinary('codex')])
+    const results: ValidationResult[] = []
+    if (!shell.ok) results.push(shell)
+    results.push(
       {
         check: 'Node.js found',
         ok: !!node,
@@ -90,7 +83,8 @@ export class CodexAdapter implements TerminalAdapter {
         detail: codex ?? 'codex not found in PATH',
         fix: codex ? undefined : 'npm install -g @openai/codex'
       }
-    ]
+    )
+    return results
   }
 
   detectPrompt(_data: string): PromptInfo | null {

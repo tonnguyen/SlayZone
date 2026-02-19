@@ -332,6 +332,7 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
   return (
     <div
       ref={containerRef}
+      data-browser-panel="true"
       className={cn(
         'flex flex-col rounded-md transition-shadow',
         isFocused && 'ring-2 ring-blue-500/50',

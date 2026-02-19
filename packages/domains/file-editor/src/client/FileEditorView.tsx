@@ -20,6 +20,7 @@ import { MarkdownPreview } from './MarkdownPreview'
 
 export interface FileEditorViewHandle {
   openFile: (filePath: string) => void
+  closeActiveFile: () => void
 }
 
 interface FileEditorViewProps {
@@ -131,7 +132,10 @@ export const FileEditorView = forwardRef<FileEditorViewHandle, FileEditorViewPro
     }
   }, [isMarkdown, viewMode, activeFilePath])
 
-  useImperativeHandle(ref, () => ({ openFile }), [openFile])
+  useImperativeHandle(ref, () => ({
+    openFile,
+    closeActiveFile: () => { if (activeFilePath) closeFile(activeFilePath) }
+  }), [openFile, activeFilePath, closeFile])
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {

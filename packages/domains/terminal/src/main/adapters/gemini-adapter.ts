@@ -1,5 +1,5 @@
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
-import { whichBinary } from '../shell-env'
+import { whichBinary, validateShellEnv } from '../shell-env'
 
 /**
  * Adapter for Google Gemini CLI.
@@ -11,7 +11,7 @@ export class GeminiAdapter implements TerminalAdapter {
   readonly idleTimeoutMs = 2500
   readonly sessionIdCommand = '/stats'
 
-  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, _shellOverride?: string, initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
+  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
     const args: string[] = []
 
     if (resuming && conversationId) {
@@ -74,13 +74,16 @@ export class GeminiAdapter implements TerminalAdapter {
   }
 
   async validate(): Promise<ValidationResult[]> {
-    const found = await whichBinary('gemini')
-    return [{
+    const [shell, found] = await Promise.all([validateShellEnv(), whichBinary('gemini')])
+    const results: ValidationResult[] = []
+    if (!shell.ok) results.push(shell)
+    results.push({
       check: 'Binary found',
       ok: !!found,
       detail: found ?? 'gemini not found in PATH',
       fix: found ? undefined : 'npm install -g @google/gemini-cli'
-    }]
+    })
+    return results
   }
 
   detectPrompt(data: string): PromptInfo | null {

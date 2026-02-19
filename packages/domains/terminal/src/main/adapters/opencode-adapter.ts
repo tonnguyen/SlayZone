@@ -1,6 +1,5 @@
-import { platform } from 'os'
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
-import { whichBinary } from '../shell-env'
+import { whichBinary, getDefaultShell, validateShellEnv } from '../shell-env'
 
 /**
  * Adapter for OpenCode CLI.
@@ -13,20 +12,12 @@ export class OpencodeAdapter implements TerminalAdapter {
   // Full-screen TUI constantly redraws — detect working from user input, not output
   readonly transitionOnInput = true
 
-  private getShell(override?: string): string {
-    if (override) return override
-    if (platform() === 'win32') {
-      return process.env.COMSPEC || 'cmd.exe'
-    }
-    return process.env.SHELL || '/bin/bash'
-  }
-
   private static shellEscape(arg: string): string {
     if (arg.length === 0) return "''"
     return `'${arg.replace(/'/g, `'\"'\"'`)}'`
   }
 
-  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, shellOverride?: string, _initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
+  buildSpawnConfig(_cwd: string, conversationId?: string, resuming?: boolean, _initialPrompt?: string, providerArgs: string[] = [], _codeMode?: CodeMode): SpawnConfig {
     const binary = 'opencode'
     const escapedFlags = providerArgs.map((arg) => OpencodeAdapter.shellEscape(arg)).join(' ')
 
@@ -38,7 +29,7 @@ export class OpencodeAdapter implements TerminalAdapter {
     const postSpawnCommand = escapedFlags.length > 0 ? `${baseCommand} ${escapedFlags}` : baseCommand
 
     return {
-      shell: this.getShell(shellOverride),
+      shell: getDefaultShell() ?? '/bin/sh',
       args: [],
       postSpawnCommand
     }
@@ -80,13 +71,16 @@ export class OpencodeAdapter implements TerminalAdapter {
   }
 
   async validate(): Promise<ValidationResult[]> {
-    const found = await whichBinary('opencode')
-    return [{
+    const [shell, found] = await Promise.all([validateShellEnv(), whichBinary('opencode')])
+    const results: ValidationResult[] = []
+    if (!shell.ok) results.push(shell)
+    results.push({
       check: 'Binary found',
       ok: !!found,
       detail: found ?? 'opencode not found in PATH',
       fix: found ? undefined : 'curl -fsSL https://opencode.ai/install | sh'
-    }]
+    })
+    return results
   }
 
   detectPrompt(_data: string): PromptInfo | null {

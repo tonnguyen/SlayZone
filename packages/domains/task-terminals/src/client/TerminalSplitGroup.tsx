@@ -94,7 +94,7 @@ export function TerminalSplitGroup({ panes }: TerminalSplitGroupProps) {
   if (panes.length === 1) {
     const pane = panes[0]
     return (
-      <div className="h-full">
+      <div className="h-full" data-session-id={pane.sessionId}>
         <Terminal
           key={pane.sessionId}
           sessionId={pane.sessionId}
@@ -119,7 +119,7 @@ export function TerminalSplitGroup({ panes }: TerminalSplitGroupProps) {
   return (
     <div ref={containerRef} className="h-full flex">
       {panes.map((pane, i) => (
-        <div key={pane.sessionId} className="flex" style={{ width: `${sizes[i]}%` }}>
+        <div key={pane.sessionId} className="flex" style={{ width: `${sizes[i]}%` }} data-session-id={pane.sessionId}>
           <div className="flex-1 min-w-0">
             <Terminal
               key={pane.sessionId}
