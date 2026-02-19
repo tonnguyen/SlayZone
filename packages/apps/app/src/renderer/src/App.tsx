@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { AlertTriangle, LayoutGrid, TerminalSquare } from 'lucide-react'
+import { AlertTriangle, LayoutGrid, TerminalSquare, Trophy } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
@@ -138,6 +138,10 @@ function App(): React.JSX.Element {
   const previousProjectRef = useRef<string | null>(selectedProjectId)
   const previousActiveTabRef = useRef<string>('home')
   const previousNotificationLockedRef = useRef(notificationState.isLocked)
+
+  const handleLeaderboardClick = useCallback(() => {
+    toast('Leaderboard page is coming soon.')
+  }, [])
   const previousNotificationProjectFilterRef = useRef(notificationState.filterCurrentProject)
 
   // Get task IDs from open tabs
@@ -844,6 +848,15 @@ function App(): React.JSX.Element {
                           active={notificationState.isLocked}
                           onClick={() => setNotificationState({ isLocked: !notificationState.isLocked })}
                         />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleLeaderboardClick}
+                          className="h-7 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Trophy className="size-3.5" />
+                          <span>Leaderboard</span>
+                        </Button>
                       </div>
                     }
                   />
