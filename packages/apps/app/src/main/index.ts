@@ -270,7 +270,10 @@ function createMainWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    // Only open http/https/mailto externally — never shell.openExternal a figma:// or other app protocol
+    if (/^https?:\/\//i.test(details.url) || details.url.startsWith('mailto:')) {
+      shell.openExternal(details.url)
+    }
     return { action: 'deny' }
   })
 
@@ -542,7 +545,10 @@ app.whenReady().then(async () => {
   for (const scheme of BLOCKED_EXTERNAL_PROTOCOLS) {
     browserSession.protocol.handle(scheme, blockProtocol)
     webPanelSession.protocol.handle(scheme, blockProtocol)
+    // Default session covers popup windows created by allowpopups webviews
+    session.defaultSession.protocol.handle(scheme, blockProtocol)
   }
+  session.defaultSession.setPreloads([webviewPreload])
 
   browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     const allowedPermissions = ['hid', 'usb', 'clipboard-read', 'clipboard-write']
@@ -684,13 +690,33 @@ app.whenReady().then(async () => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
-// Block non-http(s) protocol navigations in all webviews (e.g. figma://, slack://)
+// Block external app protocol launches from any WebContents.
+// 'webview' type: the webview guest pages.
+// 'window' type: popup windows created by webviews with allowpopups="true".
+// Both need guards because allowpopups popups are type 'window', not 'webview'.
+const isBlockedScheme = (url: string) =>
+  BLOCKED_EXTERNAL_PROTOCOLS.some(s => url.startsWith(`${s}://`))
+
 app.on('web-contents-created', (_, wc) => {
-  if (wc.getType() !== 'webview') return
+  // Deny ALL popup windows from webview guest pages.
+  // Per Electron docs, the renderer's 'new-window' event fires regardless of action:'deny',
+  // so BrowserPanel (new tab) and WebPanelView (system browser) still handle http/https links.
+  // This prevents window.open('figma://...') from creating any popup window.
+  if (wc.getType() === 'webview') {
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }))
+    wc.on('will-frame-navigate', (event) => {
+      if (isBlockedScheme(event.url)) event.preventDefault()
+    })
+  }
+
+  // will-navigate: same-frame main navigation (link clicks, window.location, etc.)
+  // Covers both webview type AND 'window' type (popup windows spawned by allowpopups webviews).
   wc.on('will-navigate', (event, url) => {
-    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('about:') && !url.startsWith('slz-file://')) {
-      event.preventDefault()
-    }
+    if (isBlockedScheme(url)) event.preventDefault()
+  })
+  // will-redirect: server-side HTTP redirects to external app protocols
+  wc.on('will-redirect', (event, url) => {
+    if (isBlockedScheme(url)) event.preventDefault()
   })
 })
 

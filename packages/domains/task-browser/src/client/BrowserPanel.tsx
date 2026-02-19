@@ -251,7 +251,8 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
 
     const handleNewWindow = (e: Event) => {
       const url = (e as CustomEvent).detail?.url
-      if (url) createNewTabRef.current(url)
+      if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) return
+      createNewTabRef.current(url)
     }
 
     const handleDomReady = () => setWebviewReady(true)

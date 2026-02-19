@@ -97,11 +97,21 @@ export function WebPanelView({
       }
     }
 
+    const onNewWindow = (e: Event) => {
+      const url = (e as CustomEvent).detail?.url ?? ''
+      // Block external app protocol popups (figma://, slack://, etc.)
+      // Allow http/https popups (e.g. OAuth windows) to open in system browser
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        window.api.shell.openExternal(url)
+      }
+    }
+
     wv.addEventListener('did-navigate', handleNavigate)
     wv.addEventListener('did-navigate-in-page', handleNavigate)
     wv.addEventListener('did-start-loading', onStartLoading)
     wv.addEventListener('did-stop-loading', onStopLoading)
     wv.addEventListener('page-favicon-updated', onFavicon)
+    wv.addEventListener('new-window', onNewWindow)
 
     return () => {
       wv.removeEventListener('did-navigate', handleNavigate)
@@ -109,6 +119,7 @@ export function WebPanelView({
       wv.removeEventListener('did-start-loading', onStartLoading)
       wv.removeEventListener('did-stop-loading', onStopLoading)
       wv.removeEventListener('page-favicon-updated', onFavicon)
+      wv.removeEventListener('new-window', onNewWindow)
     }
   }, [handleNavigate, panelId, onFaviconChange])
 
