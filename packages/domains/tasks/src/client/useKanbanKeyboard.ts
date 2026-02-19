@@ -20,7 +20,7 @@ interface UseKanbanKeyboardOptions {
 
 interface UseKanbanKeyboardReturn {
   focusedTaskId: string | null
-  setFocusedTaskId: (id: string | null) => void
+  setHoveredTaskId: (id: string | null) => void
   pickerState: PickerState | null
   closePickerState: () => void
   cardRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
@@ -33,9 +33,12 @@ export function useKanbanKeyboard({
   onTaskClick,
   onUpdateTask
 }: UseKanbanKeyboardOptions): UseKanbanKeyboardReturn {
+  // Keyboard focus only — mouse hover never touches this
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
   const [pickerState, setPickerState] = useState<PickerState | null>(null)
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  // Tracks mouse hover position to seed keyboard navigation start — ref so it doesn't trigger re-renders
+  const hoveredTaskIdRef = useRef<string | null>(null)
   // Guard: Radix Popover handles Escape with flushSync, which can cause useHotkeys
   // to see pickerState=null mid-event and accidentally clear focus
   const pickerClosingRef = useRef(false)
@@ -75,6 +78,13 @@ export function useKanbanKeyboard({
   )
 
   const focusFirst = useCallback(() => {
+    // Prefer hovered card as starting position
+    const hoveredId = hoveredTaskIdRef.current
+    if (hoveredId && gridLookup.has(hoveredId)) {
+      setFocusedTaskId(hoveredId)
+      cardRefs.current.get(hoveredId)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      return
+    }
     for (const col of columns) {
       if (col.tasks.length > 0) {
         setFocusedTaskId(col.tasks[0].id)
@@ -82,7 +92,7 @@ export function useKanbanKeyboard({
         return
       }
     }
-  }, [columns])
+  }, [columns, gridLookup])
 
   const navigate = useCallback(
     (direction: 'up' | 'down' | 'left' | 'right') => {
@@ -182,9 +192,13 @@ export function useKanbanKeyboard({
     }
   }, { enabled: isActive })
 
+  const setHoveredTaskId = useCallback((id: string | null) => {
+    hoveredTaskIdRef.current = id
+  }, [])
+
   return {
     focusedTaskId,
-    setFocusedTaskId,
+    setHoveredTaskId,
     pickerState,
     closePickerState: useCallback(() => {
       pickerClosingRef.current = true

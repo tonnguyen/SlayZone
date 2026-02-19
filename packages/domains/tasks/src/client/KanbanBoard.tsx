@@ -97,7 +97,7 @@ export function KanbanBoard({
 
   const {
     focusedTaskId,
-    setFocusedTaskId,
+    setHoveredTaskId,
     pickerState,
     closePickerState,
     cardRefs
@@ -222,7 +222,7 @@ export function KanbanBoard({
             blockedTaskIds={blockedTaskIds}
             subTaskCounts={subTaskCounts}
             focusedTaskId={focusedTaskId}
-            onCardMouseEnter={setFocusedTaskId}
+            onCardMouseEnter={setHoveredTaskId}
             cardRefs={cardRefs}
             allProjects={allProjects}
             onUpdateTask={onUpdateTask}
