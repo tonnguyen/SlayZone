@@ -105,12 +105,26 @@ test.describe('MCP Server', () => {
     expect(sid).toBeTruthy()
   })
 
-  test('lists update_task tool', async () => {
+  test('lists task MCP tools', async () => {
     const sid = await mcpInit()
     const { body } = await mcpRequest('tools/list', {}, sid)
     const tools = body.result?.tools ?? []
     const names = tools.map((t: any) => t.name)
+    expect(names).toContain('get_current_task_id')
+    expect(names).toContain('create_subtask')
     expect(names).toContain('update_task')
+  })
+
+  test('get_current_task_id returns task id', async () => {
+    const sid = await mcpInit()
+    const { body } = await mcpRequest('tools/call', {
+      name: 'get_current_task_id',
+      arguments: { task_id: taskId }
+    }, sid)
+
+    expect(body.result).toBeTruthy()
+    const payload = JSON.parse(body.result.content[0].text)
+    expect(payload.task_id).toBe(taskId)
   })
 
   test('update task title via MCP', async ({ mainWindow }) => {
@@ -133,6 +147,31 @@ test.describe('MCP Server', () => {
 
     // Verify UI refreshed (MCP sends tasks:changed IPC)
     await expect(mainWindow.getByText('Updated by MCP')).toBeVisible({ timeout: 5_000 })
+  })
+
+  test('create subtask via MCP', async ({ mainWindow }) => {
+    const sid = await mcpInit()
+    const { body } = await mcpRequest('tools/call', {
+      name: 'create_subtask',
+      arguments: {
+        parent_task_id: taskId,
+        title: 'Subtask from MCP',
+        status: 'todo',
+        priority: 2
+      }
+    }, sid)
+
+    expect(body.result).toBeTruthy()
+    const created = JSON.parse(body.result.content[0].text)
+    expect(created.parent_id).toBe(taskId)
+    expect(created.project_id).toBe(projectId)
+    expect(created.title).toBe('Subtask from MCP')
+    expect(created.status).toBe('todo')
+    expect(created.priority).toBe(2)
+
+    const dbTask = await mainWindow.evaluate((id) => window.api.db.getTask(id), created.id)
+    expect(dbTask.parent_id).toBe(taskId)
+    expect(dbTask.project_id).toBe(projectId)
   })
 
   test('update task status via MCP', async ({ mainWindow }) => {
