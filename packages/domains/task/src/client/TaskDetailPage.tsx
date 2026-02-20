@@ -1334,18 +1334,26 @@ export function TaskDetailPage({
         <div>
           <div className="flex items-center gap-4 window-no-drag">
             {task.is_temporary ? (
-              <div className="flex items-center gap-3 flex-1">
-                <span className="text-2xl italic text-muted-foreground">Temporary task</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const converted = await onConvertTask?.(task)
-                    if (converted) handleTaskUpdate(converted)
-                  }}
-                >
-                  Keep as task
-                </Button>
+              <div className="flex flex-1 min-w-0">
+                <div className="relative min-w-0 w-full">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl italic text-muted-foreground">Temporary task</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 shrink-0"
+                      onClick={async () => {
+                        const converted = await onConvertTask?.(task)
+                        if (converted) handleTaskUpdate(converted)
+                      }}
+                    >
+                      Turn into task
+                    </Button>
+                  </div>
+                  <p className="pointer-events-none absolute left-0 top-full z-10 -mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground/55">
+                    Auto-deletes on terminal exit or tab close.
+                  </p>
+                </div>
               </div>
             ) : (
               <input

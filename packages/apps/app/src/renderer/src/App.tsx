@@ -100,8 +100,6 @@ function App(): React.JSX.Element {
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [explodeMode, setExplodeMode] = useState(false)
-  const [convertingTask, setConvertingTask] = useState<Task | null>(null)
-  const convertResolveRef = useRef<((task: Task) => void) | null>(null)
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   // Project path validation
@@ -733,21 +731,15 @@ function App(): React.JSX.Element {
     setEditingTask(null)
   }
 
-  const handleConvertTask = (task: Task): Promise<Task> => {
-    // Open edit dialog with title cleared so user must name it
-    setConvertingTask({ ...task, title: '' })
-    return new Promise<Task>((resolve) => {
-      convertResolveRef.current = resolve
+  const handleConvertTask = async (task: Task): Promise<Task> => {
+    const converted = await window.api.db.updateTask({
+      id: task.id,
+      title: 'Untitled task',
+      status: 'in_progress',
+      isTemporary: false
     })
-  }
-
-  const handleConvertTaskSaved = async (task: Task): Promise<void> => {
-    // Clear is_temporary flag after edit dialog saves title/status/etc.
-    const converted = await window.api.db.updateTask({ id: task.id, isTemporary: false })
     updateTask(converted)
-    setConvertingTask(null)
-    convertResolveRef.current?.(converted)
-    convertResolveRef.current = null
+    return converted
   }
 
   const handleTaskDeleted = (): void => {
@@ -910,8 +902,11 @@ function App(): React.JSX.Element {
                                 <TerminalSquare className="size-4" />
                               </button>
                             </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-xs">
-                              New temporary task (⌘⇧N)
+                            <TooltipContent side="bottom" className="text-xs max-w-64">
+                              <div className="space-y-1">
+                                <p>New temporary task (⌘⇧N)</p>
+                                <p className="text-muted-foreground">Temporary tasks auto-delete on close.</p>
+                              </div>
                             </TooltipContent>
                           </Tooltip>
                         )}
@@ -1095,17 +1090,6 @@ function App(): React.JSX.Element {
           open={!!editingTask}
           onOpenChange={(open) => !open && setEditingTask(null)}
           onUpdated={handleTaskUpdated}
-        />
-        <EditTaskDialog
-          task={convertingTask}
-          open={!!convertingTask}
-          onOpenChange={(open) => {
-            if (!open) {
-              setConvertingTask(null)
-              convertResolveRef.current = null
-            }
-          }}
-          onUpdated={handleConvertTaskSaved}
         />
         <DeleteTaskDialog
           task={deletingTask}
