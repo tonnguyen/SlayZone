@@ -881,6 +881,7 @@ function App(): React.JSX.Element {
                     onTabReorder={reorderTabs}
                     rightContent={
                       <div className="flex items-center gap-1">
+                        <UsagePopover data={usageData} onRefresh={refreshUsage} />
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
@@ -901,7 +902,6 @@ function App(): React.JSX.Element {
                             {explodeMode ? 'Exit explode mode' : 'Explode mode'} (⌘⇧E)
                           </TooltipContent>
                         </Tooltip>
-                        <UsagePopover data={usageData} onRefresh={refreshUsage} />
                         {selectedProjectId && (
                           <Tooltip>
                             <TooltipTrigger asChild>
