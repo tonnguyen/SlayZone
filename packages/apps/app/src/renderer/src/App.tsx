@@ -165,14 +165,12 @@ function App(): React.JSX.Element {
     [tabs]
   )
   const tabCycleOrder = useMemo(() => {
-    const leaderboardIndex = tabs.findIndex((tab) => tab.type === 'leaderboard')
     const homeIndex = tabs.findIndex((tab) => tab.type === 'home')
     const taskIndexes = tabs
       .map((tab, index) => (tab.type === 'task' ? index : -1))
       .filter((index) => index >= 0)
 
     const order: number[] = []
-    if (leaderboardIndex >= 0) order.push(leaderboardIndex)
     if (homeIndex >= 0) order.push(homeIndex)
     order.push(...taskIndexes)
     return order
