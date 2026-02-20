@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, Loader2, Clipboard, CornerDownLeft } from 'lucide-react'
 import {
   Button,
   Input,
   cn,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,6 +15,7 @@ import {
 import type { BrowserTab, BrowserTabsState, MultiDeviceConfig, GridLayout, DeviceSlot } from '../shared'
 import { defaultMultiDeviceConfig } from './device-presets'
 import { MultiDeviceGrid } from './MultiDeviceGrid'
+import { buildDomElementSnippet, type PickedDomPayload } from './dom-picker'
 
 const SLOT_BUTTONS: { slot: DeviceSlot; icon: typeof Monitor; label: string }[] = [
   { slot: 'desktop', icon: Monitor, label: 'Desktop' },
@@ -37,6 +41,7 @@ interface WebviewElement extends HTMLElement {
   loadURL(url: string): void
   getURL(): string
   getWebContentsId(): number
+  executeJavaScript<T = unknown>(code: string, userGesture?: boolean): Promise<T>
 }
 
 interface BrowserPanelProps {
@@ -45,13 +50,202 @@ interface BrowserPanelProps {
   onTabsChange: (tabs: BrowserTabsState) => void
   taskId?: string
   isResizing?: boolean
+  onElementSnippet?: (snippet: string) => void
+  canUseDomPicker?: boolean
 }
 
 function generateTabId(): string {
   return `tab-${crypto.randomUUID().slice(0, 8)}`
 }
 
-export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing }: BrowserPanelProps) {
+function pickElementInGuestPage() {
+  return new Promise((resolve) => {
+    const doc = document
+    const w = window as Window & { __slzDomPickerCleanup?: () => void }
+    if (typeof w.__slzDomPickerCleanup === 'function') {
+      try { w.__slzDomPickerCleanup() } catch { /* noop */ }
+    }
+
+    const overlay = doc.createElement('div')
+    overlay.style.position = 'fixed'
+    overlay.style.zIndex = '2147483646'
+    overlay.style.pointerEvents = 'none'
+    overlay.style.border = '2px solid #3b82f6'
+    overlay.style.background = 'rgba(59, 130, 246, 0.14)'
+    overlay.style.borderRadius = '6px'
+    overlay.style.display = 'none'
+
+    const label = doc.createElement('div')
+    label.style.position = 'fixed'
+    label.style.zIndex = '2147483647'
+    label.style.pointerEvents = 'none'
+    label.style.background = '#111827'
+    label.style.color = '#f9fafb'
+    label.style.padding = '4px 8px'
+    label.style.borderRadius = '6px'
+    label.style.font = '12px/1.2 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace'
+    label.style.maxWidth = 'min(60vw, 520px)'
+    label.style.whiteSpace = 'nowrap'
+    label.style.overflow = 'hidden'
+    label.style.textOverflow = 'ellipsis'
+    label.style.display = 'none'
+
+    const simpleId = /^[A-Za-z_][A-Za-z0-9_:\-.]*$/
+    const safeAttr = (value: string): string => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    const pushUnique = (arr: string[], selector: string): void => {
+      if (!selector || arr.includes(selector)) return
+      arr.push(selector)
+    }
+
+    const nthOfType = (el: Element): number => {
+      let i = 1
+      let sib = el.previousElementSibling
+      while (sib) {
+        if (sib.tagName === el.tagName) i += 1
+        sib = sib.previousElementSibling
+      }
+      return i
+    }
+
+    const cssPath = (el: Element): string => {
+      const parts: string[] = []
+      let cur: Element | null = el
+      while (cur && cur.nodeType === 1 && cur !== doc.body && parts.length < 6) {
+        parts.push(`${cur.tagName.toLowerCase()}:nth-of-type(${nthOfType(cur)})`)
+        cur = cur.parentElement
+      }
+      parts.push('body')
+      return parts.reverse().join(' > ')
+    }
+
+    const extractText = (el: Element): string => {
+      const raw = (
+        el.getAttribute('aria-label')
+        || el.getAttribute('alt')
+        || (el as HTMLElement).innerText
+        || el.textContent
+        || ''
+      )
+      return raw.replace(/\s+/g, ' ').trim()
+    }
+
+    const selectorCandidates = (el: Element): string[] => {
+      const out: string[] = []
+      const tag = el.tagName.toLowerCase()
+      const testId = el.getAttribute('data-testid')
+      if (testId) {
+        pushUnique(out, `[data-testid="${safeAttr(testId)}"]`)
+        pushUnique(out, `${tag}[data-testid="${safeAttr(testId)}"]`)
+      }
+      const id = (el as HTMLElement).id
+      if (id) {
+        pushUnique(out, `[id="${safeAttr(id)}"]`)
+        if (simpleId.test(id)) pushUnique(out, `#${id}`)
+      }
+      const ariaLabel = el.getAttribute('aria-label')
+      if (ariaLabel) pushUnique(out, `${tag}[aria-label="${safeAttr(ariaLabel)}"]`)
+      const name = el.getAttribute('name')
+      if (name) pushUnique(out, `${tag}[name="${safeAttr(name)}"]`)
+      const role = el.getAttribute('role')
+      if (role) pushUnique(out, `${tag}[role="${safeAttr(role)}"]`)
+      pushUnique(out, cssPath(el))
+      return out.slice(0, 8)
+    }
+
+    const cleanup = (result: unknown): void => {
+      doc.removeEventListener('mousemove', onMove, true)
+      doc.removeEventListener('click', onClick, true)
+      doc.removeEventListener('keydown', onKeyDown, true)
+      doc.removeEventListener('contextmenu', onCancel, true)
+      overlay.remove()
+      label.remove()
+      delete w.__slzDomPickerCleanup
+      resolve(result)
+    }
+
+    const updateOverlay = (target: Element | null): void => {
+      if (!target) {
+        overlay.style.display = 'none'
+        label.style.display = 'none'
+        return
+      }
+      const rect = target.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) {
+        overlay.style.display = 'none'
+        label.style.display = 'none'
+        return
+      }
+      overlay.style.display = 'block'
+      overlay.style.left = `${rect.left}px`
+      overlay.style.top = `${rect.top}px`
+      overlay.style.width = `${rect.width}px`
+      overlay.style.height = `${rect.height}px`
+
+      label.style.display = 'block'
+      label.style.left = `${Math.max(8, rect.left)}px`
+      label.style.top = `${Math.max(8, rect.top - 30)}px`
+      const tag = target.tagName.toLowerCase()
+      const id = (target as HTMLElement).id ? `#${(target as HTMLElement).id}` : ''
+      label.textContent = target instanceof HTMLIFrameElement
+        ? `iframe${id} (inside frame selection is limited in v1)`
+        : `${tag}${id}`
+    }
+
+    const onMove = (event: MouseEvent): void => {
+      updateOverlay(event.target instanceof Element ? event.target : null)
+    }
+
+    const onClick = (event: MouseEvent): void => {
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+      const target = event.target instanceof Element ? event.target : null
+      if (!target) return cleanup(null)
+      const note = target instanceof HTMLIFrameElement
+        ? 'Selection came from iframe boundary; inner-frame elements may need manual targeting.'
+        : undefined
+      cleanup({
+        url: location.href,
+        tagName: target.tagName.toLowerCase(),
+        textSample: extractText(target),
+        selectorCandidates: selectorCandidates(target),
+        note,
+      })
+    }
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        cleanup(null)
+      }
+    }
+
+    const onCancel = (event: MouseEvent): void => {
+      event.preventDefault()
+      cleanup(null)
+    }
+
+    w.__slzDomPickerCleanup = () => cleanup(null)
+    doc.documentElement.appendChild(overlay)
+    doc.documentElement.appendChild(label)
+    doc.addEventListener('mousemove', onMove, true)
+    doc.addEventListener('click', onClick, true)
+    doc.addEventListener('keydown', onKeyDown, true)
+    doc.addEventListener('contextmenu', onCancel, true)
+  })
+}
+
+const DOM_PICKER_SCRIPT = `(${pickElementInGuestPage.toString()})()`
+
+export function BrowserPanel({
+  className,
+  tabs,
+  onTabsChange,
+  taskId,
+  isResizing,
+  onElementSnippet,
+  canUseDomPicker = true
+}: BrowserPanelProps) {
   const [inputUrl, setInputUrl] = useState('')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -61,6 +255,10 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
   const [otherTaskUrls, setOtherTaskUrls] = useState<TaskUrlEntry[]>([])
   const [importDropdownOpen, setImportDropdownOpen] = useState(false)
   const [reloadTrigger, setReloadTrigger] = useState(0)
+  const [isPickingElement, setIsPickingElement] = useState(false)
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
+  const [elementSnippetsByTab, setElementSnippetsByTab] = useState<Record<string, string>>({})
+  const [pickError, setPickError] = useState<string | null>(null)
   const webviewRef = useRef<WebviewElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -83,6 +281,7 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
   }, [importDropdownOpen, taskId])
 
   const activeTab = tabs.tabs.find(t => t.id === tabs.activeTabId) || null
+  const activeSnippet = activeTab ? elementSnippetsByTab[activeTab.id] : undefined
 
   // Multi-device state (derived from active tab)
   const multiDeviceMode = activeTab?.multiDeviceMode ?? false
@@ -287,6 +486,7 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
       if (!isFocused) return
       if (e.metaKey && e.key === 't') { e.preventDefault(); createNewTab() }
       if (e.metaKey && e.key === 'w') { e.preventDefault(); if (tabs.activeTabId) closeTab(tabs.activeTabId) }
+      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); void handlePickElement() }
       if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); switchToNextTab() }
       if (e.ctrlKey && e.key === 'Tab' && e.shiftKey) { e.preventDefault(); switchToPrevTab() }
     }
@@ -330,6 +530,47 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
     }
   }
 
+  const handlePickElement = useCallback(async () => {
+    if (!canUseDomPicker || multiDeviceMode || isPickingElement) return
+    const wv = webviewRef.current
+    const activeTabId = tabs.activeTabId
+    if (!wv || !activeTabId) return
+
+    setIsPickingElement(true)
+    setPickError(null)
+    try {
+      const payload = await wv.executeJavaScript<PickedDomPayload | null>(DOM_PICKER_SCRIPT, true)
+      if (!payload) return
+      const snippet = buildDomElementSnippet(payload)
+      setElementSnippetsByTab((prev) => ({ ...prev, [activeTabId]: snippet }))
+      setCopiedSnippet(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start element picker'
+      setPickError(message)
+    } finally {
+      setIsPickingElement(false)
+    }
+  }, [canUseDomPicker, isPickingElement, multiDeviceMode, tabs.activeTabId])
+
+  const handleCopySnippet = useCallback(async () => {
+    if (!activeSnippet) return
+    try {
+      await navigator.clipboard.writeText(activeSnippet)
+      setCopiedSnippet(true)
+    } catch {
+      setCopiedSnippet(false)
+    }
+  }, [activeSnippet])
+
+  const handleInsertSnippet = useCallback(() => {
+    if (!activeSnippet) return
+    onElementSnippet?.(activeSnippet)
+  }, [activeSnippet, onElementSnippet])
+
+  useEffect(() => {
+    setCopiedSnippet(false)
+  }, [activeTab?.id])
+
   return (
     <div
       ref={containerRef}
@@ -363,7 +604,7 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
               className={cn(
                 'group flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
                 'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
-                'min-w-[150px] max-w-[300px]',
+                'max-w-[300px]',
                 isActive ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600' : 'text-neutral-500 dark:text-neutral-400'
               )}
             >
@@ -387,23 +628,44 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
 
       {/* URL Bar */}
       <div className="shrink-0 p-2 border-b flex items-center gap-1">
-        <Button variant="ghost" size="icon-sm" disabled={!canGoBack || multiDeviceMode} onClick={() => webviewRef.current?.goBack()}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon-sm" disabled={!canGoForward || multiDeviceMode} onClick={() => webviewRef.current?.goForward()}>
-          <ArrowRight className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => {
-            if (multiDeviceMode) setReloadTrigger(r => r + 1)
-            else if (isLoading) webviewRef.current?.stop()
-            else webviewRef.current?.reload()
-          }}
-        >
-          {isLoading && !multiDeviceMode ? <X className="size-4" /> : <RotateCw className="size-4" />}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button variant="ghost" size="icon-sm" disabled={!canGoBack || multiDeviceMode} onClick={() => webviewRef.current?.goBack()}>
+                <ArrowLeft className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Back</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button variant="ghost" size="icon-sm" disabled={!canGoForward || multiDeviceMode} onClick={() => webviewRef.current?.goForward()}>
+                <ArrowRight className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Forward</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  if (multiDeviceMode) setReloadTrigger(r => r + 1)
+                  else if (isLoading) webviewRef.current?.stop()
+                  else webviewRef.current?.reload()
+                }}
+              >
+                {isLoading && !multiDeviceMode ? <X className="size-4" /> : <RotateCw className="size-4" />}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{isLoading && !multiDeviceMode ? 'Stop loading' : 'Reload'}</TooltipContent>
+        </Tooltip>
 
         <Input
           value={inputUrl}
@@ -413,23 +675,58 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
           className="flex-1 h-7 text-sm"
         />
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={cn(multiDeviceMode && 'text-blue-500 bg-blue-500/10')}
-          title={multiDeviceMode ? 'Exit responsive preview' : 'Responsive preview'}
-          onClick={toggleMultiDevice}
-        >
-          <LayoutGrid className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(multiDeviceMode && 'text-blue-500 bg-blue-500/10')}
+                onClick={toggleMultiDevice}
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{multiDeviceMode ? 'Exit responsive preview' : 'Responsive preview'}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!canUseDomPicker || multiDeviceMode || isPickingElement || !webviewReady}
+                onClick={() => { void handlePickElement() }}
+              >
+                {isPickingElement ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {!canUseDomPicker
+              ? 'Open terminal panel to pick element'
+                : isPickingElement
+                ? 'Click an element to capture it'
+                : 'Pick element (⌘⇧L)'}
+          </TooltipContent>
+        </Tooltip>
 
         {taskId && (
           <DropdownMenu open={importDropdownOpen} onOpenChange={setImportDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
-                <Import className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm">
+                      <Import className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Import URL from another task</TooltipContent>
+            </Tooltip>
             <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto w-80">
               {otherTaskUrls.length === 0 ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">
@@ -460,6 +757,28 @@ export function BrowserPanel({ className, tabs, onTabsChange, taskId, isResizing
           </DropdownMenu>
         )}
       </div>
+
+      {activeSnippet && !multiDeviceMode && (
+        <div className="shrink-0 px-2 py-1.5 border-b flex items-center gap-1.5 bg-muted/20">
+          <div className="flex-1 min-w-0 text-xs font-mono truncate" title={activeSnippet}>
+            {activeSnippet}
+          </div>
+          <Button variant="ghost" size="sm" disabled={!onElementSnippet || !canUseDomPicker} onClick={handleInsertSnippet}>
+            <CornerDownLeft className="size-3.5" />
+            Insert
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { void handleCopySnippet() }}>
+            <Clipboard className="size-3.5" />
+            {copiedSnippet ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+      )}
+
+      {pickError && !multiDeviceMode && (
+        <div className="shrink-0 px-2 py-1.5 border-b text-xs text-destructive bg-destructive/5 truncate" title={pickError}>
+          Element picker error: {pickError}
+        </div>
+      )}
 
       {/* Responsive toolbar */}
       {multiDeviceMode && (
