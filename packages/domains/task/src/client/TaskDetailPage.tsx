@@ -58,7 +58,7 @@ import { markSkipCache, usePty } from '@slayzone/terminal'
 import { TerminalContainer, type TerminalContainerHandle } from '@slayzone/task-terminals'
 import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
 import { cn, getTaskStatusStyle } from '@slayzone/ui'
-import { BrowserPanel } from '@slayzone/task-browser'
+import { BrowserPanel, type BrowserPanelHandle } from '@slayzone/task-browser'
 import { FileEditorView, QuickOpenDialog, type FileEditorViewHandle } from '@slayzone/file-editor/client'
 import type { EditorOpenFilesState } from '@slayzone/file-editor/shared'
 import { usePanelSizes, resolveWidths } from './usePanelSizes'
@@ -295,6 +295,7 @@ export function TaskDetailPage({
   const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const fileEditorRef = useRef<FileEditorViewHandle>(null)
   const terminalContainerRef = useRef<TerminalContainerHandle>(null)
+  const browserPanelRef = useRef<BrowserPanelHandle>(null)
   const pendingEditorFileRef = useRef<string | null>(null)
   const fileEditorRefCallback = useCallback((handle: FileEditorViewHandle | null) => {
     fileEditorRef.current = handle
@@ -667,6 +668,14 @@ export function TaskDetailPage({
     setShowRegionSelector(false)
   }, [])
 
+  const handleInsertElementSnippet = useCallback(async (snippet: string) => {
+    if (!task) return
+    const text = snippet.trim()
+    if (!text) return
+    const mainSessionId = `${task.id}:${task.id}`
+    await window.api.pty.write(mainSessionId, text)
+  }, [task])
+
   // Inject task description into terminal (no execute)
   const handleInjectDescription = useCallback(async () => {
     if (!terminalApiRef.current || !descriptionValue) return
@@ -889,6 +898,11 @@ export function TaskDetailPage({
       if (!isActive) return
       // Cmd+Shift+G: git diff tab toggle
       if (e.metaKey && e.shiftKey) {
+        if (e.key.toLowerCase() === 'l' && isBuiltinEnabled('browser') && panelVisibility.browser) {
+          e.preventDefault()
+          browserPanelRef.current?.pickElement()
+          return
+        }
         if (e.key.toLowerCase() === 'g' && isBuiltinEnabled('diff')) {
           e.preventDefault()
           if (!panelVisibility.diff) {
@@ -1690,11 +1704,14 @@ export function TaskDetailPage({
         {!compact && panelVisibility.browser && (
           <div className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden" style={{ width: resolvedWidths.browser }}>
             <BrowserPanel
+              ref={browserPanelRef}
               className="h-full"
               tabs={browserTabs}
               onTabsChange={handleBrowserTabsChange}
               taskId={task.id}
               isResizing={isResizing}
+              onElementSnippet={handleInsertElementSnippet}
+              canUseDomPicker={panelVisibility.terminal}
             />
           </div>
         )}

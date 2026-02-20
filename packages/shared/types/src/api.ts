@@ -153,6 +153,14 @@ export interface ElectronAPI {
   shell: {
     openExternal: (url: string) => Promise<void>
   }
+  auth: {
+    githubPopupSignIn: (signInUrl: string, callbackUrl: string) => Promise<{
+      ok: boolean
+      code?: string
+      error?: string
+      cancelled?: boolean
+    }>
+  }
   dialog: {
     showOpenDialog: (options: {
       title?: string
@@ -336,6 +344,11 @@ export interface ElectronAPI {
     fetch: () => Promise<ProviderUsage[]>
   }
   webview: {
+    registerShortcuts: (webviewId: number) => Promise<void>
+    onShortcut: (callback: (payload: { key: string; shift?: boolean; webviewId?: number }) => void) => () => void
+    openDevToolsBottom: (webviewId: number) => Promise<boolean>
+    closeDevTools: (webviewId: number) => Promise<boolean>
+    isDevToolsOpened: (webviewId: number) => Promise<boolean>
     enableDeviceEmulation: (
       webviewId: number,
       params: {

@@ -589,6 +589,87 @@ app.whenReady().then(async () => {
     shell.openExternal(url)
   })
 
+  ipcMain.handle('auth:github-popup-sign-in', async (_event, signInUrl: string, callbackUrl: string) => {
+    const signIn = new URL(signInUrl)
+    const callback = new URL(callbackUrl)
+
+    if (signIn.protocol !== 'https:') {
+      throw new Error('GitHub sign-in URL must use https')
+    }
+    if (callback.protocol !== 'http:' && callback.protocol !== 'https:') {
+      throw new Error('Callback URL must use http or https')
+    }
+
+    return await new Promise<{ ok: boolean; code?: string; error?: string; cancelled?: boolean }>((resolve) => {
+      let settled = false
+      const popup = new BrowserWindow({
+        width: 520,
+        height: 760,
+        resizable: true,
+        minimizable: false,
+        maximizable: false,
+        title: 'Sign in with GitHub',
+        parent: mainWindow ?? undefined,
+        modal: false,
+        show: false,
+        backgroundColor: '#0a0a0a',
+        webPreferences: {
+          sandbox: true,
+          contextIsolation: true,
+          nodeIntegration: false
+        }
+      })
+
+      const finish = (result: { ok: boolean; code?: string; error?: string; cancelled?: boolean }) => {
+        if (settled) return
+        settled = true
+        if (!popup.isDestroyed()) popup.close()
+        resolve(result)
+      }
+
+      const tryHandleCallbackUrl = (url: string) => {
+        let parsed: URL
+        try {
+          parsed = new URL(url)
+        } catch {
+          return
+        }
+
+        if (parsed.origin !== callback.origin || parsed.pathname !== callback.pathname) return
+
+        const code = parsed.searchParams.get('code')
+        const error = parsed.searchParams.get('error') ?? parsed.searchParams.get('error_description')
+        if (code) {
+          finish({ ok: true, code })
+        } else {
+          finish({ ok: false, error: error ?? 'OAuth callback missing code' })
+        }
+      }
+
+      popup.webContents.on('will-redirect', (_event, url) => {
+        tryHandleCallbackUrl(url)
+      })
+      popup.webContents.on('will-navigate', (_event, url) => {
+        tryHandleCallbackUrl(url)
+      })
+
+      popup.on('closed', () => {
+        if (!settled) {
+          settled = true
+          resolve({ ok: false, cancelled: true })
+        }
+      })
+
+      popup.once('ready-to-show', () => popup.show())
+      popup.loadURL(signIn.toString()).catch((error) => {
+        finish({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Failed to open sign-in popup'
+        })
+      })
+    })
+  })
+
   // App version
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:restart-for-update', () => restartForUpdate())
@@ -630,14 +711,38 @@ app.whenReady().then(async () => {
       if (input.type !== 'keyDown') return
       if (!(input.control || input.meta)) return
 
-      // Cmd/Ctrl+1-9 for tab switching, T/A/D for adding items, L for URL bar
+      // Cmd/Ctrl+1-9 for tab switching, T/A/D/L reserved for panel actions
       if (/^[1-9tadl]$/i.test(input.key)) {
         e.preventDefault()
-        event.sender.send('webview:shortcut', { key: input.key.toLowerCase() })
+        event.sender.send('webview:shortcut', {
+          key: input.key.toLowerCase(),
+          shift: Boolean(input.shift),
+          webviewId
+        })
       }
     })
 
     wc.on('destroyed', () => registeredWebviews.delete(webviewId))
+  })
+
+  ipcMain.handle('webview:open-devtools-bottom', (_, webviewId: number) => {
+    const wc = webContents.fromId(webviewId)
+    if (!wc || wc.isDestroyed()) return false
+    if (!wc.isDevToolsOpened()) wc.openDevTools({ mode: 'bottom' })
+    return true
+  })
+
+  ipcMain.handle('webview:close-devtools', (_, webviewId: number) => {
+    const wc = webContents.fromId(webviewId)
+    if (!wc || wc.isDestroyed()) return false
+    if (wc.isDevToolsOpened()) wc.closeDevTools()
+    return true
+  })
+
+  ipcMain.handle('webview:is-devtools-opened', (_, webviewId: number) => {
+    const wc = webContents.fromId(webviewId)
+    if (!wc || wc.isDestroyed()) return false
+    return wc.isDevToolsOpened()
   })
 
   // Webview device emulation

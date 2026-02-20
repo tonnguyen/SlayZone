@@ -77,6 +77,10 @@ const api: ElectronAPI = {
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url)
   },
+  auth: {
+    githubPopupSignIn: (signInUrl: string, callbackUrl: string) =>
+      ipcRenderer.invoke('auth:github-popup-sign-in', signInUrl, callbackUrl)
+  },
   dialog: {
     showOpenDialog: (options) => ipcRenderer.invoke('dialog:showOpenDialog', options)
   },
@@ -357,6 +361,20 @@ const api: ElectronAPI = {
     captureRegion: (rect) => ipcRenderer.invoke('screenshot:captureRegion', rect)
   },
   webview: {
+    registerShortcuts: (webviewId) =>
+      ipcRenderer.invoke('webview:register-shortcuts', webviewId),
+    onShortcut: (callback) => {
+      const handler = (_event: unknown, payload: { key: string; shift?: boolean; webviewId?: number }) =>
+        callback(payload)
+      ipcRenderer.on('webview:shortcut', handler)
+      return () => ipcRenderer.removeListener('webview:shortcut', handler)
+    },
+    openDevToolsBottom: (webviewId) =>
+      ipcRenderer.invoke('webview:open-devtools-bottom', webviewId),
+    closeDevTools: (webviewId) =>
+      ipcRenderer.invoke('webview:close-devtools', webviewId),
+    isDevToolsOpened: (webviewId) =>
+      ipcRenderer.invoke('webview:is-devtools-opened', webviewId),
     enableDeviceEmulation: (webviewId, params) =>
       ipcRenderer.invoke('webview:enable-device-emulation', webviewId, params),
     disableDeviceEmulation: (webviewId) =>
