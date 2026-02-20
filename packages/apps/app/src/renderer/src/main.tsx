@@ -6,6 +6,7 @@ import { PtyProvider } from '@slayzone/terminal'
 import { TelemetryProvider } from '@slayzone/telemetry/client'
 import App from './App'
 import { getDiagnosticsContext } from './lib/diagnosticsClient'
+import { ConvexAuthBootstrap } from './lib/convexAuth'
 
 window.addEventListener('error', (event) => {
   window.api.diagnostics.recordClientError({
@@ -32,11 +33,13 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 createRoot(document.getElementById('root')!).render(
-  <PtyProvider>
-    <ThemeProvider>
-      <TelemetryProvider>
-        <App />
-      </TelemetryProvider>
-    </ThemeProvider>
-  </PtyProvider>
+  <ConvexAuthBootstrap>
+    <PtyProvider>
+      <ThemeProvider>
+        <TelemetryProvider>
+          <App />
+        </TelemetryProvider>
+      </ThemeProvider>
+    </PtyProvider>
+  </ConvexAuthBootstrap>
 )

@@ -4,6 +4,10 @@ import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { GroupKey } from './kanban'
 
+function hasTaskIdentity(task: Task | null | undefined): task is Task {
+  return !!task && typeof task.id === 'string' && task.id.length > 0
+}
+
 interface UseTasksDataReturn {
   // Data
   tasks: Task[]
@@ -18,7 +22,7 @@ interface UseTasksDataReturn {
   setTags: React.Dispatch<React.SetStateAction<Tag[]>>
 
   // Task handlers
-  updateTask: (task: Task) => void
+  updateTask: (task: Task | null | undefined) => void
   moveTask: (taskId: string, newColumnId: string, targetIndex: number, groupBy: GroupKey) => void
   reorderTasks: (taskIds: string[]) => void
   archiveTask: (taskId: string) => Promise<void>
@@ -88,7 +92,8 @@ export function useTasksData(): UseTasksDataReturn {
   }
 
   // Update a single task in state
-  const updateTask = useCallback((task: Task) => {
+  const updateTask = useCallback((task: Task | null | undefined) => {
+    if (!hasTaskIdentity(task)) return
     setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)))
   }, [])
 

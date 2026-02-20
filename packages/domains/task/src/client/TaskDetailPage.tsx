@@ -792,6 +792,7 @@ export function TaskDetailPage({
         providerConfig: clearAllConversationIds(task.provider_config),
         claudeSessionId: null
       })
+      if (!updated) return
       setTask(updated)
       onTaskUpdated(updated)
       // Remount terminal (mark skip to prevent cleanup from re-caching old content)
@@ -1530,11 +1531,11 @@ export function TaskDetailPage({
                   onRetry={handleRestartTerminal}
                   onMainTabActiveChange={setIsMainTabActive}
                   rightContent={
-                    <Tooltip open={isMainTabActive ? false : undefined}>
+                    <Tooltip open={!isMainTabActive && !task.is_temporary ? undefined : false}>
                       <TooltipTrigger asChild>
                         <div className={cn(
                           "flex items-center gap-2 transition-opacity",
-                          !isMainTabActive && "opacity-40 pointer-events-none"
+                          !isMainTabActive && !task.is_temporary && "opacity-40 pointer-events-none"
                         )}>
                           <Select
                             value={task.terminal_mode}

@@ -230,9 +230,15 @@ function App(): React.JSX.Element {
     )
     const unsubscribes = temporaryTaskTabs.map((tab) => {
       const mainSessionId = `${tab.taskId}:${tab.taskId}`
+      const subscribedMode = tasks.find((task) => task.id === tab.taskId)?.terminal_mode
       return ptyContext.subscribeExit(mainSessionId, (exitCode) => {
         // Keep failed terminals visible for diagnosis; only auto-close on clean exit.
         if (exitCode !== 0) return
+        // If mode changed since this subscription was created, this exit is stale
+        // (e.g. user switched providers); don't auto-delete the temporary task.
+        // TODO: Replace mode-compare heuristic with explicit PTY exit reasons.
+        const latestMode = tasks.find((task) => task.id === tab.taskId)?.terminal_mode
+        if (subscribedMode && latestMode && subscribedMode !== latestMode) return
         void window.api.db.deleteTask(tab.taskId).catch(() => {})
         setTasks((prev) => prev.filter((task) => task.id !== tab.taskId))
         setTabs((prev) => {
@@ -247,7 +253,7 @@ function App(): React.JSX.Element {
     return () => {
       unsubscribes.forEach((unsub) => unsub())
     }
-  }, [tabs, ptyContext, setTasks, setTabs, setActiveTabIndex])
+  }, [tabs, tasks, ptyContext, setTasks, setTabs, setActiveTabIndex])
 
   // Tab management
   const openTask = (taskId: string): void => {

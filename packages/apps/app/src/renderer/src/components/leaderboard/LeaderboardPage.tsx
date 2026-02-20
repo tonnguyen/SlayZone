@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CheckCheck, Sparkles } from 'lucide-react'
 import { Button } from '@slayzone/ui'
+import { useLeaderboardAuth } from '@/lib/convexAuth'
 
 type Period = 'daily' | 'weekly' | 'monthly'
 type MetricId = 'total_tokens' | 'total_completed_tasks'
@@ -113,6 +114,8 @@ function initials(name: string): string {
 
 export function LeaderboardPage(): React.JSX.Element {
   const [period, setPeriod] = useState<Period>('weekly')
+  const [authBusy, setAuthBusy] = useState(false)
+  const auth = useLeaderboardAuth()
   const lists = useMemo(
     () =>
       COLUMN_METRICS.map((metric) => ({
@@ -124,7 +127,7 @@ export function LeaderboardPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-hidden bg-[radial-gradient(1200px_400px_at_20%_-10%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent_65%)]">
-      <div className="mx-auto w-full h-full max-w-[1760px] p-6 flex flex-col gap-5">
+      <div className="mx-auto w-full h-full max-w-[1440px] p-6 flex flex-col gap-5">
         <section className="rounded-xl border bg-background/85 backdrop-blur-sm p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -133,20 +136,59 @@ export function LeaderboardPage(): React.JSX.Element {
                 See who&rsquo;s slaying total tokens and completed tasks.
               </p>
             </div>
-            <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-              {PERIODS.map((value) => (
-                <Button
-                  key={value}
-                  size="sm"
-                  variant={period === value ? 'default' : 'ghost'}
-                  onClick={() => setPeriod(value)}
-                  className="capitalize"
-                >
-                  {value}
-                </Button>
-              ))}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+                {PERIODS.map((value) => (
+                  <Button
+                    key={value}
+                    size="sm"
+                    variant={period === value ? 'default' : 'ghost'}
+                    onClick={() => setPeriod(value)}
+                    className="capitalize"
+                  >
+                    {value}
+                  </Button>
+                ))}
+              </div>
+              {import.meta.env.DEV && (
+                <div className="flex items-center gap-2">
+                  {auth.configured ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">
+                        {auth.isAuthenticated ? 'GitHub connected' : 'GitHub not connected'}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant={auth.isAuthenticated ? 'outline' : 'default'}
+                        disabled={authBusy || auth.isLoading}
+                        onClick={async () => {
+                          setAuthBusy(true)
+                          try {
+                            if (auth.isAuthenticated) {
+                              await auth.signOut()
+                            } else {
+                              await auth.signInWithGitHub()
+                            }
+                          } finally {
+                            setAuthBusy(false)
+                          }
+                        }}
+                      >
+                        {authBusy || auth.isLoading ? 'Working...' : auth.isAuthenticated ? 'Sign out' : 'Sign in'}
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Convex Auth disabled. Set `VITE_CONVEX_URL` to enable.
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+          {import.meta.env.DEV && auth.lastError && (
+            <p className="text-xs text-destructive mt-2">Auth error: {auth.lastError}</p>
+          )}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">

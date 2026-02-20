@@ -1,15 +1,17 @@
 import { test, expect, seed, goHome, clickProject } from './fixtures/electron'
 import { TEST_PROJECT_PATH } from './fixtures/electron'
-import { openTaskTerminal } from './fixtures/terminal'
+import { getMainSessionId, openTaskTerminal, runCommand, waitForPtySession } from './fixtures/terminal'
 
 test.describe('Terminal mode switching', () => {
   let projectAbbrev: string
+  let projectId: string
   let taskId: string
 
   test.beforeAll(async ({ mainWindow }) => {
     const s = seed(mainWindow)
     const p = await s.createProject({ name: 'Mode Switch', color: '#8b5cf6', path: TEST_PROJECT_PATH })
     projectAbbrev = p.name.slice(0, 2).toUpperCase()
+    projectId = p.id
     const t = await s.createTask({ projectId: p.id, title: 'Mode switch task', status: 'todo' })
     taskId = t.id
     await s.refreshData()
@@ -142,5 +144,48 @@ test.describe('Terminal mode switching', () => {
     // Flags should persist (mode switch clears conversation IDs, not flags)
     const task = await mainWindow.evaluate((id) => window.api.db.getTask(id), taskId)
     expect(task?.claude_flags).toBe('--custom-flag-test')
+  })
+
+  test('temporary tasks can switch terminal mode', async ({ mainWindow }) => {
+    const s = seed(mainWindow)
+    const temp = await s.createTask({
+      projectId,
+      title: 'Mode switch temporary task',
+      status: 'in_progress',
+      isTemporary: true,
+    })
+    await s.refreshData()
+
+    await openTaskTerminal(mainWindow, { projectAbbrev, taskTitle: 'Mode switch temporary task' })
+    await expect(modeTrigger(mainWindow)).toBeVisible()
+
+    await modeTrigger(mainWindow).click()
+    await mainWindow.getByRole('option', { name: 'Codex' }).click()
+    await expect(modeTrigger(mainWindow)).toHaveText(/Codex/)
+
+    const updated = await mainWindow.evaluate((id) => window.api.db.getTask(id), temp.id)
+    expect(updated?.terminal_mode).toBe('codex')
+  })
+
+  test('temporary terminal task still auto-deletes on clean exit', async ({ mainWindow }) => {
+    const s = seed(mainWindow)
+    const temp = await s.createTask({
+      projectId,
+      title: 'Mode switch temporary auto-delete',
+      status: 'in_progress',
+      isTemporary: true,
+      terminalMode: 'terminal',
+    })
+    await s.refreshData()
+
+    await openTaskTerminal(mainWindow, { projectAbbrev, taskTitle: 'Mode switch temporary auto-delete' })
+    const sessionId = getMainSessionId(temp.id)
+    await waitForPtySession(mainWindow, sessionId, 20_000)
+    await runCommand(mainWindow, sessionId, 'exit')
+
+    await expect.poll(async () => {
+      const t = await mainWindow.evaluate((id) => window.api.db.getTask(id), temp.id)
+      return t === null
+    }).toBe(true)
   })
 })
