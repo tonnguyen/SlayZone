@@ -131,6 +131,7 @@ const IDLE_TIMEOUT_MS = 60 * 1000
 const IDLE_CHECK_INTERVAL_MS = 10 * 1000
 const STARTUP_TIMEOUT_MS = 10 * 1000
 const FAST_EXIT_FALLBACK_WINDOW_MS = 2000
+const SESSION_ID_WATCH_TIMEOUT_MS = 5000
 
 // Reference to main window for sending idle events
 let mainWindow: BrowserWindow | null = null
@@ -160,6 +161,13 @@ function filterBufferData(data: string): string {
         .join(';')
       return filtered ? `\x1b[${filtered}m` : ''
     })
+}
+
+function stripAnsiForSessionParse(data: string): string {
+  return data
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '') // OSC sequences
+    .replace(/\x1b\[[?0-9;:]*[ -/]*[@-~]/g, '') // CSI sequences
+    .replace(/\x1b[()][AB012]/g, '') // Character set sequences
 }
 
 // Emit state change via IPC
@@ -622,11 +630,15 @@ export async function createPty(
       if (session.watchingForSessionId) {
         session.statusOutputBuffer += data
 
-        const uuidMatch = session.statusOutputBuffer.match(
+        const normalizedStatusOutput = stripAnsiForSessionParse(session.statusOutputBuffer)
+        const labeledSessionMatch = normalizedStatusOutput.match(
+          /(?:^|\n)\s*session:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/im
+        )
+        const uuidMatch = labeledSessionMatch ?? normalizedStatusOutput.match(
           /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
         )
         if (uuidMatch) {
-          const detectedConversationId = uuidMatch[0]
+          const detectedConversationId = uuidMatch[1] ?? uuidMatch[0]
           recordDiagnosticEvent({
             level: 'info',
             source: 'pty',
@@ -803,16 +815,21 @@ export function writePty(sessionId: string, data: string): boolean {
     }
     const cmd = session.adapter.sessionIdCommand ?? '/status'
     if (session.inputBuffer.includes(cmd)) {
+      if (session.statusWatchTimeout) {
+        clearTimeout(session.statusWatchTimeout)
+        session.statusWatchTimeout = undefined
+      }
       session.watchingForSessionId = true
       session.statusOutputBuffer = ''
 
-      // Stop watching after 5s timeout
+      // Stop watching after timeout
       session.statusWatchTimeout = setTimeout(() => {
         if (session.watchingForSessionId) {
           session.watchingForSessionId = false
           session.statusOutputBuffer = ''
+          session.statusWatchTimeout = undefined
         }
-      }, 5000)
+      }, SESSION_ID_WATCH_TIMEOUT_MS)
     }
     session.inputBuffer = '' // reset on enter
   }
