@@ -18,7 +18,7 @@ const PROVIDERS = [
 
 const TRACKED_EVENTS = [
   'App opened (with version number)',
-  'Activity heartbeat every 5 minutes while active'
+  'Activity heartbeat every 10 minutes while app is active and in the foreground'
 ]
 
 function SuccessStep({ onComplete }: { onComplete: () => void }): React.JSX.Element {

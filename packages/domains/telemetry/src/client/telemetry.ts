@@ -12,7 +12,7 @@ const IS_DEV = typeof __DEV__ !== 'undefined' ? __DEV__ : true
 const DEV_ENABLED = typeof __POSTHOG_DEV_ENABLED__ !== 'undefined' ? __POSTHOG_DEV_ENABLED__ : false
 const ENABLED = POSTHOG_KEY && POSTHOG_HOST && (!IS_DEV || DEV_ENABLED)
 
-const HEARTBEAT_INTERVAL = 5 * 60 * 1000 // 5 minutes
+const HEARTBEAT_INTERVAL = 10 * 60 * 1000 // 10 minutes
 const ACTIVITY_THROTTLE = 1000 // 1 second
 
 let currentTier: TelemetryTier = 'anonymous'
@@ -20,34 +20,124 @@ let initialized = false
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let lastActive = 0
 let lastActivityUpdate = 0
+let accumulatedActiveMs = 0
+let heartbeatActiveMs = 0
+let activeStartTs: number | null = null
+let isForeground = false
+
+function isAppForeground(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
+
+function beginActiveWindow(now = Date.now()): void {
+  if (activeStartTs === null) {
+    activeStartTs = now
+  }
+}
+
+function closeActiveWindow(now = Date.now()): void {
+  if (activeStartTs === null) return
+  const delta = Math.max(0, now - activeStartTs)
+  if (delta > 0) {
+    accumulatedActiveMs += delta
+    heartbeatActiveMs += delta
+  }
+  activeStartTs = null
+}
+
+function toActiveMinutes(activeMs: number): number {
+  return Math.round((activeMs / 60000) * 100) / 100
+}
+
+function emitHeartbeatIfNeeded(now = Date.now()): void {
+  closeActiveWindow(now)
+  if (heartbeatActiveMs <= 0) return
+
+  track('heartbeat', {
+    active_ms: heartbeatActiveMs,
+    active_minutes: toActiveMinutes(heartbeatActiveMs)
+  })
+  heartbeatActiveMs = 0
+
+  if (isForeground && now - lastActive < HEARTBEAT_INTERVAL) {
+    beginActiveWindow(now)
+  }
+}
+
+function emitBackgrounded(reason: 'backgrounded' | 'shutdown'): void {
+  if (accumulatedActiveMs <= 0) return
+
+  track('app_backgrounded', {
+    reason,
+    active_ms: accumulatedActiveMs,
+    active_minutes: toActiveMinutes(accumulatedActiveMs)
+  })
+  accumulatedActiveMs = 0
+}
 
 function onActivity(): void {
+  if (!isForeground) return
   const now = Date.now()
   if (now - lastActivityUpdate > ACTIVITY_THROTTLE) {
     lastActive = now
     lastActivityUpdate = now
+    beginActiveWindow(now)
   }
+}
+
+function onForegroundChange(): void {
+  const now = Date.now()
+  const nextForeground = isAppForeground()
+  if (nextForeground === isForeground) return
+
+  isForeground = nextForeground
+
+  if (isForeground) {
+    lastActive = now
+    lastActivityUpdate = now
+    beginActiveWindow(now)
+    return
+  }
+
+  emitHeartbeatIfNeeded(now)
+  emitBackgrounded('backgrounded')
 }
 
 export function startHeartbeat(): void {
   if (heartbeatTimer) return
 
+  isForeground = isAppForeground()
   lastActive = Date.now()
   lastActivityUpdate = Date.now()
+  if (isForeground) {
+    beginActiveWindow(lastActive)
+  }
 
   document.addEventListener('mousemove', onActivity, { passive: true })
   document.addEventListener('keydown', onActivity, { passive: true })
   document.addEventListener('mousedown', onActivity, { passive: true })
   document.addEventListener('scroll', onActivity, { passive: true })
+  document.addEventListener('visibilitychange', onForegroundChange, { passive: true })
+  window.addEventListener('focus', onForegroundChange)
+  window.addEventListener('blur', onForegroundChange)
 
   heartbeatTimer = setInterval(() => {
-    if (Date.now() - lastActive < HEARTBEAT_INTERVAL) {
-      track('heartbeat')
+    const now = Date.now()
+    if (!isForeground || now - lastActive >= HEARTBEAT_INTERVAL) {
+      closeActiveWindow(now)
+      return
     }
+
+    emitHeartbeatIfNeeded(now)
   }, HEARTBEAT_INTERVAL)
 }
 
 export function stopHeartbeat(): void {
+  const now = Date.now()
+  emitHeartbeatIfNeeded(now)
+  closeActiveWindow(now)
+  emitBackgrounded('shutdown')
+
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer)
     heartbeatTimer = null
@@ -56,6 +146,14 @@ export function stopHeartbeat(): void {
   document.removeEventListener('keydown', onActivity)
   document.removeEventListener('mousedown', onActivity)
   document.removeEventListener('scroll', onActivity)
+  document.removeEventListener('visibilitychange', onForegroundChange)
+  window.removeEventListener('focus', onForegroundChange)
+  window.removeEventListener('blur', onForegroundChange)
+
+  isForeground = false
+  activeStartTs = null
+  heartbeatActiveMs = 0
+  accumulatedActiveMs = 0
 }
 
 export function initTelemetry(tier: TelemetryTier): void {

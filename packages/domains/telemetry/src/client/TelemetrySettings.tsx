@@ -15,9 +15,9 @@ export function TelemetrySettings({ tier, onTierChange }: TelemetrySettingsProps
       <div className="space-y-3">
         <Label className="text-base font-semibold">Anonymous Analytics</Label>
         <p className="text-sm text-muted-foreground">
-          SlayZone records when the app is opened and sends an activity heartbeat every 5 minutes
-          while you're active. No personal identifiers, no data stored on your device, no IP
-          recording.
+          SlayZone records when the app is opened and sends an activity heartbeat every 10 minutes
+          while the app is active and in the foreground. No personal identifiers, no data stored on
+          your device, no IP recording.
         </p>
       </div>
 
