@@ -61,8 +61,8 @@ function showTaskAttentionNotification(sessionId: string): void {
 
   dismissNotification(sessionId)
 
-  const taskId = taskIdFromSessionId(sessionId)
   const session = sessions.get(sessionId)
+  const taskId = session?.taskId ?? taskIdFromSessionId(sessionId)
   const taskRow = db.prepare('SELECT title FROM tasks WHERE id = ?').get(taskId) as { title: string } | undefined
   if (taskRow?.title) {
     const label = MODE_LABELS[session?.mode ?? ''] ?? 'Terminal'
@@ -92,6 +92,7 @@ interface PtySession {
   win: BrowserWindow
   pty: pty.IPty
   sessionId: string
+  taskId: string
   mode: TerminalMode
   adapter: TerminalAdapter
   checkingForSessionError?: boolean
@@ -265,6 +266,7 @@ export async function createPty(
   providerArgs?: string[],
   codeMode?: CodeMode | null
 ): Promise<{ success: boolean; error?: string }> {
+  const taskId = taskIdFromSessionId(sessionId)
   const createStartedAt = Date.now()
   let spawnAttempt: { shell: string; shellArgs: string[]; hasPostSpawnCommand: boolean } | null = null
   recordDiagnosticEvent({
@@ -272,7 +274,7 @@ export async function createPty(
     source: 'pty',
     event: 'pty.create',
     sessionId,
-    taskId: taskIdFromSessionId(sessionId),
+    taskId,
     payload: {
       mode: mode ?? null,
       providerArgs: providerArgs ?? [],
@@ -289,7 +291,7 @@ export async function createPty(
       source: 'pty',
       event: 'pty.replace_existing',
       sessionId,
-      taskId: taskIdFromSessionId(sessionId)
+      taskId
     })
     killPty(sessionId)
   }
@@ -312,7 +314,7 @@ export async function createPty(
       source: 'pty',
       event: 'pty.spawn_config',
       sessionId,
-      taskId: taskIdFromSessionId(sessionId),
+      taskId,
       payload: {
         launchStrategy: spawnConfig.postSpawnCommand ? 'shell_exec' : 'direct_shell',
         shell: spawnConfig.shell,
@@ -323,7 +325,6 @@ export async function createPty(
 
     // Inject MCP env vars so AI terminals know their task and MCP server
     const mcpEnv: Record<string, string> = {}
-    const taskId = taskIdFromSessionId(sessionId)
     if (taskId) mcpEnv.SLAYZONE_TASK_ID = taskId
     const mcpPort = (globalThis as Record<string, unknown>).__mcpPort as number | undefined
     if (mcpPort) mcpEnv.SLAYZONE_MCP_PORT = String(mcpPort)
@@ -379,6 +380,7 @@ export async function createPty(
       win,
       pty: ptyProcess,
       sessionId,
+      taskId,
       mode: terminalMode,
       adapter,
       // Only check for session errors if we're trying to resume
@@ -878,7 +880,7 @@ export function killPty(sessionId: string): boolean {
     source: 'pty',
     event: 'pty.kill',
     sessionId,
-    taskId: taskIdFromSessionId(sessionId)
+    taskId: session.taskId
   })
   // Clear any pending timeout to prevent orphaned callbacks
   if (session.statusWatchTimeout) {
@@ -927,6 +929,7 @@ export function listPtys(): PtyInfo[] {
   for (const [sessionId, session] of sessions) {
     result.push({
       sessionId,
+      taskId: session.taskId,
       lastOutputTime: session.lastOutputTime,
       state: session.state
     })
@@ -946,7 +949,9 @@ export function killAllPtys(): void {
 }
 
 export function killPtysByTaskId(taskId: string): void {
-  const toKill = [...sessions.keys()].filter(id => id.startsWith(`${taskId}:`))
+  const toKill = [...sessions.entries()]
+    .filter(([, session]) => session.taskId === taskId)
+    .map(([sessionId]) => sessionId)
   for (const sessionId of toKill) {
     killPty(sessionId)
   }

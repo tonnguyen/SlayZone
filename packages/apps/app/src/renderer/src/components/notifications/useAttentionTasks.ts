@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { PtyInfo } from '@slayzone/terminal/shared'
 import type { Task } from '@slayzone/task/shared'
 
@@ -12,6 +12,32 @@ interface UseAttentionTasksResult {
   attentionTasks: AttentionTask[]
   count: number
   refresh: () => Promise<void>
+}
+
+export function buildAttentionTasks(
+  ptys: PtyInfo[],
+  tasks: Task[],
+  filterProjectId: string | null
+): AttentionTask[] {
+  const tasksById = new Map(tasks.map((task) => [task.id, task]))
+  const byTaskId = new Map<string, AttentionTask>()
+
+  for (const pty of ptys) {
+    const task = tasksById.get(pty.taskId)
+    if (!task) continue
+    if (filterProjectId && task.project_id !== filterProjectId) continue
+
+    const current = byTaskId.get(pty.taskId)
+    if (!current || pty.lastOutputTime > current.lastOutputTime) {
+      byTaskId.set(pty.taskId, {
+        task,
+        sessionId: pty.sessionId,
+        lastOutputTime: pty.lastOutputTime
+      })
+    }
+  }
+
+  return [...byTaskId.values()]
 }
 
 export function useAttentionTasks(
@@ -40,20 +66,11 @@ export function useAttentionTasks(
     }
   }, [refresh])
 
-  // Build attention tasks list
-  const attentionTasks: AttentionTask[] = ptys
-    .map((pty) => {
-      const taskId = pty.sessionId.split(':')[0]
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return null
-      if (filterProjectId && task.project_id !== filterProjectId) return null
-      return {
-        task,
-        sessionId: pty.sessionId,
-        lastOutputTime: pty.lastOutputTime
-      }
-    })
-    .filter((item): item is AttentionTask => item !== null)
+  // Build a unique list (one row per task), keeping the most recent attention session.
+  const attentionTasks: AttentionTask[] = useMemo(
+    () => buildAttentionTasks(ptys, tasks, filterProjectId),
+    [ptys, tasks, filterProjectId]
+  )
 
   return {
     attentionTasks,

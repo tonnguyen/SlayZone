@@ -21,6 +21,7 @@ export interface CLIState {
 
 export interface PtyInfo {
   sessionId: string
+  taskId: string
   lastOutputTime: number
   state: TerminalState
 }
