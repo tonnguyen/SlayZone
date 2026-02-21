@@ -86,4 +86,17 @@ test.describe('DOM picker to terminal', () => {
     await pickButton.click()
     await expect(activeOverlay).not.toBeVisible({ timeout: 3_000 })
   })
+
+  test('Escape exits picker mode', async ({ mainWindow }) => {
+    const pickButton = mainWindow.locator('[data-testid="browser-pick-element"]:visible').first()
+    const activeOverlay = mainWindow.locator('[data-testid="browser-picker-active-overlay"]:visible').first()
+
+    if (!(await activeOverlay.isVisible().catch(() => false))) {
+      await pickButton.click()
+    }
+    await expect(activeOverlay).toBeVisible({ timeout: 3_000 })
+
+    await mainWindow.keyboard.press('Escape')
+    await expect(activeOverlay).not.toBeVisible({ timeout: 3_000 })
+  })
 })

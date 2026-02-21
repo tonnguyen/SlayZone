@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, SquareTerminal } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, SquareTerminal, ExternalLink } from 'lucide-react'
 import {
   Button,
   Input,
@@ -29,6 +29,12 @@ interface TaskUrlEntry {
   taskTitle: string
   url: string
   tabTitle: string
+}
+
+interface DevConsoleEntry {
+  id: string
+  level: 'log' | 'warn' | 'error' | 'info' | 'command' | 'result'
+  message: string
 }
 
 // Minimal webview interface for type safety
@@ -84,10 +90,19 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const [importDropdownOpen, setImportDropdownOpen] = useState(false)
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [webviewId, setWebviewId] = useState<number | null>(null)
+  const [devToolsStatus, setDevToolsStatus] = useState<string | null>(null)
+  const [devConsoleOpen] = useState(false)
+  const [devConsoleInput, setDevConsoleInput] = useState('')
+  const [devConsoleEntries, setDevConsoleEntries] = useState<DevConsoleEntry[]>([])
   const [isPickingElement, setIsPickingElement] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const webviewRef = useRef<WebviewElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const devConsoleOutputRef = useRef<HTMLDivElement>(null)
+
+  const appendDevConsoleEntry = useCallback((level: DevConsoleEntry['level'], message: string) => {
+    setDevConsoleEntries((prev) => [...prev, { id: crypto.randomUUID(), level, message }].slice(-400))
+  }, [])
 
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
@@ -279,6 +294,18 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       createNewTabRef.current(url)
     }
 
+    const handleConsoleMessage = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { level?: number; message?: string; line?: number; sourceId?: string } | undefined
+      const level: DevConsoleEntry['level'] = detail?.level === 3 ? 'error'
+        : detail?.level === 2 ? 'warn'
+          : detail?.level === 1 ? 'info'
+            : 'log'
+      const where = detail?.sourceId ? ` (${detail.sourceId}${detail.line ? `:${detail.line}` : ''})` : ''
+      const message = `${detail?.message ?? ''}${where}`.trim()
+      if (!message) return
+      appendDevConsoleEntry(level, message)
+    }
+
     const handleDomReady = () => {
       setWebviewReady(true)
       try {
@@ -298,6 +325,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     wv.addEventListener('page-title-updated', handleTitleUpdate)
     wv.addEventListener('page-favicon-updated', handleFaviconUpdate)
     wv.addEventListener('new-window', handleNewWindow)
+    wv.addEventListener('console-message', handleConsoleMessage)
 
     return () => {
       wv.removeEventListener('dom-ready', handleDomReady)
@@ -308,8 +336,9 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       wv.removeEventListener('page-title-updated', handleTitleUpdate)
       wv.removeEventListener('page-favicon-updated', handleFaviconUpdate)
       wv.removeEventListener('new-window', handleNewWindow)
+      wv.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- stable via refs
+  }, [appendDevConsoleEntry]) // stable callbacks via refs
 
   // Keyboard shortcuts when focused
   useEffect(() => {
@@ -364,29 +393,83 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   }
 
   const toggleDevTools = useCallback(() => {
-    if (multiDeviceMode || !webviewReady) return
+    if (multiDeviceMode || !webviewReady) {
+      setDevToolsStatus(multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Webview not ready yet')
+      return
+    }
     const wv = webviewRef.current
-    if (!wv) return
+    if (!wv) {
+      setDevToolsStatus('No active webview')
+      return
+    }
+
     void (async () => {
       try {
-        const resolvedId = webviewId ?? wv.getWebContentsId()
-        const opened = await window.api.webview.isDevToolsOpened(resolvedId)
-        const ok = opened
-          ? await window.api.webview.closeDevTools(resolvedId)
-          : await window.api.webview.openDevToolsBottom(resolvedId)
-        if (ok) return
-      } catch {
-        // Fall through to direct guest APIs if IPC-based open/close fails.
-      }
-
-      try {
-        if (wv.isDevToolsOpened?.()) wv.closeDevTools?.()
-        else wv.openDevTools?.()
-      } catch {
-        // Ignore transient guest webContents failures.
+        const id = webviewId ?? wv.getWebContentsId()
+        const opened = await window.api.webview.isDevToolsOpened(id)
+        if (opened) {
+          const ok = await window.api.webview.closeDevTools(id)
+          setDevToolsStatus(ok ? 'Chromium DevTools closed' : 'Failed to close Chromium DevTools')
+          return
+        }
+        const ok = await window.api.webview.openDevToolsBottom(id)
+        const nowOpened = await window.api.webview.isDevToolsOpened(id)
+        if (ok && nowOpened) setDevToolsStatus('Chromium DevTools opened')
+        else if (ok) setDevToolsStatus('Open requested, but open state is false')
+        else setDevToolsStatus('Failed to open Chromium DevTools')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setDevToolsStatus(`DevTools error: ${message}`)
       }
     })()
   }, [multiDeviceMode, webviewReady, webviewId])
+
+  const openDetachedDevTools = useCallback(() => {
+    if (multiDeviceMode || !webviewReady) {
+      setDevToolsStatus(multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Webview not ready yet')
+      return
+    }
+    const wv = webviewRef.current
+    if (!wv) {
+      setDevToolsStatus('No active webview')
+      return
+    }
+    void (async () => {
+      try {
+        const id = webviewId ?? wv.getWebContentsId()
+        const ok = await window.api.webview.openDevToolsDetached(id)
+        setDevToolsStatus(ok ? 'Native DevTools window opened' : 'Failed to open native DevTools window')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setDevToolsStatus(`DevTools error: ${message}`)
+      }
+    })()
+  }, [multiDeviceMode, webviewReady, webviewId])
+
+  const runConsoleCommand = useCallback(() => {
+    if (!webviewReady) return
+    const wv = webviewRef.current
+    const code = devConsoleInput.trim()
+    if (!wv || !code) return
+    appendDevConsoleEntry('command', `> ${code}`)
+    setDevConsoleInput('')
+    void wv.executeJavaScript<unknown>(code, true).then((result) => {
+      const rendered = typeof result === 'string'
+        ? result
+        : JSON.stringify(result, null, 2) ?? String(result)
+      appendDevConsoleEntry('result', rendered)
+    }).catch((err) => {
+      const message = err instanceof Error ? err.message : String(err)
+      appendDevConsoleEntry('error', message)
+    })
+  }, [appendDevConsoleEntry, devConsoleInput, webviewReady])
+
+  useEffect(() => {
+    if (!devConsoleOpen) return
+    const el = devConsoleOutputRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [devConsoleEntries, devConsoleOpen])
 
   const cancelPickElement = useCallback(async () => {
     const wv = webviewRef.current
@@ -398,6 +481,21 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     }
     setIsPickingElement(false)
   }, [])
+
+  // Escape should always cancel picker mode, even when focus is outside webview.
+  useEffect(() => {
+    if (!isPickingElement) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      void cancelPickElement()
+    }
+
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [isPickingElement, cancelPickElement])
 
   const startPickElement = useCallback(async () => {
     if (!canUseDomPicker || multiDeviceMode || isPickingElement) return
@@ -576,7 +674,25 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle DevTools'}
+            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle Chromium DevTools'}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                data-testid="browser-devtools-detached"
+                variant="ghost"
+                size="icon-sm"
+                disabled={multiDeviceMode || !webviewReady}
+                onClick={openDetachedDevTools}
+              >
+                <ExternalLink className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Open native DevTools window'}
           </TooltipContent>
         </Tooltip>
 
@@ -670,6 +786,15 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
           Element picker error: {pickError}
         </div>
       )}
+      {devToolsStatus && !multiDeviceMode && (
+        <div
+          data-testid="browser-devtools-status"
+          className="shrink-0 px-2 py-1 border-b text-[11px] text-muted-foreground bg-muted/10 truncate"
+          title={devToolsStatus}
+        >
+          {devToolsStatus}
+        </div>
+      )}
 
       {/* Responsive toolbar */}
       {multiDeviceMode && (
@@ -730,23 +855,67 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
           onPresetChange={setPreset}
         />
       ) : (
-        <div className="relative flex-1">
-          <webview
-            ref={webviewRef}
-            src={(activeTab?.url || 'about:blank').replace(/^file:\/\//, 'slz-file://')}
-            partition="persist:browser-tabs"
-            className="absolute inset-0"
-            // @ts-expect-error - webview attributes not in React types
-            allowpopups="true"
-          />
-          {isPickingElement && (
-            <div data-testid="browser-picker-active-overlay" className="absolute inset-0 z-10 pointer-events-none border-2 border-amber-500/70 bg-amber-500/8">
-              <div className="absolute top-2 left-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1 font-medium">
-                Element picker active
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          <div className="relative flex-1 min-h-0">
+            <webview
+              ref={webviewRef}
+              src={(activeTab?.url || 'about:blank').replace(/^file:\/\//, 'slz-file://')}
+              partition="persist:browser-tabs"
+              className="absolute inset-0"
+              // @ts-expect-error - webview attributes not in React types
+              allowpopups="true"
+            />
+            {isPickingElement && (
+              <div data-testid="browser-picker-active-overlay" className="absolute inset-0 z-10 pointer-events-none border-2 border-amber-500/70 bg-amber-500/8">
+                <div className="absolute top-2 left-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1 font-medium">
+                  Element picker active
+                </div>
+              </div>
+            )}
+            {isResizing && <div className="absolute inset-0 z-10" />}
+          </div>
+          {devConsoleOpen && (
+            <div data-testid="browser-devtools-panel" className="shrink-0 h-44 border-t border-border bg-neutral-950 text-neutral-100 flex flex-col">
+              <div className="h-8 px-2 border-b border-neutral-800 flex items-center gap-2 text-xs">
+                <span className="font-medium">Dev Console</span>
+                <span className="text-neutral-400">{webviewId ? `webview:${webviewId}` : 'webview:pending'}</span>
+                <div className="flex-1" />
+                <Button variant="ghost" size="sm" onClick={() => setDevConsoleEntries([])}>Clear</Button>
+              </div>
+              <div
+                ref={devConsoleOutputRef}
+                className="flex-1 overflow-y-auto px-2 py-1 font-mono text-[11px] leading-relaxed"
+              >
+                {devConsoleEntries.length === 0 ? (
+                  <div className="text-neutral-500">No console output yet.</div>
+                ) : (
+                  devConsoleEntries.map((entry) => (
+                    <div key={entry.id} className={cn(
+                      'whitespace-pre-wrap break-words',
+                      entry.level === 'error' && 'text-red-400',
+                      entry.level === 'warn' && 'text-amber-300',
+                      entry.level === 'command' && 'text-cyan-300',
+                      entry.level === 'result' && 'text-emerald-300'
+                    )}>
+                      {entry.message}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="h-9 border-t border-neutral-800 px-2 flex items-center gap-1">
+                <Input
+                  value={devConsoleInput}
+                  onChange={(e) => setDevConsoleInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') runConsoleCommand() }}
+                  placeholder="Run JavaScript in page context..."
+                  className="h-7 text-xs font-mono bg-neutral-900 border-neutral-700"
+                />
+                <Button variant="secondary" size="sm" onClick={runConsoleCommand}>
+                  Run
+                </Button>
               </div>
             </div>
           )}
-          {isResizing && <div className="absolute inset-0 z-10" />}
         </div>
       )}
     </div>
