@@ -8,35 +8,92 @@ async function requireIdentity(ctx: QueryCtx | MutationCtx) {
   return identity
 }
 
+function authUserIdFromSubject(subject: string | undefined): Id<'users'> | null {
+  if (!subject) return null
+  const [userId] = subject.split('|')
+  if (!userId) return null
+  return userId as Id<'users'>
+}
+
+async function findCurrentUser(ctx: QueryCtx | MutationCtx, tokenIdentifier: string, subject?: string): Promise<Doc<'users'> | null> {
+  const authUserId = authUserIdFromSubject(subject)
+  const authUser = authUserId ? await ctx.db.get(authUserId) : null
+  if (authUser) return authUser
+
+  return await ctx.db
+    .query('users')
+    .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', tokenIdentifier))
+    .first()
+}
+
 async function upsertViewer(ctx: MutationCtx): Promise<Id<'users'>> {
   const identity = await requireIdentity(ctx)
   const profile = identity as Record<string, unknown>
   const now = Date.now()
   const tokenIdentifier = identity.tokenIdentifier
   const githubId = typeof identity.subject === 'string' ? identity.subject : undefined
-  const githubLogin = typeof profile.nickname === 'string' ? profile.nickname : undefined
+  const githubLogin =
+    typeof profile.nickname === 'string'
+      ? profile.nickname
+      : typeof profile.preferred_username === 'string'
+        ? profile.preferred_username
+        : typeof profile.login === 'string'
+          ? profile.login
+          : undefined
   const name = typeof profile.name === 'string' ? profile.name : undefined
   const image =
     typeof profile.pictureUrl === 'string'
       ? profile.pictureUrl
       : typeof profile.picture === 'string'
         ? profile.picture
+        : typeof profile.image === 'string'
+          ? profile.image
+          : typeof profile.avatar_url === 'string'
+            ? profile.avatar_url
         : undefined
 
-  const existing = await ctx.db
+  const legacyUser = await ctx.db
     .query('users')
     .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', tokenIdentifier))
     .first()
 
-  if (existing) {
-    await ctx.db.patch(existing._id, {
-      githubId: githubId ?? existing.githubId,
-      githubLogin: githubLogin ?? existing.githubLogin,
-      name: name ?? existing.name,
-      image: image ?? existing.image,
+  const authUserId = authUserIdFromSubject(identity.subject)
+  const authUser = authUserId ? await ctx.db.get(authUserId) : null
+
+  if (authUser) {
+    await ctx.db.patch(authUser._id, {
+      tokenIdentifier,
+      githubId: githubId ?? authUser.githubId,
+      githubLogin: githubLogin ?? authUser.githubLogin,
+      name: name ?? authUser.name,
+      image: image ?? authUser.image,
       updatedAt: now
     })
-    return existing._id
+
+    // Migrate legacy totals from older tokenIdentifier-linked user rows.
+    if (legacyUser && legacyUser._id !== authUser._id) {
+      const legacyTotals = await ctx.db
+        .query('leaderboardTotals')
+        .withIndex('by_userId', (q) => q.eq('userId', legacyUser._id))
+        .collect()
+      for (const total of legacyTotals) {
+        await ctx.db.patch(total._id, { userId: authUser._id, updatedAt: now })
+      }
+      await ctx.db.delete(legacyUser._id)
+    }
+
+    return authUser._id
+  }
+
+  if (legacyUser) {
+    await ctx.db.patch(legacyUser._id, {
+      githubId: githubId ?? legacyUser.githubId,
+      githubLogin: githubLogin ?? legacyUser.githubLogin,
+      name: name ?? legacyUser.name,
+      image: image ?? legacyUser.image,
+      updatedAt: now
+    })
+    return legacyUser._id
   }
 
   return await ctx.db.insert('users', {
@@ -52,6 +109,11 @@ async function upsertViewer(ctx: MutationCtx): Promise<Id<'users'>> {
 
 function displayNameForUser(user: Doc<'users'>): string {
   return user.githubLogin ?? user.name ?? 'Unknown'
+}
+
+function parseGithubNumericId(value: string | null | undefined): string | null {
+  if (!value) return null
+  return /^\d+$/.test(value) ? value : null
 }
 
 export const syncViewerProfile = mutation({
@@ -104,14 +166,19 @@ export const getMyTotals = query({
   args: {},
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx)
-    const user = await ctx.db
-      .query('users')
-      .withIndex('by_tokenIdentifier', (q) => q.eq('tokenIdentifier', identity.tokenIdentifier))
-      .first()
+    const user = await findCurrentUser(ctx, identity.tokenIdentifier, identity.subject)
 
     if (!user) {
       return null
     }
+
+    const githubAccount = await ctx.db
+      .query('authAccounts')
+      .withIndex('userIdAndProvider', (q) => q.eq('userId', user._id).eq('provider', 'github'))
+      .first()
+
+    const githubNumericId =
+      parseGithubNumericId(githubAccount?.providerAccountId) ?? parseGithubNumericId(user.githubId ?? null)
 
     const totals = await ctx.db
       .query('leaderboardTotals')
@@ -121,6 +188,8 @@ export const getMyTotals = query({
     return {
       user: {
         id: user._id,
+        githubId: user.githubId ?? null,
+        githubNumericId,
         githubLogin: user.githubLogin ?? null,
         name: user.name ?? null,
         image: user.image ?? null
@@ -132,6 +201,74 @@ export const getMyTotals = query({
             updatedAt: totals.updatedAt
           }
         : null
+    }
+  }
+})
+
+export const forgetMe = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx)
+    const user = await findCurrentUser(ctx, identity.tokenIdentifier, identity.subject)
+
+    if (!user) {
+      return { deleted: false, reason: 'user-not-found' as const }
+    }
+
+    const totals = await ctx.db
+      .query('leaderboardTotals')
+      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .collect()
+
+    const sessions = await ctx.db
+      .query('authSessions')
+      .withIndex('userId', (q) => q.eq('userId', user._id))
+      .collect()
+
+    const accounts = await ctx.db
+      .query('authAccounts')
+      .withIndex('userIdAndProvider', (q) => q.eq('userId', user._id))
+      .collect()
+
+    for (const total of totals) {
+      await ctx.db.delete(total._id)
+    }
+
+    let deletedVerificationCodes = 0
+    for (const account of accounts) {
+      const verificationCodes = await ctx.db
+        .query('authVerificationCodes')
+        .withIndex('accountId', (q) => q.eq('accountId', account._id))
+        .collect()
+      for (const code of verificationCodes) {
+        await ctx.db.delete(code._id)
+        deletedVerificationCodes += 1
+      }
+      await ctx.db.delete(account._id)
+    }
+
+    let deletedRefreshTokens = 0
+    for (const session of sessions) {
+      const refreshTokens = await ctx.db
+        .query('authRefreshTokens')
+        .withIndex('sessionId', (q) => q.eq('sessionId', session._id))
+        .collect()
+      for (const token of refreshTokens) {
+        await ctx.db.delete(token._id)
+        deletedRefreshTokens += 1
+      }
+      await ctx.db.delete(session._id)
+    }
+
+    await ctx.db.delete(user._id)
+
+    return {
+      deleted: true,
+      deletedLeaderboardTotals: totals.length,
+      deletedAccounts: accounts.length,
+      deletedSessions: sessions.length,
+      deletedVerificationCodes,
+      deletedRefreshTokens
     }
   }
 })

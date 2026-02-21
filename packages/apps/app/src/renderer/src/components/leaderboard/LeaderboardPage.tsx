@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
-import { CheckCheck, Sparkles } from 'lucide-react'
-import { Button } from '@slayzone/ui'
+import { useEffect, useMemo, useState } from 'react'
+import { CheckCheck, Github, Lock, LogOut, RefreshCw, Sparkles } from 'lucide-react'
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@slayzone/ui'
+import { useMutation, useQuery } from 'convex/react'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
+import { api } from 'convex/_generated/api'
 
 type Period = 'daily' | 'weekly' | 'monthly'
 type MetricId = 'total_tokens' | 'total_completed_tasks'
@@ -18,6 +20,12 @@ interface LeaderboardRow {
   user: string
   value: number
   display: string
+}
+
+interface ViewerProfile {
+  image: string | null
+  githubLogin: string | null
+  githubNumericId?: string | null
 }
 
 const PERIODS: Period[] = ['daily', 'weekly', 'monthly']
@@ -112,10 +120,67 @@ function initials(name: string): string {
     .toUpperCase()
 }
 
+function parseGithubNumericIdFromAvatarUrl(image: string | null | undefined): string | null {
+  if (!image) return null
+  try {
+    const parsed = new URL(image)
+    const match = parsed.pathname.match(/^\/u\/(\d+)(?:\/|$)/)
+    return match?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+function getGithubNumericId(viewer: ViewerProfile | null): string | null {
+  if (!viewer) return null
+  return viewer.githubNumericId ?? parseGithubNumericIdFromAvatarUrl(viewer.image)
+}
+
+function getAvatarSrc(viewer: ViewerProfile | null): string | null {
+  if (!viewer) return null
+  if (viewer.image) return viewer.image
+  if (viewer.githubLogin) return `https://github.com/${viewer.githubLogin}.png?size=96`
+  const numericId = getGithubNumericId(viewer)
+  if (numericId) return `https://avatars.githubusercontent.com/u/${numericId}?v=4`
+  return null
+}
+
+function getGithubProfileUrl(viewer: ViewerProfile | null): string | null {
+  if (!viewer) return null
+  if (viewer.githubLogin) return `https://github.com/${viewer.githubLogin}`
+  const numericId = getGithubNumericId(viewer)
+  if (numericId) return `https://github.com/u/${numericId}`
+  return null
+}
+
+function hasResolvedGithubIdentity(viewer: ViewerProfile | null): boolean {
+  if (!viewer) return false
+  return Boolean(viewer.githubLogin && viewer.image && getGithubProfileUrl(viewer))
+}
+
 export function LeaderboardPage(): React.JSX.Element {
   const [period, setPeriod] = useState<Period>('weekly')
   const [authBusy, setAuthBusy] = useState(false)
+  const [resolvedGithubLogin, setResolvedGithubLogin] = useState<string | null>(null)
+  const [resolvedGithubAvatar, setResolvedGithubAvatar] = useState<string | null>(null)
+  const [resolvedGithubUrl, setResolvedGithubUrl] = useState<string | null>(null)
   const auth = useLeaderboardAuth()
+  const syncViewerProfile = useMutation(api.leaderboard.syncViewerProfile)
+  const forgetMeMutation = useMutation(api.leaderboard.forgetMe)
+  const myTotals = useQuery(api.leaderboard.getMyTotals, auth.isAuthenticated ? {} : 'skip')
+  const viewer = myTotals?.user ?? null
+  const resolvedViewer = viewer
+    ? {
+        ...viewer,
+        githubLogin: viewer.githubLogin ?? resolvedGithubLogin,
+        image: viewer.image ?? resolvedGithubAvatar
+      }
+    : null
+  const viewerName = resolvedViewer?.githubLogin ?? resolvedViewer?.name ?? 'GitHub'
+  const avatarFallback = initials(viewerName || 'GH')
+  const avatarSrc = getAvatarSrc(resolvedViewer)
+  const githubProfileUrl = getGithubProfileUrl(resolvedViewer) ?? resolvedGithubUrl
+  const canParticipate = auth.configured && auth.isAuthenticated
   const lists = useMemo(
     () =>
       COLUMN_METRICS.map((metric) => ({
@@ -124,6 +189,61 @@ export function LeaderboardPage(): React.JSX.Element {
       })),
     [period]
   )
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return
+    void syncViewerProfile({}).catch(() => {})
+  }, [auth.isAuthenticated, syncViewerProfile])
+
+  useEffect(() => {
+    if (auth.isAuthenticated && viewer) return
+    setResolvedGithubLogin(null)
+    setResolvedGithubAvatar(null)
+    setResolvedGithubUrl(null)
+  }, [auth.isAuthenticated, viewer])
+
+  useEffect(() => {
+    let cancelled = false
+    async function resolveGithubProfile(): Promise<void> {
+      if (!viewer || !auth.isAuthenticated) return
+      if (hasResolvedGithubIdentity(viewer)) return
+
+      const numericId = getGithubNumericId(viewer)
+
+      if (!numericId) return
+      try {
+        const res = await fetch(`https://api.github.com/user/${numericId}`)
+        if (!res.ok) return
+        const data = (await res.json()) as { login?: string; avatar_url?: string; html_url?: string }
+        if (cancelled) return
+        if (data.login) setResolvedGithubLogin(data.login)
+        if (data.avatar_url) setResolvedGithubAvatar(data.avatar_url)
+        if (data.html_url) setResolvedGithubUrl(data.html_url)
+      } catch {
+        // ignore profile enrichment errors
+      }
+    }
+    void resolveGithubProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [viewer, auth.isAuthenticated])
+
+  async function runAuthAction(type: 'signin' | 'signout' | 'forget'): Promise<void> {
+    setAuthBusy(true)
+    try {
+      if (type === 'signout') {
+        await auth.signOut()
+      } else if (type === 'forget') {
+        await forgetMeMutation({})
+        await auth.forgetMe()
+      } else {
+        await auth.signInWithGitHub()
+      }
+    } finally {
+      setAuthBusy(false)
+    }
+  }
 
   return (
     <div className="h-full overflow-hidden bg-[radial-gradient(1200px_400px_at_20%_-10%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent_65%)]">
@@ -137,61 +257,126 @@ export function LeaderboardPage(): React.JSX.Element {
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-                {PERIODS.map((value) => (
-                  <Button
-                    key={value}
-                    size="sm"
-                    variant={period === value ? 'default' : 'ghost'}
-                    onClick={() => setPeriod(value)}
-                    className="capitalize"
-                  >
-                    {value}
-                  </Button>
-                ))}
-              </div>
-              {import.meta.env.DEV && (
-                <div className="flex items-center gap-2">
-                  {auth.configured ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        {auth.isAuthenticated ? 'GitHub connected' : 'GitHub not connected'}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant={auth.isAuthenticated ? 'outline' : 'default'}
-                        disabled={authBusy || auth.isLoading}
-                        onClick={async () => {
-                          setAuthBusy(true)
-                          try {
-                            if (auth.isAuthenticated) {
-                              await auth.signOut()
-                            } else {
-                              await auth.signInWithGitHub()
-                            }
-                          } finally {
-                            setAuthBusy(false)
-                          }
-                        }}
-                      >
-                        {authBusy || auth.isLoading ? 'Working...' : auth.isAuthenticated ? 'Sign out' : 'Sign in'}
-                      </Button>
-                    </>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      Convex Auth disabled. Set `VITE_CONVEX_URL` to enable.
-                    </span>
-                  )}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+                  {PERIODS.map((value) => (
+                    <Button
+                      key={value}
+                      size="sm"
+                      variant={period === value ? 'default' : 'ghost'}
+                      onClick={() => setPeriod(value)}
+                      className="capitalize"
+                    >
+                      {value}
+                    </Button>
+                  ))}
                 </div>
-              )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      disabled={authBusy || auth.isLoading}
+                      className="h-9 w-9 rounded-full p-0 overflow-hidden"
+                      title="Account"
+                    >
+                      {authBusy || auth.isLoading ? (
+                        <span className="text-[11px] font-medium">...</span>
+                      ) : auth.isAuthenticated && avatarSrc ? (
+                        <img src={avatarSrc} alt={viewerName} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-[11px] font-semibold uppercase">{avatarFallback}</span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="flex flex-col gap-0.5">
+                      <span>{canParticipate ? viewerName : 'Guest'}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {canParticipate ? 'Participating in leaderboard' : 'Sign in to participate'}
+                      </span>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {!auth.configured ? (
+                      <DropdownMenuItem disabled>Convex auth disabled</DropdownMenuItem>
+                    ) : auth.isAuthenticated ? (
+                      <>
+                        <DropdownMenuItem
+                          disabled={!githubProfileUrl}
+                          onClick={() => {
+                            if (!githubProfileUrl) return
+                            void window.api.shell.openExternal(githubProfileUrl)
+                          }}
+                        >
+                          <Github className="size-4" />
+                          Open GitHub profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            void syncViewerProfile({})
+                          }}
+                        >
+                          <RefreshCw className="size-4" />
+                          Refresh profile
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onClick={() => void runAuthAction('signout')}>
+                          <LogOut className="size-4" />
+                          Sign out
+                        </DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onClick={() => void runAuthAction('forget')}>
+                          <Lock className="size-4" />
+                          Forget me
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuItem onClick={() => void runAuthAction('signin')}>
+                          <Github className="size-4" />
+                          Sign in with GitHub
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled>
+                          <Lock className="size-4" />
+                          Login required to submit stats
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
-          {import.meta.env.DEV && auth.lastError && (
-            <p className="text-xs text-destructive mt-2">Auth error: {auth.lastError}</p>
+          {!canParticipate && (
+            <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Lock className="size-4" />
+                    Sign in with GitHub to join the leaderboard
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    You can browse the rankings now, but your tokens and completed tasks only count after sign-in.
+                  </p>
+                </div>
+                {auth.configured ? (
+                  <Button
+                    size="sm"
+                    disabled={authBusy || auth.isLoading}
+                    onClick={() => void runAuthAction('signin')}
+                    className="shrink-0"
+                  >
+                    {authBusy || auth.isLoading ? 'Connecting...' : 'Sign in with GitHub'}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Auth unavailable in this environment</span>
+                )}
+              </div>
+            </div>
           )}
+          {auth.lastError && <p className="text-xs text-destructive mt-2">Auth error: {auth.lastError}</p>}
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
+        <section className={`grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0 ${canParticipate ? '' : 'opacity-80'}`}>
           {lists.map(({ metric, rows }) => (
             <div key={metric.id} className="rounded-xl border bg-background overflow-hidden min-w-0 h-full flex flex-col">
               <div className="px-4 py-3 border-b bg-muted/20">
