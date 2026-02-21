@@ -1,7 +1,8 @@
 
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, session, webContents, dialog, Menu, protocol } from 'electron'
-import { join, extname, normalize, sep } from 'path'
+import { app, shell, BrowserWindow, BrowserView, ipcMain, nativeTheme, session, webContents, dialog, Menu, protocol } from 'electron'
+import { join, extname, normalize, sep, resolve } from 'path'
 import { homedir } from 'os'
+import { createServer, type Server as HttpServer } from 'http'
 import { readFileSync, promises as fsp } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 
@@ -170,8 +171,163 @@ const splashHTML = (version: string) => `
 
 let splashWindow: BrowserWindow | null = null
 let mainWindow: BrowserWindow | null = null
+let inlineDevToolsView: BrowserView | null = null
+let inlineDevToolsViewAttached = false
 let linearSyncPoller: NodeJS.Timeout | null = null
 let mcpCleanup: (() => void) | null = null
+let pendingOAuthCallback: { code?: string; error?: string } | null = null
+let oauthCallbackServer: HttpServer | null = null
+const OAUTH_LOOPBACK_HOST = '127.0.0.1'
+const OAUTH_LOOPBACK_PORT = 3210
+const OAUTH_LOOPBACK_PATH = '/auth/callback'
+
+interface InlineDevToolsBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function normalizeInlineDevToolsBounds(bounds: InlineDevToolsBounds): InlineDevToolsBounds {
+  return {
+    x: Math.max(0, Math.floor(bounds.x)),
+    y: Math.max(0, Math.floor(bounds.y)),
+    width: Math.max(1, Math.floor(bounds.width)),
+    height: Math.max(1, Math.floor(bounds.height))
+  }
+}
+
+function ensureInlineDevToolsView(win: BrowserWindow): BrowserView {
+  if (!inlineDevToolsView || inlineDevToolsView.webContents.isDestroyed()) {
+    inlineDevToolsView = new BrowserView({
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+  }
+  if (!inlineDevToolsViewAttached) {
+    win.addBrowserView(inlineDevToolsView)
+    inlineDevToolsViewAttached = true
+  }
+  win.setTopBrowserView(inlineDevToolsView)
+  return inlineDevToolsView
+}
+
+function removeInlineDevToolsView(win: BrowserWindow | null): void {
+  if (!inlineDevToolsView || !inlineDevToolsViewAttached || !win) return
+  try {
+    win.removeBrowserView(inlineDevToolsView)
+  } catch {
+    // ignore removal errors
+  } finally {
+    inlineDevToolsViewAttached = false
+  }
+}
+
+function emitOAuthCallback(payload: { code?: string; error?: string }): void {
+  pendingOAuthCallback = payload
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+  const wc = mainWindow?.webContents
+  if (wc && !wc.isDestroyed()) {
+    wc.send('auth:oauth-callback', payload)
+  }
+}
+
+function handleOAuthDeepLink(url: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return
+  }
+
+  if (parsed.protocol !== 'slayzone:') return
+  const normalizedPath = parsed.pathname.replace(/\/+$/, '')
+  const isAuthCallback =
+    (parsed.hostname === 'auth' && normalizedPath === '/callback') ||
+    // Some platforms can normalize custom URLs as slayzone:///auth/callback
+    (parsed.hostname === '' && normalizedPath === '/auth/callback')
+  if (!isAuthCallback) return
+
+  const hashParams = new URLSearchParams(parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash)
+  const code = parsed.searchParams.get('code') ?? hashParams.get('code') ?? undefined
+  const error =
+    parsed.searchParams.get('error_description') ??
+    parsed.searchParams.get('error') ??
+    hashParams.get('error_description') ??
+    hashParams.get('error') ??
+    undefined
+  emitOAuthCallback({ code, error })
+}
+
+function handleOAuthDeepLinkFromArgv(argv: string[]): void {
+  for (const arg of argv) {
+    if (typeof arg === 'string' && arg.startsWith('slayzone://')) {
+      handleOAuthDeepLink(arg)
+      break
+    }
+  }
+}
+
+function startOAuthLoopbackServer(): void {
+  if (oauthCallbackServer) return
+  oauthCallbackServer = createServer((req, res) => {
+    try {
+      const reqUrl = new URL(req.url ?? '/', `http://${OAUTH_LOOPBACK_HOST}:${OAUTH_LOOPBACK_PORT}`)
+      if (reqUrl.pathname !== OAUTH_LOOPBACK_PATH) {
+        res.statusCode = 404
+        res.end('Not found')
+        return
+      }
+      const code = reqUrl.searchParams.get('code') ?? undefined
+      const error =
+        reqUrl.searchParams.get('error_description') ??
+        reqUrl.searchParams.get('error') ??
+        undefined
+      const resolvedError = !code && !error ? `OAuth callback missing code (${reqUrl.search || 'no query params'})` : error
+      emitOAuthCallback({ code, error: resolvedError })
+      res.statusCode = 200
+      res.setHeader('content-type', 'text/html; charset=utf-8')
+      if (code) {
+        res.end('<html><body><h3>Sign-in complete. You can return to SlayZone.</h3></body></html>')
+      } else {
+        res.end('<html><body><h3>Sign-in callback reached app, but no code was present.</h3><p>You can return to SlayZone and check the auth error.</p></body></html>')
+      }
+    } catch {
+      res.statusCode = 500
+      res.end('Callback handling failed')
+    }
+  })
+
+  oauthCallbackServer.listen(OAUTH_LOOPBACK_PORT, OAUTH_LOOPBACK_HOST, () => {})
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    handleOAuthDeepLinkFromArgv(argv)
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
+// On macOS, protocol launches are delivered via open-url.
+// Register before app ready so early callback events are not missed.
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleOAuthDeepLink(url)
+})
 
 function emitOpenSettings(): void {
   mainWindow?.webContents.send('app:open-settings')
@@ -267,6 +423,10 @@ function createMainWindow(): void {
       // No splash (Playwright mode) — show directly
       if (!isPlaywright) mainWindow?.show()
     }
+
+    if (pendingOAuthCallback) {
+      mainWindow?.webContents.send('auth:oauth-callback', pendingOAuthCallback)
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -278,6 +438,9 @@ function createMainWindow(): void {
   })
 
   mainWindow.on('closed', () => {
+    removeInlineDevToolsView(mainWindow)
+    inlineDevToolsView = null
+    inlineDevToolsViewAttached = false
     mainWindow = null
   })
 
@@ -327,6 +490,14 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  if (process.defaultApp) {
+    const entry = process.argv[1] ? [resolve(process.argv[1])] : []
+    app.setAsDefaultProtocolClient('slayzone', process.execPath, entry)
+  } else {
+    app.setAsDefaultProtocolClient('slayzone')
+  }
+  handleOAuthDeepLinkFromArgv(process.argv)
+  startOAuthLoopbackServer()
 
   // Initialize database
   const db = getDatabase()
@@ -589,6 +760,19 @@ app.whenReady().then(async () => {
     shell.openExternal(url)
   })
 
+  ipcMain.handle('auth:open-system-sign-in', (_event, signInUrl: string) => {
+    if (!/^https?:\/\//i.test(signInUrl)) {
+      throw new Error('Sign-in URL must use http or https')
+    }
+    shell.openExternal(signInUrl)
+  })
+
+  ipcMain.handle('auth:consume-oauth-callback', () => {
+    const payload = pendingOAuthCallback
+    pendingOAuthCallback = null
+    return payload
+  })
+
   ipcMain.handle('auth:github-popup-sign-in', async (_event, signInUrl: string, callbackUrl: string) => {
     const signIn = new URL(signInUrl)
     const callback = new URL(callbackUrl)
@@ -725,17 +909,271 @@ app.whenReady().then(async () => {
     wc.on('destroyed', () => registeredWebviews.delete(webviewId))
   })
 
-  ipcMain.handle('webview:open-devtools-bottom', (_, webviewId: number) => {
+  ipcMain.handle('webview:open-devtools-bottom', async (_, webviewId: number, options?: { probe?: boolean }) => {
     const wc = webContents.fromId(webviewId)
-    if (!wc || wc.isDestroyed()) return false
-    if (!wc.isDevToolsOpened()) wc.openDevTools({ mode: 'bottom' })
-    return true
+    if (!wc || wc.isDestroyed()) {
+      console.warn('[webview:open-devtools-bottom] missing/destroyed webContents', { webviewId })
+      return false
+    }
+
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const waitForEvent = (event: 'devtools-opened' | 'devtools-closed', timeoutMs = 500) =>
+      new Promise<boolean>((resolve) => {
+        const emitter = wc as unknown as NodeJS.EventEmitter
+        let settled = false
+        const handler = () => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(true)
+        }
+        const timer = setTimeout(() => {
+          if (settled) return
+          settled = true
+          emitter.removeListener(event, handler)
+          resolve(false)
+        }, timeoutMs)
+        emitter.once(event, handler)
+      })
+
+    const attempts: Array<{
+      mode: 'bottom' | 'right' | 'undocked' | 'detach'
+      activate: boolean
+      before: boolean
+      after: boolean
+      openedEvent: boolean
+      elapsedMs: number
+      error?: string
+    }> = []
+
+    const variants: Array<{ mode: 'bottom' | 'right' | 'undocked' | 'detach'; activate: boolean }> = [
+      { mode: 'bottom', activate: false },
+      { mode: 'bottom', activate: true },
+      { mode: 'right', activate: false },
+      { mode: 'right', activate: true },
+      { mode: 'undocked', activate: false },
+      { mode: 'undocked', activate: true },
+      { mode: 'detach', activate: false },
+      { mode: 'detach', activate: true },
+    ]
+
+    for (const variant of variants) {
+      try {
+        if (wc.isDevToolsOpened()) {
+          wc.closeDevTools()
+          await waitForEvent('devtools-closed', 300)
+        }
+      } catch {
+        // continue probing
+      }
+      await wait(50)
+
+      const before = wc.isDevToolsOpened()
+      let error: string | undefined
+      const startedAt = Date.now()
+      let openedEvent = false
+      try {
+        const openedPromise = waitForEvent('devtools-opened', 700)
+        wc.openDevTools({ mode: variant.mode, activate: variant.activate })
+        openedEvent = await openedPromise
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err)
+      }
+      await wait(80)
+      const after = wc.isDevToolsOpened()
+      const elapsedMs = Date.now() - startedAt
+
+      attempts.push({
+        mode: variant.mode,
+        activate: variant.activate,
+        before,
+        after,
+        openedEvent,
+        elapsedMs,
+        ...(error ? { error } : {})
+      })
+
+      if (!options?.probe && after) {
+        console.log('[webview:open-devtools-bottom] selected variant', { webviewId, mode: variant.mode, activate: variant.activate, openedEvent, elapsedMs })
+        return true
+      }
+    }
+
+    if (options?.probe) {
+      return {
+        ok: true,
+        webviewId,
+        type: wc.getType(),
+        attempts
+      }
+    }
+
+    console.warn('[webview:open-devtools-bottom] failed to open', { webviewId, attempts })
+    return wc.isDevToolsOpened()
   })
 
   ipcMain.handle('webview:close-devtools', (_, webviewId: number) => {
     const wc = webContents.fromId(webviewId)
-    if (!wc || wc.isDestroyed()) return false
+    if (!wc || wc.isDestroyed()) {
+      console.warn('[webview:close-devtools] missing/destroyed webContents', { webviewId })
+      return false
+    }
     if (wc.isDevToolsOpened()) wc.closeDevTools()
+    console.log('[webview:close-devtools]', { webviewId, opened: wc.isDevToolsOpened() })
+    return true
+  })
+
+  ipcMain.handle('webview:open-devtools-detached', async (_, webviewId: number) => {
+    const wc = webContents.fromId(webviewId)
+    if (!wc || wc.isDestroyed()) {
+      console.warn('[webview:open-devtools-detached] missing/destroyed webContents', { webviewId })
+      return false
+    }
+
+    const emitter = wc as unknown as NodeJS.EventEmitter
+    const waitForOpened = (timeoutMs = 1000) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false
+        const handler = () => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(true)
+        }
+        const timer = setTimeout(() => {
+          if (settled) return
+          settled = true
+          emitter.removeListener('devtools-opened', handler)
+          resolve(false)
+        }, timeoutMs)
+        emitter.once('devtools-opened', handler)
+      })
+
+    try {
+      if (wc.isDevToolsOpened()) wc.closeDevTools()
+      const openedPromise = waitForOpened()
+      wc.openDevTools({ mode: 'detach', activate: true })
+      const opened = await openedPromise
+      if (opened) return true
+      return wc.isDevToolsOpened()
+    } catch (err) {
+      console.warn('[webview:open-devtools-detached] failed', { webviewId, err: err instanceof Error ? err.message : String(err) })
+      return false
+    }
+  })
+
+  ipcMain.handle('webview:open-devtools-inline', async (_, targetWebviewId: number, bounds: InlineDevToolsBounds) => {
+    const target = webContents.fromId(targetWebviewId)
+    if (!target || target.isDestroyed()) {
+      console.warn('[webview:open-devtools-inline] missing target', { targetWebviewId })
+      return { ok: false as const, reason: 'missing-target' as const }
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('[webview:open-devtools-inline] missing main window', { targetWebviewId })
+      return { ok: false as const, reason: 'missing-main-window' as const }
+    }
+    const view = ensureInlineDevToolsView(mainWindow)
+    view.setBounds(normalizeInlineDevToolsBounds(bounds))
+    const host = view.webContents
+
+    const targetEmitter = target as unknown as NodeJS.EventEmitter
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+    const waitForOpened = (timeoutMs = 1200) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false
+        const handler = () => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          resolve(true)
+        }
+        const timer = setTimeout(() => {
+          if (settled) return
+          settled = true
+          targetEmitter.removeListener('devtools-opened', handler)
+          resolve(false)
+        }, timeoutMs)
+        targetEmitter.once('devtools-opened', handler)
+      })
+
+    const waitForOpenState = async (timeoutMs = 1400) => {
+      const started = Date.now()
+      while (Date.now() - started < timeoutMs) {
+        if (target.isDestroyed()) return false
+        if (target.isDevToolsOpened()) return true
+        await wait(80)
+      }
+      return target.isDevToolsOpened()
+    }
+
+    try {
+      if (target.isDevToolsOpened()) target.closeDevTools()
+      target.setDevToolsWebContents(host)
+      const openedPromise = waitForOpened()
+      target.openDevTools({ mode: 'detach', activate: false })
+      const openedEvent = await openedPromise
+      const openedState = await waitForOpenState()
+
+      if (openedState) {
+        console.log('[webview:open-devtools-inline] opened', {
+          targetWebviewId,
+          targetType: target.getType(),
+          hostType: host.getType(),
+          openedEvent
+        })
+        return {
+          ok: true as const,
+          reason: 'opened' as const,
+          targetType: target.getType(),
+          hostType: host.getType(),
+        }
+      }
+
+      console.warn('[webview:open-devtools-inline] open-state-false', {
+        targetWebviewId,
+        targetType: target.getType(),
+        hostType: host.getType(),
+        openedEvent
+      })
+      return {
+        ok: false as const,
+        reason: 'open-state-false' as const,
+        targetType: target.getType(),
+        hostType: host.getType(),
+      }
+    } catch (err) {
+      console.warn('[webview:open-devtools-inline] failed', {
+        targetWebviewId,
+        targetType: target.getType(),
+        hostType: host.getType(),
+        err: err instanceof Error ? err.message : String(err)
+      })
+      return {
+        ok: false as const,
+        reason: 'exception' as const,
+        targetType: target.getType(),
+        hostType: host.getType(),
+        error: err instanceof Error ? err.message : String(err)
+      }
+    }
+  })
+
+  ipcMain.handle('webview:update-devtools-inline-bounds', (_, bounds: InlineDevToolsBounds) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (!inlineDevToolsView || inlineDevToolsView.webContents.isDestroyed()) return false
+    if (!inlineDevToolsViewAttached) return false
+    inlineDevToolsView.setBounds(normalizeInlineDevToolsBounds(bounds))
+    return true
+  })
+
+  ipcMain.handle('webview:close-devtools-inline', (_, targetWebviewId?: number) => {
+    if (typeof targetWebviewId === 'number') {
+      const target = webContents.fromId(targetWebviewId)
+      if (target && !target.isDestroyed() && target.isDevToolsOpened()) {
+        target.closeDevTools()
+      }
+    }
+    removeInlineDevToolsView(mainWindow)
     return true
   })
 
@@ -832,6 +1270,10 @@ app.on('window-all-closed', () => {
 
 // Clean up database connection and active processes before quitting
 app.on('will-quit', () => {
+  if (oauthCallbackServer) {
+    oauthCallbackServer.close()
+    oauthCallbackServer = null
+  }
   if (linearSyncPoller) {
     clearInterval(linearSyncPoller)
     linearSyncPoller = null

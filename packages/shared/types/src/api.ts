@@ -160,6 +160,9 @@ export interface ElectronAPI {
       error?: string
       cancelled?: boolean
     }>
+    openSystemSignIn: (signInUrl: string) => Promise<void>
+    onOAuthCallback: (callback: (payload: { code?: string; error?: string }) => void) => () => void
+    consumeOAuthCallback: () => Promise<{ code?: string; error?: string } | null>
   }
   dialog: {
     showOpenDialog: (options: {

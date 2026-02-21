@@ -40,6 +40,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     renderer: {
+      envDir: root,
       define: {
         __POSTHOG_API_KEY__: JSON.stringify(env.POSTHOG_API_KEY ?? ''),
         __POSTHOG_HOST__: JSON.stringify(env.POSTHOG_HOST ?? ''),

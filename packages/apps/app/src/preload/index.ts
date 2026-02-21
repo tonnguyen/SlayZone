@@ -79,7 +79,14 @@ const api: ElectronAPI = {
   },
   auth: {
     githubPopupSignIn: (signInUrl: string, callbackUrl: string) =>
-      ipcRenderer.invoke('auth:github-popup-sign-in', signInUrl, callbackUrl)
+      ipcRenderer.invoke('auth:github-popup-sign-in', signInUrl, callbackUrl),
+    openSystemSignIn: (signInUrl: string) => ipcRenderer.invoke('auth:open-system-sign-in', signInUrl),
+    consumeOAuthCallback: () => ipcRenderer.invoke('auth:consume-oauth-callback'),
+    onOAuthCallback: (callback) => {
+      const handler = (_event: unknown, payload: { code?: string; error?: string }) => callback(payload)
+      ipcRenderer.on('auth:oauth-callback', handler)
+      return () => ipcRenderer.removeListener('auth:oauth-callback', handler)
+    }
   },
   dialog: {
     showOpenDialog: (options) => ipcRenderer.invoke('dialog:showOpenDialog', options)
