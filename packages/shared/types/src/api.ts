@@ -60,7 +60,7 @@ export type ProcessStatus = 'running' | 'stopped' | 'error'
 
 export interface ProcessInfo {
   id: string
-  taskId: string
+  taskId: string | null
   label: string
   command: string
   cwd: string
@@ -428,11 +428,11 @@ export interface ElectronAPI {
     import: () => Promise<{ success: boolean; canceled?: boolean; projectCount?: number; taskCount?: number; importedProjects?: Array<{ id: string; name: string }>; error?: string }>
   }
   processes: {
-    create: (taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
-    spawn: (taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    create: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    spawn: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
     kill: (processId: string) => Promise<boolean>
     restart: (processId: string) => Promise<boolean>
-    list: (taskId: string) => Promise<ProcessInfo[]>
+    listForTask: (taskId: string) => Promise<ProcessInfo[]>
     listAll: () => Promise<ProcessInfo[]>
     killTask: (taskId: string) => Promise<void>
     onLog: (cb: (processId: string, line: string) => void) => () => void

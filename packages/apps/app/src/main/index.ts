@@ -41,7 +41,7 @@ import { registerAiConfigHandlers } from '@slayzone/ai-config/main'
 import { registerIntegrationHandlers, startLinearSyncPoller } from '@slayzone/integrations/main'
 import { registerFileEditorHandlers } from '@slayzone/file-editor/main'
 import { registerScreenshotHandlers } from './screenshot'
-import { setProcessManagerWindow, createProcess, spawnProcess, killProcess, restartProcess, listProcesses, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
+import { setProcessManagerWindow, createProcess, spawnProcess, killProcess, restartProcess, listForTask, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
 import { registerExportImportHandlers } from './export-import'
 import { registerLeaderboardHandlers } from './leaderboard'
 import { initAutoUpdater, checkForUpdates, restartForUpdate } from './auto-updater'
@@ -1383,10 +1383,10 @@ app.whenReady().then(async () => {
   if (mainWindow) setProcessManagerWindow(mainWindow)
 
   // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
-  ipcMain.handle('processes:create', (_event, taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => {
+  ipcMain.handle('processes:create', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
     return createProcess(taskId, label, command, cwd, autoRestart)
   })
-  ipcMain.handle('processes:spawn', (_event, taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => {
+  ipcMain.handle('processes:spawn', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
     return spawnProcess(taskId, label, command, cwd, autoRestart)
   })
   ipcMain.handle('processes:kill', (_event, processId: string) => {
@@ -1395,8 +1395,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('processes:restart', (_event, processId: string) => {
     return restartProcess(processId)
   })
-  ipcMain.handle('processes:list', (_event, taskId: string) => {
-    return listProcesses(taskId)
+  ipcMain.handle('processes:listForTask', (_event, taskId: string) => {
+    return listForTask(taskId)
   })
   ipcMain.handle('processes:listAll', () => {
     return listAllProcesses()

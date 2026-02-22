@@ -1405,8 +1405,8 @@ export function TaskDetailPage({
                     { id: 'browser', icon: Globe, label: 'Browser', shortcut: '⌘B' },
                     { id: 'editor', icon: FileCode, label: 'Editor', shortcut: '⌘E' },
                     { id: 'diff', icon: GitBranch, label: 'Git', shortcut: '⌘G' },
-                    { id: 'settings', icon: Settings2, label: 'Settings', shortcut: '⌘S' },
                     ...(import.meta.env.DEV ? [{ id: 'processes', icon: Cpu, label: 'Processes' }] : []),
+                    { id: 'settings', icon: Settings2, label: 'Settings', shortcut: '⌘S' },
                   ].filter(p => isBuiltinEnabled(p.id) && !(task.is_temporary && p.id === 'settings'))
 
                   // Insert web panels after editor

@@ -7,7 +7,7 @@ export type ProcessStatus = 'running' | 'stopped' | 'error'
 
 export interface ProcessInfo {
   id: string
-  taskId: string
+  taskId: string | null   // null = global (persists across tasks)
   label: string
   command: string
   cwd: string
@@ -87,7 +87,7 @@ function doSpawn(proc: ManagedProcess): void {
 }
 
 export function createProcess(
-  taskId: string,
+  taskId: string | null,
   label: string,
   command: string,
   cwd: string,
@@ -95,17 +95,9 @@ export function createProcess(
 ): string {
   const id = randomUUID()
   const proc: ManagedProcess = {
-    id,
-    taskId,
-    label,
-    command,
-    cwd,
-    autoRestart,
-    status: 'stopped',
-    pid: null,
-    exitCode: null,
-    logBuffer: [],
-    child: null,
+    id, taskId, label, command, cwd, autoRestart,
+    status: 'stopped', pid: null, exitCode: null,
+    logBuffer: [], child: null,
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
@@ -113,7 +105,7 @@ export function createProcess(
 }
 
 export function spawnProcess(
-  taskId: string,
+  taskId: string | null,
   label: string,
   command: string,
   cwd: string,
@@ -121,17 +113,9 @@ export function spawnProcess(
 ): string {
   const id = randomUUID()
   const proc: ManagedProcess = {
-    id,
-    taskId,
-    label,
-    command,
-    cwd,
-    autoRestart,
-    status: 'running',
-    pid: null,
-    exitCode: null,
-    logBuffer: [],
-    child: null,
+    id, taskId, label, command, cwd, autoRestart,
+    status: 'running', pid: null, exitCode: null,
+    logBuffer: [], child: null,
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
@@ -160,6 +144,7 @@ export function restartProcess(id: string): boolean {
   return true
 }
 
+/** Kill all processes belonging to a specific task. Global processes are unaffected. */
 export function killTaskProcesses(taskId: string): void {
   for (const [id, proc] of processes.entries()) {
     if (proc.taskId === taskId) {
@@ -170,9 +155,10 @@ export function killTaskProcesses(taskId: string): void {
   }
 }
 
-export function listProcesses(taskId: string): ProcessInfo[] {
+/** Returns task-scoped processes for taskId plus all global (taskId=null) processes. */
+export function listForTask(taskId: string): ProcessInfo[] {
   return Array.from(processes.values())
-    .filter(p => p.taskId === taskId)
+    .filter(p => p.taskId === taskId || p.taskId === null)
     .map(({ child: _, ...info }) => info)
 }
 

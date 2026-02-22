@@ -410,7 +410,7 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('processes:spawn', taskId, label, command, cwd, autoRestart),
     kill: (processId) => ipcRenderer.invoke('processes:kill', processId),
     restart: (processId) => ipcRenderer.invoke('processes:restart', processId),
-    list: (taskId) => ipcRenderer.invoke('processes:list', taskId),
+    listForTask: (taskId) => ipcRenderer.invoke('processes:listForTask', taskId),
     listAll: () => ipcRenderer.invoke('processes:listAll'),
     killTask: (taskId) => ipcRenderer.invoke('processes:killTask', taskId),
     onLog: (cb) => {
