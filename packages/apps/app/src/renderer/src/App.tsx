@@ -133,7 +133,7 @@ function App(): React.JSX.Element {
   const leaderboardAuth = useLeaderboardAuth()
   const leaderboardBestRank = useQuery(
     api.leaderboard.getMyBestRank,
-    leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
+    import.meta.env.DEV && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
   ) ?? null
 
   // Usage & notification state

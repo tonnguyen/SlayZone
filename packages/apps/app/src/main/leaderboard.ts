@@ -12,7 +12,7 @@ function runCcusage(): Promise<CcusageDailyEntry[]> {
   return new Promise((resolve) => {
     const shell = process.env.SHELL || '/bin/bash'
     const isFish = shell.includes('fish')
-    const shellArgs = isFish ? ['-i', '-c', 'ccusage --json'] : ['-lc', 'ccusage --json']
+    const shellArgs = isFish ? ['-i', '-c', 'npx ccusage --json'] : ['-lc', 'npx ccusage --json']
 
     execFile(shell, shellArgs, { timeout: 20_000 }, (_err, stdout) => {
       if (!stdout?.trim()) return resolve([])
@@ -56,11 +56,13 @@ export function registerLeaderboardHandlers(ipcMain: IpcMain, db: Database): voi
     const todayCompletedTasks = getTodayCompletedTasks(db)
     const ccusageDays = await runCcusage()
 
-    const days = ccusageDays.map((d) => ({
-      date: d.date,
-      totalTokens: d.totalTokens,
-      totalCompletedTasks: d.date === today ? todayCompletedTasks : 0
-    }))
+    const days = ccusageDays
+      .map((d) => ({
+        date: d.date,
+        totalTokens: d.totalTokens,
+        totalCompletedTasks: d.date === today ? todayCompletedTasks : 0
+      }))
+      .filter((d) => d.date === today || d.totalTokens > 0)
 
     if (!days.find((d) => d.date === today)) {
       days.push({ date: today, totalTokens: 0, totalCompletedTasks: todayCompletedTasks })
