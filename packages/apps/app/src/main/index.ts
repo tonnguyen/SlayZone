@@ -41,7 +41,7 @@ import { registerAiConfigHandlers } from '@slayzone/ai-config/main'
 import { registerIntegrationHandlers, startLinearSyncPoller } from '@slayzone/integrations/main'
 import { registerFileEditorHandlers } from '@slayzone/file-editor/main'
 import { registerScreenshotHandlers } from './screenshot'
-import { setProcessManagerWindow, createProcess, spawnProcess, killProcess, restartProcess, listForTask, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
+import { setProcessManagerWindow, createProcess, spawnProcess, updateProcess, killProcess, restartProcess, listForTask, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
 import { registerExportImportHandlers } from './export-import'
 import { registerLeaderboardHandlers } from './leaderboard'
 import { initAutoUpdater, checkForUpdates, restartForUpdate } from './auto-updater'
@@ -191,9 +191,7 @@ interface InlineDevToolsBounds {
   height: number
 }
 
-type DevToolsDockMode = 'right' | 'bottom'
 const INLINE_DEVTOOLS_LEFT_TRIM = 0
-const ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK = true
 
 function normalizeInlineDevToolsBounds(bounds: InlineDevToolsBounds): InlineDevToolsBounds {
   const normalized = {
@@ -1150,39 +1148,9 @@ app.whenReady().then(async () => {
     view.setBounds(normalizeInlineDevToolsBounds(bounds))
     const host = view.webContents
 
-    const targetEmitter = target as unknown as NodeJS.EventEmitter
-    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-    const waitForOpened = (timeoutMs = 1200) =>
-      new Promise<boolean>((resolve) => {
-        let settled = false
-        const handler = () => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          resolve(true)
-        }
-        const timer = setTimeout(() => {
-          if (settled) return
-          settled = true
-          targetEmitter.removeListener('devtools-opened', handler)
-          resolve(false)
-        }, timeoutMs)
-        targetEmitter.once('devtools-opened', handler)
-      })
-
-    const waitForOpenState = async (timeoutMs = 1400) => {
-      const started = Date.now()
-      while (Date.now() - started < timeoutMs) {
-        if (target.isDestroyed()) return false
-        if (target.isDevToolsOpened()) return true
-        await wait(80)
-      }
-      return target.isDevToolsOpened()
-    }
-
-    // In Electron 39+, when using setDevToolsWebContents, the devtools-opened event
-    // and isDevToolsOpened() don't fire/return true because the native window never opens.
-    // Instead, detect success by watching the host WebContents URL change to devtools://.
+    // devtools-opened event and isDevToolsOpened() don't fire/return true in Electron 39+
+    // when using setDevToolsWebContents — the native window never fully opens.
+    // Detect success by watching the host WebContents URL navigate to devtools://.
     const waitForHostDevTools = (timeoutMs = 6000) =>
       new Promise<boolean>((resolve) => {
         let settled = false
@@ -1205,15 +1173,9 @@ app.whenReady().then(async () => {
     try {
       if (target.isDevToolsOpened()) target.closeDevTools()
       target.setDevToolsWebContents(host)
-      const attempts: string[] = []
-      const variants: Array<{ mode: DevToolsDockMode; activate: boolean }> = [
-        { mode: 'undocked', activate: false },
-      ]
 
-      for (const variant of variants) {
-        if (target.isDestroyed()) break
+      if (!target.isDestroyed()) {
         if (target.isDevToolsOpened()) target.closeDevTools()
-        const openedPromise = waitForOpened()
         const hostDevToolsPromise = waitForHostDevTools()
         // Intercept the native DevTools popup window that undocked mode creates.
         // Register BEFORE openDevTools() so we catch the window at creation time,
@@ -1238,67 +1200,53 @@ app.whenReady().then(async () => {
           })
         }
         app.once('browser-window-created', suppressPopup)
-        target.openDevTools({ mode: variant.mode, activate: variant.activate })
+        target.openDevTools({ mode: 'undocked', activate: false })
         // Clean up listener if openDevTools didn't create a window (e.g. already opened)
         const cleanupSuppressListener = () => app.off('browser-window-created', suppressPopup)
-        const openedEvent = await openedPromise
-        const openedState = await waitForOpenState()
-        const hostLoaded = !openedState ? await hostDevToolsPromise : false
-        const success = openedState || hostLoaded
+        const hostLoaded = await hostDevToolsPromise
         cleanupSuppressListener()
-        attempts.push(`${variant.mode}:${success ? 'opened' : openedEvent ? 'event-only' : 'closed'}`)
-        if (success) {
+        if (hostLoaded) {
           view.setBounds(normalizeInlineDevToolsBounds(bounds))
           let deviceToolbarResult: string | undefined
-          if (ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK) {
-            // Tune after did-navigate so DevTools modules (UI, Common) are fully loaded.
-            // If already navigated (pre-warm path), call immediately; otherwise wait for nav.
-            const isDevToolsUrl = (url: string) => url.startsWith('devtools://') || url.includes('chrome-devtools://')
-            const runTune = async () => {
-              deviceToolbarResult = await tuneInlineDevToolsFrontend(host)
-              scheduleDisableDevToolsDeviceToolbar(host)
-            }
-            if (isDevToolsUrl(host.getURL())) {
-              await runTune()
-            } else {
-              host.once('did-navigate', (_, url) => { if (isDevToolsUrl(url)) void runTune() })
-            }
+          // Tune after did-navigate so DevTools modules (UI, Common) are fully loaded.
+          // If already navigated (pre-warm path), call immediately; otherwise wait for nav.
+          const isDevToolsUrl = (url: string) => url.startsWith('devtools://') || url.includes('chrome-devtools://')
+          const runTune = async () => {
+            deviceToolbarResult = await tuneInlineDevToolsFrontend(host)
+            scheduleDisableDevToolsDeviceToolbar(host)
+          }
+          if (isDevToolsUrl(host.getURL())) {
+            await runTune()
+          } else {
+            host.once('did-navigate', (_, url) => { if (isDevToolsUrl(url)) void runTune() })
           }
           console.log('[webview:open-devtools-inline] opened', {
             targetWebviewId,
             targetType: target.getType(),
             hostType: host.getType(),
-            mode: variant.mode,
-            openedEvent,
-            openedState,
-            hostLoaded,
             deviceToolbarResult,
-            attempts,
           })
           return {
             ok: true as const,
             reason: 'opened' as const,
             targetType: target.getType(),
             hostType: host.getType(),
-            mode: variant.mode,
+            mode: 'undocked' as const,
             deviceToolbar: deviceToolbarResult,
-            attempts,
           }
         }
       }
 
-      console.warn('[webview:open-devtools-inline] no-variant-opened', {
+      console.warn('[webview:open-devtools-inline] failed', {
         targetWebviewId,
         targetType: target.getType(),
         hostType: host.getType(),
-        attempts,
       })
       return {
         ok: false as const,
         reason: 'no-variant-opened' as const,
         targetType: target.getType(),
         hostType: host.getType(),
-        attempts,
       }
     } catch (err) {
       console.warn('[webview:open-devtools-inline] failed', {
@@ -1388,6 +1336,9 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('processes:spawn', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
     return spawnProcess(taskId, label, command, cwd, autoRestart)
+  })
+  ipcMain.handle('processes:update', (_event, processId: string, updates: Parameters<typeof updateProcess>[1]) => {
+    return updateProcess(processId, updates)
   })
   ipcMain.handle('processes:kill', (_event, processId: string) => {
     return killProcess(processId)
