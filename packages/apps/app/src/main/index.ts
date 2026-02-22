@@ -1236,7 +1236,7 @@ app.whenReady().then(async () => {
       target.setDevToolsWebContents(host)
       const attempts: string[] = []
       const variants: Array<{ mode: DevToolsDockMode; activate: boolean }> = [
-        { mode: 'bottom', activate: false },
+        { mode: 'undocked', activate: false },
       ]
 
       for (const variant of variants) {
@@ -1244,11 +1244,26 @@ app.whenReady().then(async () => {
         if (target.isDevToolsOpened()) target.closeDevTools()
         const openedPromise = waitForOpened()
         const hostDevToolsPromise = waitForHostDevTools()
+        // Intercept the native DevTools popup window that undocked mode creates.
+        // Register BEFORE openDevTools() so we catch the window at creation time,
+        // before Electron calls Show() on it.
+        const suppressPopup = (_: unknown, win: Electron.BrowserWindow) => {
+          if (win.isDestroyed()) return
+          win.setOpacity(0)
+          win.setBounds({ x: -32000, y: -32000, width: 1, height: 1 })
+          const hide = () => { if (!win.isDestroyed()) { win.setOpacity(0); win.setBounds({ x: -32000, y: -32000, width: 1, height: 1 }); win.hide() } }
+          win.on('ready-to-show', hide)
+          win.on('show', hide)
+        }
+        app.once('browser-window-created', suppressPopup)
         target.openDevTools({ mode: variant.mode, activate: variant.activate })
+        // Clean up listener if openDevTools didn't create a window (e.g. already opened)
+        const cleanupSuppressListener = () => app.off('browser-window-created', suppressPopup)
         const openedEvent = await openedPromise
         const openedState = await waitForOpenState()
         const hostLoaded = !openedState ? await hostDevToolsPromise : false
         const success = openedState || hostLoaded
+        cleanupSuppressListener()
         attempts.push(`${variant.mode}:${success ? 'opened' : openedEvent ? 'event-only' : 'closed'}`)
         if (success) {
           view.setBounds(normalizeInlineDevToolsBounds(bounds))

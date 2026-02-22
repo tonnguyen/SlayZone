@@ -31,12 +31,6 @@ interface TaskUrlEntry {
   tabTitle: string
 }
 
-interface DevConsoleEntry {
-  id: string
-  level: 'log' | 'warn' | 'error' | 'info' | 'command' | 'result'
-  message: string
-}
-
 // Minimal webview interface for type safety
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean
@@ -60,6 +54,7 @@ interface BrowserPanelProps {
   onTabsChange: (tabs: BrowserTabsState) => void
   taskId?: string
   isResizing?: boolean
+  isActive?: boolean
   onElementSnippet?: (snippet: string) => void
   canUseDomPicker?: boolean
 }
@@ -77,6 +72,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   onTabsChange,
   taskId,
   isResizing,
+  isActive,
   onElementSnippet,
   canUseDomPicker = true
 }: BrowserPanelProps, ref) {
@@ -91,18 +87,18 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const [reloadTrigger, setReloadTrigger] = useState(0)
   const [webviewId, setWebviewId] = useState<number | null>(null)
   const [devToolsStatus, setDevToolsStatus] = useState<string | null>(null)
-  const [devConsoleOpen] = useState(false)
-  const [devConsoleInput, setDevConsoleInput] = useState('')
-  const [devConsoleEntries, setDevConsoleEntries] = useState<DevConsoleEntry[]>([])
+  const [inlineDevToolsOpen, setInlineDevToolsOpen] = useState(false)
+  const [inlineDevToolsAttached, setInlineDevToolsAttached] = useState(false)
+  const [inlineAttachTick, setInlineAttachTick] = useState(0)
+  const [inlineDevToolsHeight, setInlineDevToolsHeight] = useState(300)
+  const [isDraggingInlineDevTools, setIsDraggingInlineDevTools] = useState(false)
   const [isPickingElement, setIsPickingElement] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const webviewRef = useRef<WebviewElement>(null)
+  const inlineDevToolsPanelRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const devConsoleOutputRef = useRef<HTMLDivElement>(null)
-
-  const appendDevConsoleEntry = useCallback((level: DevConsoleEntry['level'], message: string) => {
-    setDevConsoleEntries((prev) => [...prev, { id: crypto.randomUUID(), level, message }].slice(-400))
-  }, [])
+  const inlineAttachAttemptRef = useRef(0)
+  const prewarmRef = useRef(false)
 
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
@@ -294,18 +290,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       createNewTabRef.current(url)
     }
 
-    const handleConsoleMessage = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { level?: number; message?: string; line?: number; sourceId?: string } | undefined
-      const level: DevConsoleEntry['level'] = detail?.level === 3 ? 'error'
-        : detail?.level === 2 ? 'warn'
-          : detail?.level === 1 ? 'info'
-            : 'log'
-      const where = detail?.sourceId ? ` (${detail.sourceId}${detail.line ? `:${detail.line}` : ''})` : ''
-      const message = `${detail?.message ?? ''}${where}`.trim()
-      if (!message) return
-      appendDevConsoleEntry(level, message)
-    }
-
     const handleDomReady = () => {
       setWebviewReady(true)
       try {
@@ -325,7 +309,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     wv.addEventListener('page-title-updated', handleTitleUpdate)
     wv.addEventListener('page-favicon-updated', handleFaviconUpdate)
     wv.addEventListener('new-window', handleNewWindow)
-    wv.addEventListener('console-message', handleConsoleMessage)
 
     return () => {
       wv.removeEventListener('dom-ready', handleDomReady)
@@ -336,9 +319,144 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       wv.removeEventListener('page-title-updated', handleTitleUpdate)
       wv.removeEventListener('page-favicon-updated', handleFaviconUpdate)
       wv.removeEventListener('new-window', handleNewWindow)
-      wv.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [appendDevConsoleEntry]) // stable callbacks via refs
+  }, []) // stable callbacks via refs
+
+  const getInlineDevToolsBounds = useCallback(() => {
+    const el = inlineDevToolsPanelRef.current
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width < 2 || rect.height < 2) return null
+    return {
+      x: Math.floor(rect.left),
+      y: Math.floor(rect.top),
+      width: Math.floor(rect.width),
+      height: Math.floor(rect.height)
+    }
+  }, [])
+
+  const syncInlineDevToolsBounds = useCallback(() => {
+    const bounds = getInlineDevToolsBounds()
+    if (!bounds) return
+    void window.api.webview.updateDevToolsInlineBounds(bounds)
+  }, [getInlineDevToolsBounds])
+
+  const startInlineDevToolsResize = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingInlineDevTools(true)
+    const startY = event.clientY
+    const startHeight = inlineDevToolsHeight
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startY - moveEvent.clientY
+      const maxHeight = Math.max(300, Math.floor(window.innerHeight * 0.75))
+      const nextHeight = Math.max(200, Math.min(maxHeight, startHeight + delta))
+      setInlineDevToolsHeight(nextHeight)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      setIsDraggingInlineDevTools(false)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [inlineDevToolsHeight])
+
+  // Pre-warm: open DevTools off-screen when webview first loads so the native popup
+  // flash happens at page load (unobtrusive) rather than when user clicks the button.
+  useEffect(() => {
+    if (prewarmRef.current || webviewId === null) return
+    prewarmRef.current = true
+    void (async () => {
+      try {
+        const result = await Promise.race<Awaited<ReturnType<typeof window.api.webview.openDevToolsInline>> | 'timeout'>([
+          window.api.webview.openDevToolsInline(webviewId, { x: -10000, y: -10000, width: 1, height: 1 }),
+          new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 10000))
+        ])
+        if (result !== 'timeout' && result.ok) {
+          setInlineDevToolsAttached(true)
+        }
+      } catch {
+        // prewarm failed — normal attach path will handle it when user opens DevTools
+      }
+    })()
+  }, [webviewId])
+
+  useEffect(() => {
+    if (!inlineDevToolsOpen) return undefined
+    if (inlineDevToolsAttached) return undefined
+    if (webviewId === null) return undefined
+    const bounds = getInlineDevToolsBounds()
+    if (!bounds) {
+      const retry = window.setTimeout(() => setInlineAttachTick((n) => n + 1), 120)
+      return () => window.clearTimeout(retry)
+    }
+
+    const attempt = ++inlineAttachAttemptRef.current
+    void (async () => {
+      try {
+        setDevToolsStatus(`Attaching inline Chromium DevTools (target:${webviewId})...`)
+        const result = await Promise.race<Awaited<ReturnType<typeof window.api.webview.openDevToolsInline>> | 'timeout'>([
+          window.api.webview.openDevToolsInline(webviewId, bounds),
+          new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 10000))
+        ])
+        if (attempt !== inlineAttachAttemptRef.current) return
+        if (result === 'timeout') {
+          setInlineDevToolsAttached(false)
+          setDevToolsStatus('Inline Chromium DevTools attach timed out (10s)')
+          return
+        }
+        if (!result.ok) {
+          setInlineDevToolsAttached(false)
+          const details = [
+            `reason=${result.reason}`,
+            result.targetType ? `targetType=${result.targetType}` : null,
+            result.hostType ? `hostType=${result.hostType}` : null,
+            result.attempts?.length ? `attempts=[${result.attempts.join(', ')}]` : null,
+          ].filter(Boolean).join(' ')
+          setDevToolsStatus(`Failed to open inline Chromium DevTools (${details || 'no details'})`)
+          return
+        }
+        setInlineDevToolsAttached(true)
+        setDevToolsStatus(
+          result.mode
+            ? `Chromium DevTools opened inline (mode=${result.mode}${result.deviceToolbar ? ` deviceToolbar=${result.deviceToolbar}` : ''})`
+            : 'Chromium DevTools opened inline'
+        )
+      } catch (err) {
+        if (attempt !== inlineAttachAttemptRef.current) return
+        const message = err instanceof Error ? err.message : String(err)
+        setInlineDevToolsOpen(false)
+        setInlineDevToolsAttached(false)
+        setDevToolsStatus(`DevTools error: ${message}`)
+      }
+    })()
+    return undefined
+  }, [inlineDevToolsOpen, inlineDevToolsAttached, webviewId, inlineAttachTick, getInlineDevToolsBounds])
+
+  useEffect(() => {
+    if (!inlineDevToolsOpen) return
+    if (!inlineDevToolsAttached) return
+
+    syncInlineDevToolsBounds()
+    const onWindowResize = () => syncInlineDevToolsBounds()
+    window.addEventListener('resize', onWindowResize)
+    const timer = window.setInterval(syncInlineDevToolsBounds, 250)
+    return () => {
+      window.removeEventListener('resize', onWindowResize)
+      window.clearInterval(timer)
+    }
+  }, [inlineDevToolsOpen, inlineDevToolsAttached, syncInlineDevToolsBounds])
+
+  useEffect(() => {
+    if (!inlineDevToolsOpen || !inlineDevToolsAttached) return
+    const timer = window.setTimeout(() => {
+      syncInlineDevToolsBounds()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [inlineDevToolsOpen, inlineDevToolsAttached, inlineDevToolsHeight, syncInlineDevToolsBounds])
 
   // Keyboard shortcuts when focused
   useEffect(() => {
@@ -406,23 +524,29 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     void (async () => {
       try {
         const id = webviewId ?? wv.getWebContentsId()
-        const opened = await window.api.webview.isDevToolsOpened(id)
-        if (opened) {
-          const ok = await window.api.webview.closeDevTools(id)
-          setDevToolsStatus(ok ? 'Chromium DevTools closed' : 'Failed to close Chromium DevTools')
+        if (inlineDevToolsOpen) {
+          // Keep DevTools attached (off-screen) — just hide the panel to avoid popup on next open
+          setInlineDevToolsOpen(false)
+          setDevToolsStatus('Chromium DevTools closed')
           return
         }
-        const ok = await window.api.webview.openDevToolsBottom(id)
-        const nowOpened = await window.api.webview.isDevToolsOpened(id)
-        if (ok && nowOpened) setDevToolsStatus('Chromium DevTools opened')
-        else if (ok) setDevToolsStatus('Open requested, but open state is false')
-        else setDevToolsStatus('Failed to open Chromium DevTools')
+        if (inlineDevToolsAttached) {
+          // Pre-warm succeeded — no IPC needed, just show the panel
+          setInlineDevToolsOpen(true)
+          setDevToolsStatus('Chromium DevTools opened inline')
+          return
+        }
+        // Pre-warm failed or not done — fall back to normal attach path
+        const opened = await window.api.webview.isDevToolsOpened(id)
+        if (opened) await window.api.webview.closeDevTools(id)
+        setInlineDevToolsOpen(true)
+        setDevToolsStatus('Preparing inline Chromium DevTools...')
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setDevToolsStatus(`DevTools error: ${message}`)
       }
     })()
-  }, [multiDeviceMode, webviewReady, webviewId])
+  }, [multiDeviceMode, webviewReady, webviewId, inlineDevToolsOpen, inlineDevToolsAttached])
 
   const openDetachedDevTools = useCallback(() => {
     if (multiDeviceMode || !webviewReady) {
@@ -446,30 +570,32 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     })()
   }, [multiDeviceMode, webviewReady, webviewId])
 
-  const runConsoleCommand = useCallback(() => {
-    if (!webviewReady) return
-    const wv = webviewRef.current
-    const code = devConsoleInput.trim()
-    if (!wv || !code) return
-    appendDevConsoleEntry('command', `> ${code}`)
-    setDevConsoleInput('')
-    void wv.executeJavaScript<unknown>(code, true).then((result) => {
-      const rendered = typeof result === 'string'
-        ? result
-        : JSON.stringify(result, null, 2) ?? String(result)
-      appendDevConsoleEntry('result', rendered)
-    }).catch((err) => {
-      const message = err instanceof Error ? err.message : String(err)
-      appendDevConsoleEntry('error', message)
-    })
-  }, [appendDevConsoleEntry, devConsoleInput, webviewReady])
+  useEffect(() => {
+    if (multiDeviceMode) {
+      void window.api.webview.closeDevToolsInline(webviewId ?? undefined)
+      setInlineDevToolsOpen(false)
+      setInlineDevToolsAttached(false)
+    }
+  }, [multiDeviceMode, activeTab?.id, webviewId])
 
   useEffect(() => {
-    if (!devConsoleOpen) return
-    const el = devConsoleOutputRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [devConsoleEntries, devConsoleOpen])
+    if (!inlineDevToolsAttached) return
+    if (isActive === false || !inlineDevToolsOpen) {
+      void window.api.webview.updateDevToolsInlineBounds({ x: -10000, y: -10000, width: 1, height: 1 })
+    } else {
+      syncInlineDevToolsBounds()
+    }
+  }, [isActive, inlineDevToolsOpen, inlineDevToolsAttached, syncInlineDevToolsBounds])
+
+  useEffect(() => {
+    if (!inlineDevToolsOpen || inlineDevToolsAttached) return
+    const timer = window.setTimeout(() => {
+      setDevToolsStatus(
+        `Still preparing inline Chromium DevTools (target:${webviewId ?? 'pending'})`
+      )
+    }, 4000)
+    return () => window.clearTimeout(timer)
+  }, [inlineDevToolsOpen, inlineDevToolsAttached, webviewId])
 
   const cancelPickElement = useCallback(async () => {
     const wv = webviewRef.current
@@ -551,6 +677,12 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       void cancelPickElement()
     }
   }, [isPickingElement, cancelPickElement])
+
+  useEffect(() => {
+    return () => {
+      void window.api.webview.closeDevToolsInline(webviewId ?? undefined)
+    }
+  }, [webviewId])
 
   return (
     <div
@@ -856,7 +988,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
         />
       ) : (
         <div className="relative flex-1 min-h-0 flex flex-col">
-          <div className="relative flex-1 min-h-0">
+          <div className="relative min-w-0 flex-1 min-h-0">
             <webview
               ref={webviewRef}
               src={(activeTab?.url || 'about:blank').replace(/^file:\/\//, 'slz-file://')}
@@ -874,47 +1006,29 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
             )}
             {isResizing && <div className="absolute inset-0 z-10" />}
           </div>
-          {devConsoleOpen && (
-            <div data-testid="browser-devtools-panel" className="shrink-0 h-44 border-t border-border bg-neutral-950 text-neutral-100 flex flex-col">
-              <div className="h-8 px-2 border-b border-neutral-800 flex items-center gap-2 text-xs">
-                <span className="font-medium">Dev Console</span>
-                <span className="text-neutral-400">{webviewId ? `webview:${webviewId}` : 'webview:pending'}</span>
-                <div className="flex-1" />
-                <Button variant="ghost" size="sm" onClick={() => setDevConsoleEntries([])}>Clear</Button>
-              </div>
+          {inlineDevToolsOpen && (
+            <>
               <div
-                ref={devConsoleOutputRef}
-                className="flex-1 overflow-y-auto px-2 py-1 font-mono text-[11px] leading-relaxed"
+                className="w-full h-3 shrink-0 cursor-row-resize border-t border-border/80 bg-black/80 hover:bg-black"
+                onMouseDown={startInlineDevToolsResize}
+                title="Drag to resize DevTools"
+              />
+              <div
+                ref={inlineDevToolsPanelRef}
+                data-testid="browser-devtools-panel"
+                className="shrink-0 border-t border-border bg-black/90 w-full"
+                style={{ height: `${inlineDevToolsHeight}px` }}
               >
-                {devConsoleEntries.length === 0 ? (
-                  <div className="text-neutral-500">No console output yet.</div>
-                ) : (
-                  devConsoleEntries.map((entry) => (
-                    <div key={entry.id} className={cn(
-                      'whitespace-pre-wrap break-words',
-                      entry.level === 'error' && 'text-red-400',
-                      entry.level === 'warn' && 'text-amber-300',
-                      entry.level === 'command' && 'text-cyan-300',
-                      entry.level === 'result' && 'text-emerald-300'
-                    )}>
-                      {entry.message}
-                    </div>
-                  ))
+                {!inlineDevToolsAttached && (
+                  <div className="h-full w-full flex items-center justify-center text-xs text-neutral-400">
+                    Attaching Chromium DevTools...
+                  </div>
                 )}
               </div>
-              <div className="h-9 border-t border-neutral-800 px-2 flex items-center gap-1">
-                <Input
-                  value={devConsoleInput}
-                  onChange={(e) => setDevConsoleInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') runConsoleCommand() }}
-                  placeholder="Run JavaScript in page context..."
-                  className="h-7 text-xs font-mono bg-neutral-900 border-neutral-700"
-                />
-                <Button variant="secondary" size="sm" onClick={runConsoleCommand}>
-                  Run
-                </Button>
-              </div>
-            </div>
+            </>
+          )}
+          {inlineDevToolsOpen && isDraggingInlineDevTools && (
+            <div className="absolute inset-0 z-20 cursor-row-resize" />
           )}
         </div>
       )}
