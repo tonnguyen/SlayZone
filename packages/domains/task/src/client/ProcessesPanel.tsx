@@ -232,23 +232,11 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
             {s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
-        {view === 'custom' && (
-          <>
-            <div className="flex-1" />
-            <button
-              onClick={() => { setView(processes.length === 0 ? 'start' : 'list'); setForm(EMPTY_FORM) }}
-              className="flex items-center gap-1 h-7 px-2 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <X className="size-3" />
-              Cancel
-            </button>
-          </>
-        )}
       </div>
 
       {/* Custom form */}
       {view === 'custom' && (
-        <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
           <div className="w-full max-w-xs flex flex-col gap-4">
             <p className="text-sm font-medium text-foreground">New process</p>
             <div className="flex flex-col gap-1.5">
@@ -297,6 +285,12 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
               </button>
             </div>
           </div>
+          <button
+            onClick={() => { setView(processes.length === 0 ? 'start' : 'list'); setForm(EMPTY_FORM) }}
+            className="w-full max-w-xs py-2 rounded-md border border-border bg-surface-2 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       )}
 
@@ -333,18 +327,22 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
 
       {/* Suggestion views */}
       {view === 'pkgjson' && (
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center">
-          <button onClick={() => setView('start')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
-            <ArrowLeft className="size-3" /> Back
-          </button>
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center p-4 gap-4">
+          <div className="w-160 flex justify-start">
+            <button onClick={() => setView('start')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface-2 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+              <ArrowLeft className="size-3" /> Back
+            </button>
+          </div>
           <SuggestionCards groups={[{ category: 'package.json', items: pkgScripts }]} onSelect={applySuggestion} />
         </div>
       )}
       {view === 'static' && (
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center">
-          <button onClick={() => setView('start')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
-            <ArrowLeft className="size-3" /> Back
-          </button>
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center p-4 gap-4">
+          <div className="w-160 flex justify-start">
+            <button onClick={() => setView('start')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface-2 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+              <ArrowLeft className="size-3" /> Back
+            </button>
+          </div>
           <SuggestionCards groups={STATIC_SUGGESTIONS} onSelect={applySuggestion} />
         </div>
       )}

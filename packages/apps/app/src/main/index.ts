@@ -191,7 +191,7 @@ interface InlineDevToolsBounds {
   height: number
 }
 
-type DevToolsDockMode = 'right' | 'bottom' | 'undocked'
+type DevToolsDockMode = 'right' | 'bottom'
 const INLINE_DEVTOOLS_LEFT_TRIM = 0
 const ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK = true
 
@@ -1236,20 +1236,8 @@ app.whenReady().then(async () => {
       target.setDevToolsWebContents(host)
       const attempts: string[] = []
       const variants: Array<{ mode: DevToolsDockMode; activate: boolean }> = [
-        { mode: 'undocked', activate: false },
+        { mode: 'bottom', activate: false },
       ]
-
-      // undocked mode creates a native floating window (empty since content goes to our BrowserView).
-      // Intercept and destroy it immediately.
-      const onDevToolsWindowCreated = (_event: Electron.Event, win: BrowserWindow) => {
-        if (win !== mainWindow) {
-          win.setOpacity(0)
-          win.setPosition(-10000, -10000)
-          win.hide()
-          win.on('show', () => { win.setPosition(-10000, -10000); win.hide() })
-        }
-      }
-      app.once('browser-window-created', onDevToolsWindowCreated)
 
       for (const variant of variants) {
         if (target.isDestroyed()) break
@@ -1292,7 +1280,6 @@ app.whenReady().then(async () => {
         }
       }
 
-      app.off('browser-window-created', onDevToolsWindowCreated)
       console.warn('[webview:open-devtools-inline] no-variant-opened', {
         targetWebviewId,
         targetType: target.getType(),
