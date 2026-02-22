@@ -31,8 +31,8 @@ jobs:
       - name: Deploy Convex to production
         run: |
           npx convex deploy --prod --cmd 'echo skip'
-          npx convex env set JWT_PRIVATE_KEY "$JWT_PRIVATE_KEY" --prod
-          npx convex env set JWKS "$JWKS" --prod
+          echo "$JWT_PRIVATE_KEY" | npx convex env set JWT_PRIVATE_KEY --prod
+          echo "$JWKS" | npx convex env set JWKS --prod
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
