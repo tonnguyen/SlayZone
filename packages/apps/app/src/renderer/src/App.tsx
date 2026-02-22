@@ -52,6 +52,9 @@ import {
 } from '@/components/notifications'
 import { UsagePopover } from '@/components/usage/UsagePopover'
 import { useUsage } from '@/components/usage/useUsage'
+import { useQuery } from 'convex/react'
+import { api } from 'convex/_generated/api'
+import { useLeaderboardAuth } from '@/lib/convexAuth'
 
 function App(): React.JSX.Element {
   // Core data from domain hook
@@ -125,6 +128,13 @@ function App(): React.JSX.Element {
 
   // Closed tabs stack for Cmd+Shift+T reopen
   const closedTabsRef = useRef<Extract<typeof tabs[number], { type: 'task' }>[]>([])
+
+  // Leaderboard rank for tab badge
+  const leaderboardAuth = useLeaderboardAuth()
+  const leaderboardBestRank = useQuery(
+    api.leaderboard.getMyBestRank,
+    leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
+  ) ?? null
 
   // Usage & notification state
   const { data: usageData, refresh: refreshUsage } = useUsage()
@@ -869,6 +879,7 @@ function App(): React.JSX.Element {
                     onTabClick={handleTabClick}
                     onTabClose={closeTab}
                     onTabReorder={reorderTabs}
+                    leaderboardBestRank={leaderboardBestRank}
                     rightContent={
                       <div className="flex items-center gap-1">
                         <UsagePopover data={usageData} onRefresh={refreshUsage} />

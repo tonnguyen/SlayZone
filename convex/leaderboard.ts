@@ -123,6 +123,38 @@ function parseGithubNumericId(value: string | null | undefined): string | null {
   return /^\d+$/.test(value) ? value : null
 }
 
+export const getMyBestRank = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+    const user = await findCurrentUser(ctx, identity.tokenIdentifier, identity.subject)
+    if (!user) return null
+
+    const stats = await ctx.db.query('leaderboardDailyStats').collect()
+
+    const tokenTotals = new Map<Id<'users'>, number>()
+    const taskTotals = new Map<Id<'users'>, number>()
+    for (const s of stats) {
+      tokenTotals.set(s.userId, (tokenTotals.get(s.userId) ?? 0) + s.totalTokens)
+      taskTotals.set(s.userId, (taskTotals.get(s.userId) ?? 0) + s.totalCompletedTasks)
+    }
+
+    const tokenRank = Array.from(tokenTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .findIndex(([id]) => id === user._id)
+    const taskRank = Array.from(taskTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .findIndex(([id]) => id === user._id)
+
+    const best = Math.min(
+      tokenRank === -1 ? Infinity : tokenRank + 1,
+      taskRank === -1 ? Infinity : taskRank + 1
+    )
+    return best === Infinity ? null : best
+  }
+})
+
 /** Returns the ISO date cutoff string (YYYY-MM-DD) for a period, or null for all-time. */
 function getDateCutoff(period: string): string | null {
   const now = new Date()

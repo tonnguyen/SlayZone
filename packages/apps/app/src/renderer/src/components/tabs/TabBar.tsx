@@ -32,6 +32,7 @@ interface TabBarProps {
   onTabClose: (index: number) => void
   onTabReorder: (fromIndex: number, toIndex: number) => void
   rightContent?: React.ReactNode
+  leaderboardBestRank?: number | null
 }
 
 interface TabContentProps {
@@ -150,7 +151,8 @@ export function TabBar({
   onTabClick,
   onTabClose,
   onTabReorder,
-  rightContent
+  rightContent,
+  leaderboardBestRank
 }: TabBarProps): React.JSX.Element {
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -202,6 +204,11 @@ export function TabBar({
             onClick={() => onTabClick(leaderboardIndex)}
           >
             <Trophy className="h-4 w-4" />
+            {leaderboardBestRank != null && (
+              <span className="text-[10px] font-semibold tabular-nums leading-none">
+                #{leaderboardBestRank}
+              </span>
+            )}
           </div>
         )}
 
