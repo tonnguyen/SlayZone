@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, SquareTerminal } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, Bug } from 'lucide-react'
 import {
   Button,
   Input,
@@ -779,7 +779,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
                 disabled={multiDeviceMode || !webviewReady}
                 onClick={toggleDevTools}
               >
-                <SquareTerminal className="size-4" />
+                <Bug className="size-4" />
               </Button>
             </span>
           </TooltipTrigger>
