@@ -1,26 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCheck, Github, Lock, LogOut, RefreshCw, Sparkles } from 'lucide-react'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@slayzone/ui'
 import { useMutation, useQuery } from 'convex/react'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
 import { api } from 'convex/_generated/api'
 
-type Period = 'daily' | 'weekly' | 'monthly'
-type MetricId = 'total_tokens' | 'total_completed_tasks'
-
-interface MetricDef {
-  id: MetricId
-  label: string
-  description: string
-  lowerIsBetter: boolean
-  icon: React.JSX.Element
-}
-
-interface LeaderboardRow {
-  user: string
-  value: number
-  display: string
-}
+type Period = 'daily' | 'weekly' | 'monthly' | 'all-time'
 
 interface ViewerProfile {
   image: string | null
@@ -28,87 +13,15 @@ interface ViewerProfile {
   githubNumericId?: string | null
 }
 
-const PERIODS: Period[] = ['daily', 'weekly', 'monthly']
-const USERS = [
-  'Kalle',
-  'Maya',
-  'Rafi',
-  'Ana',
-  'Devon',
-  'Sam',
-  'Priya',
-  'Noah',
-  'Iris',
-  'Luca',
-  'Tina',
-  'Oscar',
-  'Zoe',
-  'Mateo',
-  'Sana',
-  'Eli',
-  'Ava',
-  'Kai',
-  'Nina',
-  'Jonah',
-  'Lea',
-  'Niko',
-  'Mina',
-  'Theo',
-  'Lina'
+const PERIODS: { value: Period; label: string }[] = [
+  { value: 'daily', label: 'Today' },
+  { value: 'weekly', label: 'Week' },
+  { value: 'monthly', label: 'Month' },
+  { value: 'all-time', label: 'All time' }
 ]
 
-const METRICS: MetricDef[] = [
-  {
-    id: 'total_tokens',
-    label: 'Top 10 Most AI Tokens Used',
-    description: 'Total tokens',
-    lowerIsBetter: false,
-    icon: <Sparkles className="size-4" />
-  },
-  {
-    id: 'total_completed_tasks',
-    label: 'Top 10 Most Completed Tasks',
-    description: 'Total completed tasks',
-    lowerIsBetter: false,
-    icon: <CheckCheck className="size-4" />
-  }
-]
-const COLUMN_METRICS: MetricDef[] = [
-  METRICS.find((metric) => metric.id === 'total_tokens')!,
-  METRICS.find((metric) => metric.id === 'total_completed_tasks')!
-]
-
-function formatValue(metric: MetricId, value: number): string {
-  switch (metric) {
-    case 'total_tokens':
-      return value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)}M` : `${Math.round(value / 1_000)}k`
-    case 'total_completed_tasks':
-      return `${value}`
-    default:
-      return `${value}`
-  }
-}
-
-function buildRows(metric: MetricDef, period: Period): LeaderboardRow[] {
-  const periodFactor = period === 'daily' ? 1 : period === 'weekly' ? 2 : 4
-  const rows = USERS.map((user, idx) => {
-    const seed = idx + 1
-    let value = 0
-
-    switch (metric.id) {
-      case 'total_tokens':
-        value = 100_000 + seed * 52_000 * periodFactor
-        break
-      case 'total_completed_tasks':
-        value = 4 + seed * periodFactor
-        break
-    }
-
-    return { user, value, display: formatValue(metric.id, value) }
-  })
-
-  rows.sort((a, b) => (metric.lowerIsBetter ? a.value - b.value : b.value - a.value))
-  return rows
+function formatTokens(value: number): string {
+  return value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)}M` : `${Math.round(value / 1_000)}k`
 }
 
 function initials(name: string): string {
@@ -159,15 +72,20 @@ function hasResolvedGithubIdentity(viewer: ViewerProfile | null): boolean {
 }
 
 export function LeaderboardPage(): React.JSX.Element {
-  const [period, setPeriod] = useState<Period>('weekly')
+  const [period, setPeriod] = useState<Period>('all-time')
   const [authBusy, setAuthBusy] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [resolvedGithubLogin, setResolvedGithubLogin] = useState<string | null>(null)
   const [resolvedGithubAvatar, setResolvedGithubAvatar] = useState<string | null>(null)
   const [resolvedGithubUrl, setResolvedGithubUrl] = useState<string | null>(null)
   const auth = useLeaderboardAuth()
   const syncViewerProfile = useMutation(api.leaderboard.syncViewerProfile)
+  const syncDailyStats = useMutation(api.leaderboard.syncDailyStats)
   const forgetMeMutation = useMutation(api.leaderboard.forgetMe)
   const myTotals = useQuery(api.leaderboard.getMyTotals, auth.isAuthenticated ? {} : 'skip')
+  const topTokens = useQuery(api.leaderboard.topByTotalTokens, auth.configured ? { period, limit: 25 } : 'skip')
+  const topTasks = useQuery(api.leaderboard.topByCompletedTasks, auth.configured ? { period, limit: 25 } : 'skip')
+
   const viewer = myTotals?.user ?? null
   const resolvedViewer = viewer
     ? {
@@ -181,19 +99,25 @@ export function LeaderboardPage(): React.JSX.Element {
   const avatarSrc = getAvatarSrc(resolvedViewer)
   const githubProfileUrl = getGithubProfileUrl(resolvedViewer) ?? resolvedGithubUrl
   const canParticipate = auth.configured && auth.isAuthenticated
-  const lists = useMemo(
-    () =>
-      COLUMN_METRICS.map((metric) => ({
-        metric,
-        rows: buildRows(metric, period).slice(0, 10)
-      })),
-    [period]
-  )
 
   useEffect(() => {
     if (!auth.isAuthenticated) return
     void syncViewerProfile({}).catch(() => {})
   }, [auth.isAuthenticated, syncViewerProfile])
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return
+    let cancelled = false
+    setSyncing(true)
+    window.api.leaderboard?.getLocalStats()
+      .then((stats) => {
+        if (cancelled || stats.days.length === 0) return
+        return syncDailyStats({ days: stats.days })
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSyncing(false) })
+    return () => { cancelled = true }
+  }, [auth.isAuthenticated, syncDailyStats])
 
   useEffect(() => {
     if (auth.isAuthenticated && viewer) return
@@ -207,9 +131,7 @@ export function LeaderboardPage(): React.JSX.Element {
     async function resolveGithubProfile(): Promise<void> {
       if (!viewer || !auth.isAuthenticated) return
       if (hasResolvedGithubIdentity(viewer)) return
-
       const numericId = getGithubNumericId(viewer)
-
       if (!numericId) return
       try {
         const res = await fetch(`https://api.github.com/user/${numericId}`)
@@ -220,13 +142,11 @@ export function LeaderboardPage(): React.JSX.Element {
         if (data.avatar_url) setResolvedGithubAvatar(data.avatar_url)
         if (data.html_url) setResolvedGithubUrl(data.html_url)
       } catch {
-        // ignore profile enrichment errors
+        // ignore
       }
     }
     void resolveGithubProfile()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [viewer, auth.isAuthenticated])
 
   async function runAuthAction(type: 'signin' | 'signout' | 'forget'): Promise<void> {
@@ -259,15 +179,14 @@ export function LeaderboardPage(): React.JSX.Element {
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-                  {PERIODS.map((value) => (
+                  {PERIODS.map(({ value, label }) => (
                     <Button
                       key={value}
                       size="sm"
                       variant={period === value ? 'default' : 'ghost'}
                       onClick={() => setPeriod(value)}
-                      className="capitalize"
                     >
-                      {value}
+                      {label}
                     </Button>
                   ))}
                 </div>
@@ -293,7 +212,9 @@ export function LeaderboardPage(): React.JSX.Element {
                     <DropdownMenuLabel className="flex flex-col gap-0.5">
                       <span>{canParticipate ? viewerName : 'Guest'}</span>
                       <span className="text-xs font-normal text-muted-foreground">
-                        {canParticipate ? 'Participating in leaderboard' : 'Sign in to participate'}
+                        {canParticipate
+                          ? syncing ? 'Syncing stats…' : 'Participating in leaderboard'
+                          : 'Sign in to participate'}
                       </span>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
@@ -311,11 +232,7 @@ export function LeaderboardPage(): React.JSX.Element {
                           <Github className="size-4" />
                           Open GitHub profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            void syncViewerProfile({})
-                          }}
-                        >
+                        <DropdownMenuItem onClick={() => void syncViewerProfile({})}>
                           <RefreshCw className="size-4" />
                           Refresh profile
                         </DropdownMenuItem>
@@ -377,33 +294,114 @@ export function LeaderboardPage(): React.JSX.Element {
         </section>
 
         <section className={`grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0 ${canParticipate ? '' : 'opacity-80'}`}>
-          {lists.map(({ metric, rows }) => (
-            <div key={metric.id} className="rounded-xl border bg-background overflow-hidden min-w-0 h-full flex flex-col">
-              <div className="px-4 py-3 border-b bg-muted/20">
-                <div className="flex items-center gap-3 h-12">
-                  <span className="text-muted-foreground">{metric.icon}</span>
-                  <h2 className="text-sm font-semibold leading-tight overflow-hidden">{metric.label}</h2>
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                {rows.map((row, index) => (
-                  <div key={row.user} className="flex items-center gap-3 px-3 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors">
-                    <span className="inline-flex w-8 text-xs font-medium tabular-nums text-muted-foreground/70">#{index + 1}</span>
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-medium">
-                      {initials(row.user)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{row.user}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums">{row.display}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <LeaderboardTable
+            icon={<Sparkles className="size-4" />}
+            title="Most AI Tokens Used"
+            rows={topTokens?.entries.map((r) => ({
+              key: r.userId,
+              name: r.displayName,
+              image: r.image,
+              value: formatTokens(r.totalTokens)
+            }))}
+            viewerRow={topTokens?.viewer ? {
+              key: topTokens.viewer.userId,
+              name: topTokens.viewer.displayName,
+              image: topTokens.viewer.image,
+              value: formatTokens(topTokens.viewer.totalTokens),
+              rank: topTokens.viewer.rank
+            } : null}
+          />
+          <LeaderboardTable
+            icon={<CheckCheck className="size-4" />}
+            title="Most Completed Tasks"
+            rows={topTasks?.entries.map((r) => ({
+              key: r.userId,
+              name: r.displayName,
+              image: r.image,
+              value: String(r.totalCompletedTasks)
+            }))}
+            viewerRow={topTasks?.viewer ? {
+              key: topTasks.viewer.userId,
+              name: topTasks.viewer.displayName,
+              image: topTasks.viewer.image,
+              value: String(topTasks.viewer.totalCompletedTasks),
+              rank: topTasks.viewer.rank
+            } : null}
+          />
         </section>
+      </div>
+    </div>
+  )
+}
+
+interface TableRow {
+  key: string
+  name: string
+  image: string | null
+  value: string
+  rank?: number
+}
+
+function LeaderboardTable({
+  icon,
+  title,
+  rows,
+  viewerRow
+}: {
+  icon: React.JSX.Element
+  title: string
+  rows: TableRow[] | undefined
+  viewerRow: TableRow | null | undefined
+}): React.JSX.Element {
+  return (
+    <div className="rounded-xl border bg-background overflow-hidden min-w-0 h-full flex flex-col">
+      <div className="px-4 py-3 border-b bg-muted/20">
+        <div className="flex items-center gap-3 h-12">
+          <span className="text-muted-foreground">{icon}</span>
+          <h2 className="text-sm font-semibold leading-tight overflow-hidden">{title}</h2>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        {rows === undefined ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No data yet</div>
+        ) : (
+          <>
+            {rows.map((row, index) => (
+              <LeaderboardRow key={row.key} row={row} rank={index + 1} />
+            ))}
+            {viewerRow && (
+              <>
+                <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground/50">
+                  <span>·····</span>
+                </div>
+                <LeaderboardRow row={viewerRow} rank={viewerRow.rank!} isViewer />
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LeaderboardRow({ row, rank, isViewer = false }: { row: TableRow; rank: number; isViewer?: boolean }): React.JSX.Element {
+  return (
+    <div className={`flex items-center gap-3 px-3 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors ${isViewer ? 'bg-primary/5' : ''}`}>
+      <span className="inline-flex w-8 text-xs font-medium tabular-nums text-muted-foreground/70">#{rank}</span>
+      {row.image ? (
+        <img src={row.image} alt={row.name} className="h-8 w-8 rounded-full object-cover" />
+      ) : (
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px] font-medium">
+          {initials(row.name)}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{row.name}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-semibold tabular-nums">{row.value}</p>
       </div>
     </div>
   )

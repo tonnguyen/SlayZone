@@ -29,11 +29,14 @@ export default defineSchema({
     .index('by_tokenIdentifier', ['tokenIdentifier'])
     .index('by_githubId', ['githubId']),
 
-  leaderboardTotals: defineTable({
+  leaderboardDailyStats: defineTable({
     userId: v.id('users'),
+    date: v.string(), // YYYY-MM-DD
     totalTokens: v.number(),
     totalCompletedTasks: v.number(),
-    createdAt: v.number(),
     updatedAt: v.number()
-  }).index('by_userId', ['userId'])
+  })
+    .index('by_userId', ['userId'])
+    .index('by_date', ['date'])
+    .index('by_userId_and_date', ['userId', 'date'])
 })

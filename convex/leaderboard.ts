@@ -2,6 +2,13 @@ import { v } from 'convex/values'
 import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
+const PERIOD_VALUES = v.union(
+  v.literal('daily'),
+  v.literal('weekly'),
+  v.literal('monthly'),
+  v.literal('all-time')
+)
+
 async function requireIdentity(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) throw new Error('Unauthorized')
@@ -70,14 +77,14 @@ async function upsertViewer(ctx: MutationCtx): Promise<Id<'users'>> {
       updatedAt: now
     })
 
-    // Migrate legacy totals from older tokenIdentifier-linked user rows.
+    // Migrate legacy daily stats from older tokenIdentifier-linked user rows.
     if (legacyUser && legacyUser._id !== authUser._id) {
-      const legacyTotals = await ctx.db
-        .query('leaderboardTotals')
+      const legacyStats = await ctx.db
+        .query('leaderboardDailyStats')
         .withIndex('by_userId', (q) => q.eq('userId', legacyUser._id))
         .collect()
-      for (const total of legacyTotals) {
-        await ctx.db.patch(total._id, { userId: authUser._id, updatedAt: now })
+      for (const stat of legacyStats) {
+        await ctx.db.patch(stat._id, { userId: authUser._id, updatedAt: now })
       }
       await ctx.db.delete(legacyUser._id)
     }
@@ -116,6 +123,25 @@ function parseGithubNumericId(value: string | null | undefined): string | null {
   return /^\d+$/.test(value) ? value : null
 }
 
+/** Returns the ISO date cutoff string (YYYY-MM-DD) for a period, or null for all-time. */
+function getDateCutoff(period: string): string | null {
+  const now = new Date()
+  if (period === 'daily') {
+    return now.toISOString().slice(0, 10)
+  }
+  if (period === 'weekly') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 6)
+    return d.toISOString().slice(0, 10)
+  }
+  if (period === 'monthly') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 29)
+    return d.toISOString().slice(0, 10)
+  }
+  return null
+}
+
 export const syncViewerProfile = mutation({
   args: {},
   handler: async (ctx) => {
@@ -124,41 +150,44 @@ export const syncViewerProfile = mutation({
   }
 })
 
-export const reportTotals = mutation({
+export const syncDailyStats = mutation({
   args: {
-    totalTokens: v.number(),
-    totalCompletedTasks: v.number()
+    days: v.array(v.object({
+      date: v.string(),
+      totalTokens: v.number(),
+      totalCompletedTasks: v.number()
+    }))
   },
   handler: async (ctx, args) => {
-    if (args.totalTokens < 0 || args.totalCompletedTasks < 0) {
-      throw new Error('Totals must be non-negative')
-    }
-
     const userId = await upsertViewer(ctx)
     const now = Date.now()
 
-    const existing = await ctx.db
-      .query('leaderboardTotals')
-      .withIndex('by_userId', (q) => q.eq('userId', userId))
-      .first()
+    for (const day of args.days) {
+      if (day.totalTokens < 0 || day.totalCompletedTasks < 0) continue
 
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        totalTokens: args.totalTokens,
-        totalCompletedTasks: args.totalCompletedTasks,
-        updatedAt: now
-      })
-      return { id: existing._id }
+      const existing = await ctx.db
+        .query('leaderboardDailyStats')
+        .withIndex('by_userId_and_date', (q) => q.eq('userId', userId).eq('date', day.date))
+        .first()
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          totalTokens: day.totalTokens,
+          totalCompletedTasks: day.totalCompletedTasks,
+          updatedAt: now
+        })
+      } else {
+        await ctx.db.insert('leaderboardDailyStats', {
+          userId,
+          date: day.date,
+          totalTokens: day.totalTokens,
+          totalCompletedTasks: day.totalCompletedTasks,
+          updatedAt: now
+        })
+      }
     }
 
-    const id = await ctx.db.insert('leaderboardTotals', {
-      userId,
-      totalTokens: args.totalTokens,
-      totalCompletedTasks: args.totalCompletedTasks,
-      createdAt: now,
-      updatedAt: now
-    })
-    return { id }
+    return { synced: args.days.length }
   }
 })
 
@@ -180,10 +209,14 @@ export const getMyTotals = query({
     const githubNumericId =
       parseGithubNumericId(githubAccount?.providerAccountId) ?? parseGithubNumericId(user.githubId ?? null)
 
-    const totals = await ctx.db
-      .query('leaderboardTotals')
+    const stats = await ctx.db
+      .query('leaderboardDailyStats')
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
-      .first()
+      .collect()
+
+    const totalTokens = stats.reduce((sum, s) => sum + s.totalTokens, 0)
+    const totalCompletedTasks = stats.reduce((sum, s) => sum + s.totalCompletedTasks, 0)
+    const lastUpdated = stats.reduce((max, s) => Math.max(max, s.updatedAt), 0)
 
     return {
       user: {
@@ -194,12 +227,8 @@ export const getMyTotals = query({
         name: user.name ?? null,
         image: user.image ?? null
       },
-      totals: totals
-        ? {
-            totalTokens: totals.totalTokens,
-            totalCompletedTasks: totals.totalCompletedTasks,
-            updatedAt: totals.updatedAt
-          }
+      totals: stats.length > 0
+        ? { totalTokens, totalCompletedTasks, updatedAt: lastUpdated }
         : null
     }
   }
@@ -215,8 +244,8 @@ export const forgetMe = mutation({
       return { deleted: false, reason: 'user-not-found' as const }
     }
 
-    const totals = await ctx.db
-      .query('leaderboardTotals')
+    const stats = await ctx.db
+      .query('leaderboardDailyStats')
       .withIndex('by_userId', (q) => q.eq('userId', user._id))
       .collect()
 
@@ -230,8 +259,8 @@ export const forgetMe = mutation({
       .withIndex('userIdAndProvider', (q) => q.eq('userId', user._id))
       .collect()
 
-    for (const total of totals) {
-      await ctx.db.delete(total._id)
+    for (const stat of stats) {
+      await ctx.db.delete(stat._id)
     }
 
     let deletedVerificationCodes = 0
@@ -264,7 +293,7 @@ export const forgetMe = mutation({
 
     return {
       deleted: true,
-      deletedLeaderboardTotals: totals.length,
+      deletedDailyStats: stats.length,
       deletedAccounts: accounts.length,
       deletedSessions: sessions.length,
       deletedVerificationCodes,
@@ -273,64 +302,97 @@ export const forgetMe = mutation({
   }
 })
 
+async function getViewerUserId(ctx: QueryCtx): Promise<Id<'users'> | null> {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) return null
+  const user = await findCurrentUser(ctx, identity.tokenIdentifier, identity.subject)
+  return user?._id ?? null
+}
+
 export const topByTotalTokens = query({
   args: {
-    limit: v.optional(v.number())
+    limit: v.optional(v.number()),
+    period: v.optional(PERIOD_VALUES)
   },
   handler: async (ctx, args) => {
-    const limit = Math.min(Math.max(args.limit ?? 10, 1), 100)
-    const totals = await ctx.db.query('leaderboardTotals').collect()
-    const usersById = new Map<Id<'users'>, Doc<'users'>>()
+    const limit = Math.min(Math.max(args.limit ?? 25, 1), 100)
+    const cutoff = getDateCutoff(args.period ?? 'all-time')
 
-    for (const total of totals) {
-      const user = await ctx.db.get(total.userId)
-      if (user) usersById.set(user._id, user)
+    const stats = cutoff
+      ? await ctx.db.query('leaderboardDailyStats').withIndex('by_date', (q) => q.gte('date', cutoff)).collect()
+      : await ctx.db.query('leaderboardDailyStats').collect()
+
+    const userTotals = new Map<Id<'users'>, number>()
+    for (const s of stats) {
+      userTotals.set(s.userId, (userTotals.get(s.userId) ?? 0) + s.totalTokens)
     }
 
-    return totals
-      .map((total) => {
-        const user = usersById.get(total.userId)
-        return {
-          userId: total.userId,
-          displayName: user ? displayNameForUser(user) : 'Unknown',
-          githubLogin: user?.githubLogin ?? null,
-          image: user?.image ?? null,
-          totalTokens: total.totalTokens,
-          updatedAt: total.updatedAt
-        }
-      })
-      .sort((a, b) => b.totalTokens - a.totalTokens)
-      .slice(0, limit)
+    const allEntries = (
+      await Promise.all(
+        Array.from(userTotals.entries()).map(async ([userId, totalTokens]) => {
+          const user = await ctx.db.get(userId)
+          return {
+            userId,
+            displayName: user ? displayNameForUser(user) : 'Unknown',
+            githubLogin: user?.githubLogin ?? null,
+            image: user?.image ?? null,
+            totalTokens
+          }
+        })
+      )
+    ).sort((a, b) => b.totalTokens - a.totalTokens)
+
+    const viewerUserId = await getViewerUserId(ctx)
+    const viewerRank = viewerUserId ? allEntries.findIndex((e) => e.userId === viewerUserId) : -1
+    const viewer =
+      viewerRank >= limit
+        ? { ...allEntries[viewerRank], rank: viewerRank + 1 }
+        : null
+
+    return { entries: allEntries.slice(0, limit), viewer }
   }
 })
 
 export const topByCompletedTasks = query({
   args: {
-    limit: v.optional(v.number())
+    limit: v.optional(v.number()),
+    period: v.optional(PERIOD_VALUES)
   },
   handler: async (ctx, args) => {
-    const limit = Math.min(Math.max(args.limit ?? 10, 1), 100)
-    const totals = await ctx.db.query('leaderboardTotals').collect()
-    const usersById = new Map<Id<'users'>, Doc<'users'>>()
+    const limit = Math.min(Math.max(args.limit ?? 25, 1), 100)
+    const cutoff = getDateCutoff(args.period ?? 'all-time')
 
-    for (const total of totals) {
-      const user = await ctx.db.get(total.userId)
-      if (user) usersById.set(user._id, user)
+    const stats = cutoff
+      ? await ctx.db.query('leaderboardDailyStats').withIndex('by_date', (q) => q.gte('date', cutoff)).collect()
+      : await ctx.db.query('leaderboardDailyStats').collect()
+
+    const userTotals = new Map<Id<'users'>, number>()
+    for (const s of stats) {
+      userTotals.set(s.userId, (userTotals.get(s.userId) ?? 0) + s.totalCompletedTasks)
     }
 
-    return totals
-      .map((total) => {
-        const user = usersById.get(total.userId)
-        return {
-          userId: total.userId,
-          displayName: user ? displayNameForUser(user) : 'Unknown',
-          githubLogin: user?.githubLogin ?? null,
-          image: user?.image ?? null,
-          totalCompletedTasks: total.totalCompletedTasks,
-          updatedAt: total.updatedAt
-        }
-      })
-      .sort((a, b) => b.totalCompletedTasks - a.totalCompletedTasks)
-      .slice(0, limit)
+    const allEntries = (
+      await Promise.all(
+        Array.from(userTotals.entries()).map(async ([userId, totalCompletedTasks]) => {
+          const user = await ctx.db.get(userId)
+          return {
+            userId,
+            displayName: user ? displayNameForUser(user) : 'Unknown',
+            githubLogin: user?.githubLogin ?? null,
+            image: user?.image ?? null,
+            totalCompletedTasks
+          }
+        })
+      )
+    ).sort((a, b) => b.totalCompletedTasks - a.totalCompletedTasks)
+
+    const viewerUserId = await getViewerUserId(ctx)
+    const viewerRank = viewerUserId ? allEntries.findIndex((e) => e.userId === viewerUserId) : -1
+    const viewer =
+      viewerRank >= limit
+        ? { ...allEntries[viewerRank], rank: viewerRank + 1 }
+        : null
+
+    return { entries: allEntries.slice(0, limit), viewer }
   }
 })
