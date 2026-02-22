@@ -29,9 +29,14 @@ jobs:
           CI_SKIP_POSTINSTALL: '1'
 
       - name: Deploy Convex to production
-        run: npx convex deploy --prod --cmd 'echo skip'
+        run: |
+          npx convex deploy --prod --cmd 'echo skip'
+          npx convex env set JWT_PRIVATE_KEY "$JWT_PRIVATE_KEY" --prod
+          npx convex env set JWKS "$JWKS" --prod
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+          JWKS: ${{ secrets.JWKS }}
 
   release:
     needs: deploy-convex
