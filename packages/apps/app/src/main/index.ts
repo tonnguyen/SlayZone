@@ -1187,17 +1187,6 @@ app.whenReady().then(async () => {
           const hide = () => { if (!win.isDestroyed()) { win.setOpacity(0); win.setBounds({ x: -32000, y: -32000, width: 1, height: 1 }); win.hide() } }
           win.on('ready-to-show', hide)
           win.on('show', hide)
-          // Verify this is actually the DevTools popup; restore if not.
-          win.webContents.once('did-navigate', (_, url) => {
-            const isDevTools = url.startsWith('devtools://') || url.includes('chrome-devtools://')
-            if (!isDevTools) {
-              win.off('ready-to-show', hide)
-              win.off('show', hide)
-              win.setOpacity(1)
-              win.setBounds({ x: 100, y: 100, width: 800, height: 600 })
-              win.show()
-            }
-          })
         }
         app.once('browser-window-created', suppressPopup)
         target.openDevTools({ mode: 'undocked', activate: false })
