@@ -769,64 +769,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
           className="flex-1 h-7 text-sm"
         />
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                data-testid="browser-devtools"
-                variant="ghost"
-                size="icon-sm"
-                disabled={multiDeviceMode || !webviewReady}
-                onClick={toggleDevTools}
-              >
-                <Bug className="size-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle Chromium DevTools'}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={cn(multiDeviceMode && 'text-blue-500 bg-blue-500/10')}
-                onClick={toggleMultiDevice}
-              >
-                <LayoutGrid className="size-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{multiDeviceMode ? 'Exit responsive preview' : 'Responsive preview'}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                data-testid="browser-pick-element"
-                variant="ghost"
-                size="icon-sm"
-                disabled={!canUseDomPicker || multiDeviceMode || !webviewReady}
-                className={cn(isPickingElement && 'text-amber-600 bg-amber-500/15 hover:bg-amber-500/20')}
-                onClick={handlePickElement}
-              >
-                <Crosshair className="size-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {!canUseDomPicker
-              ? 'Open terminal panel to pick element'
-                : isPickingElement
-                ? 'Element picker active (click again to exit)'
-                : 'Pick element (⌘⇧L)'}
-          </TooltipContent>
-        </Tooltip>
-
         {taskId && (
           <DropdownMenu open={importDropdownOpen} onOpenChange={setImportDropdownOpen}>
             <Tooltip>
@@ -870,6 +812,65 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(multiDeviceMode && 'text-blue-500 bg-blue-500/10')}
+                onClick={toggleMultiDevice}
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{multiDeviceMode ? 'Exit responsive preview' : 'Responsive preview'}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                data-testid="browser-pick-element"
+                variant="ghost"
+                size="icon-sm"
+                disabled={!canUseDomPicker || multiDeviceMode || !webviewReady}
+                className={cn(isPickingElement && 'text-amber-600 bg-amber-500/15 hover:bg-amber-500/20')}
+                onClick={handlePickElement}
+              >
+                <Crosshair className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {!canUseDomPicker
+              ? 'Open terminal panel to pick element'
+                : isPickingElement
+                ? 'Element picker active (click again to exit)'
+                : 'Pick element (⌘⇧L)'}
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                data-testid="browser-devtools"
+                variant="ghost"
+                size="icon-sm"
+                disabled={multiDeviceMode || !webviewReady}
+                onClick={toggleDevTools}
+              >
+                <Bug className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle Chromium DevTools'}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {pickError && !multiDeviceMode && (
