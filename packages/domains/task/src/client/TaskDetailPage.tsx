@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { MoreHorizontal, Archive, Trash2, AlertTriangle, Sparkles, Loader2, Terminal as TerminalIcon, Globe, Settings2, GitBranch, FileCode, ChevronRight, Plus, GripVertical, Camera, X, Info, CheckCircle2, XCircle, Stethoscope } from 'lucide-react'
+import { MoreHorizontal, Archive, Trash2, AlertTriangle, Sparkles, Loader2, Terminal as TerminalIcon, Globe, Settings2, GitBranch, FileCode, ChevronRight, Plus, GripVertical, Camera, X, Info, CheckCircle2, XCircle, Stethoscope, Cpu } from 'lucide-react'
 import { DndContext, PointerSensor, useSensors, useSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -66,6 +66,7 @@ import { usePanelConfig } from './usePanelConfig'
 import { WebPanelView } from './WebPanelView'
 import { ResizeHandle } from './ResizeHandle'
 import { RegionSelector } from './RegionSelector'
+import { ProcessesPanel } from './ProcessesPanel'
 // ErrorBoundary should be provided by the app when rendering this component
 
 function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
@@ -217,7 +218,7 @@ export function TaskDetailPage({
   const flagsInputRef = useRef<HTMLInputElement>(null)
 
   // Panel visibility state
-  const defaultPanelVisibility: PanelVisibility = { terminal: true, browser: false, diff: false, settings: true, editor: false }
+  const defaultPanelVisibility: PanelVisibility = { terminal: true, browser: false, diff: false, settings: true, editor: false, processes: false }
   const [panelVisibility, setPanelVisibility] = useState<PanelVisibility>(defaultPanelVisibility)
 
   // Browser tabs state
@@ -1405,6 +1406,7 @@ export function TaskDetailPage({
                     { id: 'editor', icon: FileCode, label: 'Editor', shortcut: '⌘E' },
                     { id: 'diff', icon: GitBranch, label: 'Git', shortcut: '⌘G' },
                     { id: 'settings', icon: Settings2, label: 'Settings', shortcut: '⌘S' },
+                    ...(import.meta.env.DEV ? [{ id: 'processes', icon: Cpu, label: 'Processes' }] : []),
                   ].filter(p => isBuiltinEnabled(p.id) && !(task.is_temporary && p.id === 'settings'))
 
                   // Insert web panels after editor
@@ -1718,6 +1720,7 @@ export function TaskDetailPage({
               onTabsChange={handleBrowserTabsChange}
               taskId={task.id}
               isResizing={isResizing}
+              isActive={isActive}
               onElementSnippet={handleInsertElementSnippet}
               canUseDomPicker={panelVisibility.terminal}
             />
@@ -1943,6 +1946,25 @@ export function TaskDetailPage({
           </div>
 
         </div>
+        )}
+
+        {/* Resize handle: ... | Processes */}
+        {import.meta.env.DEV && !compact && panelVisibility.processes && (panelVisibility.terminal || panelVisibility.browser || panelVisibility.editor || panelVisibility.diff || panelVisibility.settings || enabledWebPanels.some(wp => panelVisibility[wp.id])) && (
+          <ResizeHandle
+            width={resolvedWidths.processes ?? 300}
+            minWidth={200}
+            onWidthChange={(w) => updatePanelSizes({ processes: w })}
+            onDragStart={() => setIsResizing(true)}
+            onDragEnd={() => setIsResizing(false)}
+            onReset={resetAllPanels}
+          />
+        )}
+
+        {/* Processes Panel — dev mode only */}
+        {import.meta.env.DEV && !compact && panelVisibility.processes && (
+          <div className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col" style={{ width: resolvedWidths.processes }}>
+            <ProcessesPanel taskId={task.id} cwd={task.worktree_path || project?.path} />
+          </div>
         )}
       </div>
 

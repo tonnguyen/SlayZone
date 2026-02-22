@@ -10,7 +10,8 @@ const DEFAULT_SIZES: PanelSizes = {
   browser: 'auto',
   diff: 'auto',
   settings: 440,
-  editor: 'auto'
+  editor: 'auto',
+  processes: 'auto'
 }
 
 const SETTINGS_KEY = 'taskDetailPanelSizes'
@@ -18,8 +19,8 @@ const HANDLE_WIDTH = 16 // w-4 = 1rem
 // Bump when the storage schema changes to force migration
 const STORAGE_VERSION = 4
 
-// Built-in order: terminal, browser, editor, [web panels inserted here], diff, settings
-const BUILTIN_ORDER = ['terminal', 'browser', 'editor', 'diff', 'settings']
+// Built-in order: terminal, browser, editor, [web panels inserted here], diff, settings, processes
+const BUILTIN_ORDER = ['terminal', 'browser', 'editor', 'diff', 'settings', 'processes']
 
 /** Build ordered panel list: built-ins in fixed order, web panels between editor and diff */
 export function buildPanelOrder(visibility: PanelVisibility): string[] {

@@ -61,6 +61,7 @@ export interface PanelVisibility extends Record<string, boolean> {
   diff: boolean
   settings: boolean
   editor: boolean
+  processes: boolean
 }
 
 // Web panel definition (custom or predefined)
@@ -111,7 +112,7 @@ export interface WebPanelResolution {
 /** JSON column: Record<panelId, WebPanelResolution> */
 export type WebPanelResolutions = Record<string, WebPanelResolution>
 
-export const BUILTIN_PANEL_IDS = ['terminal', 'browser', 'editor', 'diff', 'settings'] as const
+export const BUILTIN_PANEL_IDS = ['terminal', 'browser', 'editor', 'diff', 'settings', 'processes'] as const
 
 export const PREDEFINED_WEB_PANELS: WebPanelDefinition[] = [
   { id: 'web:figma', name: 'Figma', baseUrl: 'https://figma.com', shortcut: 'y', predefined: true },

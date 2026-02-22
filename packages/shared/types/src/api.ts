@@ -46,6 +46,32 @@ import type {
   SyncNowResult
 } from '@slayzone/integrations/shared'
 
+export interface LocalLeaderboardDay {
+  date: string
+  totalTokens: number
+  totalCompletedTasks: number
+}
+
+export interface LocalLeaderboardStats {
+  days: LocalLeaderboardDay[]
+}
+
+export type ProcessStatus = 'running' | 'stopped' | 'error'
+
+export interface ProcessInfo {
+  id: string
+  taskId: string
+  label: string
+  command: string
+  cwd: string
+  autoRestart: boolean
+  status: ProcessStatus
+  pid: number | null
+  exitCode: number | null
+  logBuffer: string[]
+  startedAt: string
+}
+
 export interface DiagnosticsConfig {
   enabled: boolean
   verbose: boolean
@@ -343,6 +369,9 @@ export interface ElectronAPI {
       height: number
     }) => Promise<{ success: boolean; path?: string }>
   }
+  leaderboard: {
+    getLocalStats: () => Promise<LocalLeaderboardStats>
+  }
   usage: {
     fetch: () => Promise<ProviderUsage[]>
   }
@@ -350,6 +379,19 @@ export interface ElectronAPI {
     registerShortcuts: (webviewId: number) => Promise<void>
     onShortcut: (callback: (payload: { key: string; shift?: boolean; webviewId?: number }) => void) => () => void
     openDevToolsBottom: (webviewId: number) => Promise<boolean>
+    openDevToolsInline: (targetWebviewId: number, bounds: { x: number; y: number; width: number; height: number }) => Promise<{
+      ok: boolean
+      reason: string
+      targetType?: string
+      hostType?: string
+      mode?: 'right' | 'bottom'
+      deviceToolbar?: string
+      attempts?: string[]
+      error?: string
+    }>
+    updateDevToolsInlineBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>
+    closeDevToolsInline: (targetWebviewId?: number) => Promise<boolean>
+    openDevToolsDetached: (webviewId: number) => Promise<boolean>
     closeDevTools: (webviewId: number) => Promise<boolean>
     isDevToolsOpened: (webviewId: number) => Promise<boolean>
     enableDeviceEmulation: (
@@ -384,5 +426,16 @@ export interface ElectronAPI {
     exportAll: () => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>
     exportProject: (projectId: string) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>
     import: () => Promise<{ success: boolean; canceled?: boolean; projectCount?: number; taskCount?: number; importedProjects?: Array<{ id: string; name: string }>; error?: string }>
+  }
+  processes: {
+    create: (taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    spawn: (taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    kill: (processId: string) => Promise<boolean>
+    restart: (processId: string) => Promise<boolean>
+    list: (taskId: string) => Promise<ProcessInfo[]>
+    listAll: () => Promise<ProcessInfo[]>
+    killTask: (taskId: string) => Promise<void>
+    onLog: (cb: (processId: string, line: string) => void) => () => void
+    onStatus: (cb: (processId: string, status: ProcessStatus) => void) => () => void
   }
 }

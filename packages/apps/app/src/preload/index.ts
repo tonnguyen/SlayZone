@@ -361,6 +361,9 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener('fs:changed', handler)
     }
   },
+  leaderboard: {
+    getLocalStats: () => ipcRenderer.invoke('leaderboard:get-local-stats')
+  },
   usage: {
     fetch: () => ipcRenderer.invoke('usage:fetch')
   },
@@ -378,6 +381,14 @@ const api: ElectronAPI = {
     },
     openDevToolsBottom: (webviewId) =>
       ipcRenderer.invoke('webview:open-devtools-bottom', webviewId),
+    openDevToolsInline: (targetWebviewId, bounds) =>
+      ipcRenderer.invoke('webview:open-devtools-inline', targetWebviewId, bounds),
+    updateDevToolsInlineBounds: (bounds) =>
+      ipcRenderer.invoke('webview:update-devtools-inline-bounds', bounds),
+    closeDevToolsInline: (targetWebviewId) =>
+      ipcRenderer.invoke('webview:close-devtools-inline', targetWebviewId),
+    openDevToolsDetached: (webviewId) =>
+      ipcRenderer.invoke('webview:open-devtools-detached', webviewId),
     closeDevTools: (webviewId) =>
       ipcRenderer.invoke('webview:close-devtools', webviewId),
     isDevToolsOpened: (webviewId) =>
@@ -391,6 +402,27 @@ const api: ElectronAPI = {
     exportAll: () => ipcRenderer.invoke('export-import:export-all'),
     exportProject: (projectId) => ipcRenderer.invoke('export-import:export-project', projectId),
     import: () => ipcRenderer.invoke('export-import:import')
+  },
+  processes: {
+    create: (taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:create', taskId, label, command, cwd, autoRestart),
+    spawn: (taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:spawn', taskId, label, command, cwd, autoRestart),
+    kill: (processId) => ipcRenderer.invoke('processes:kill', processId),
+    restart: (processId) => ipcRenderer.invoke('processes:restart', processId),
+    list: (taskId) => ipcRenderer.invoke('processes:list', taskId),
+    listAll: () => ipcRenderer.invoke('processes:listAll'),
+    killTask: (taskId) => ipcRenderer.invoke('processes:killTask', taskId),
+    onLog: (cb) => {
+      const handler = (_event: unknown, processId: string, line: string) => cb(processId, line)
+      ipcRenderer.on('processes:log', handler)
+      return () => ipcRenderer.removeListener('processes:log', handler)
+    },
+    onStatus: (cb) => {
+      const handler = (_event: unknown, processId: string, status: import('@slayzone/types').ProcessStatus) => cb(processId, status)
+      ipcRenderer.on('processes:status', handler)
+      return () => ipcRenderer.removeListener('processes:status', handler)
+    }
   },
   integrations: {
     connectLinear: (input) => ipcRenderer.invoke('integrations:connect-linear', input),

@@ -41,7 +41,9 @@ import { registerAiConfigHandlers } from '@slayzone/ai-config/main'
 import { registerIntegrationHandlers, startLinearSyncPoller } from '@slayzone/integrations/main'
 import { registerFileEditorHandlers } from '@slayzone/file-editor/main'
 import { registerScreenshotHandlers } from './screenshot'
+import { setProcessManagerWindow, createProcess, spawnProcess, killProcess, restartProcess, listProcesses, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
 import { registerExportImportHandlers } from './export-import'
+import { registerLeaderboardHandlers } from './leaderboard'
 import { initAutoUpdater, checkForUpdates, restartForUpdate } from './auto-updater'
 
 const DEFAULT_WINDOW_WIDTH = 1760
@@ -173,6 +175,7 @@ let splashWindow: BrowserWindow | null = null
 let mainWindow: BrowserWindow | null = null
 let inlineDevToolsView: BrowserView | null = null
 let inlineDevToolsViewAttached = false
+let inlineDeviceToolbarDisableTimers: NodeJS.Timeout[] = []
 let linearSyncPoller: NodeJS.Timeout | null = null
 let mcpCleanup: (() => void) | null = null
 let pendingOAuthCallback: { code?: string; error?: string } | null = null
@@ -188,12 +191,23 @@ interface InlineDevToolsBounds {
   height: number
 }
 
+type DevToolsDockMode = 'right' | 'bottom' | 'undocked'
+const INLINE_DEVTOOLS_LEFT_TRIM = 0
+const ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK = true
+
 function normalizeInlineDevToolsBounds(bounds: InlineDevToolsBounds): InlineDevToolsBounds {
-  return {
+  const normalized = {
     x: Math.max(0, Math.floor(bounds.x)),
     y: Math.max(0, Math.floor(bounds.y)),
     width: Math.max(1, Math.floor(bounds.width)),
     height: Math.max(1, Math.floor(bounds.height))
+  }
+  if (normalized.width <= INLINE_DEVTOOLS_LEFT_TRIM + 120) return normalized
+  return {
+    x: normalized.x + INLINE_DEVTOOLS_LEFT_TRIM,
+    y: normalized.y,
+    width: normalized.width - INLINE_DEVTOOLS_LEFT_TRIM,
+    height: normalized.height
   }
 }
 
@@ -223,6 +237,94 @@ function removeInlineDevToolsView(win: BrowserWindow | null): void {
     // ignore removal errors
   } finally {
     inlineDevToolsViewAttached = false
+    for (const timer of inlineDeviceToolbarDisableTimers) clearTimeout(timer)
+    inlineDeviceToolbarDisableTimers = []
+  }
+}
+
+async function tuneInlineDevToolsFrontend(devtoolsContents: Electron.WebContents): Promise<string> {
+  if (devtoolsContents.isDestroyed()) return 'destroyed'
+  const script = `
+    (async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+      const forceUndocked = async () => {
+        try {
+          const ui = globalThis.UI
+          const common = globalThis.Common
+          const settings = common?.Settings?.Settings?.instance?.()
+          settings?.moduleSetting?.('currentDockState')?.set?.('undocked')
+          settings?.moduleSetting?.('last-dock-state')?.set?.('undocked')
+          settings?.moduleSetting?.('lastDockState')?.set?.('undocked')
+          const controller = ui?.DockController?.DockController?.instance?.()
+          controller?.setCanDock?.(false)
+          controller?.setDockSide?.('undocked')
+          return true
+        } catch {
+          return false
+        }
+      }
+
+      const disableDeviceMode = async () => {
+        const ui = globalThis.UI
+        const common = globalThis.Common
+        const settings = common?.Settings?.Settings?.instance?.()
+        const deviceModeSetting = settings?.moduleSetting?.('emulation.showDeviceMode')
+        if (deviceModeSetting?.get?.() === true) {
+          deviceModeSetting.set(false)
+          return 'disabled-via-setting'
+        }
+
+        const registry = ui?.actionRegistry?.instance?.()
+        const action = registry?.action?.('emulation.toggle-device-mode')
+        if (!action) return null
+
+        if (action.toggled?.() === true) {
+          await action.execute?.()
+          return 'disabled-via-action'
+        }
+        return 'already-off-via-action'
+      }
+
+      const cancelInspectMode = () => {
+        try {
+          const registry = globalThis.UI?.actionRegistry?.instance?.()
+          const action = registry?.action?.('elements.inspect-element')
+          if (action?.toggled?.()) action.execute?.()
+        } catch {}
+      }
+
+      for (let i = 0; i < 24; i += 1) {
+        await forceUndocked()
+        cancelInspectMode()
+        const byAction = await disableDeviceMode()
+        if (byAction) return byAction
+        await sleep(100)
+      }
+      return 'not-found'
+    })();
+  `
+  try {
+    const result = await devtoolsContents.executeJavaScript(script, true)
+    console.log('[webview:inline-devtools] tune', { result })
+    return String(result)
+  } catch (err) {
+    console.warn('[webview:inline-devtools] tune-failed', {
+      err: err instanceof Error ? err.message : String(err)
+    })
+    return `error:${err instanceof Error ? err.message : String(err)}`
+  }
+}
+
+function scheduleDisableDevToolsDeviceToolbar(devtoolsContents: Electron.WebContents): void {
+  for (const timer of inlineDeviceToolbarDisableTimers) clearTimeout(timer)
+  inlineDeviceToolbarDisableTimers = []
+  for (const ms of [0, 250, 700, 1500, 3000]) {
+    const timer = setTimeout(() => {
+      if (devtoolsContents.isDestroyed()) return
+      void tuneInlineDevToolsFrontend(devtoolsContents)
+    }, ms)
+    inlineDeviceToolbarDisableTimers.push(timer)
   }
 }
 
@@ -646,6 +748,7 @@ app.whenReady().then(async () => {
   registerFileEditorHandlers(ipcMain)
   registerScreenshotHandlers()
   registerExportImportHandlers(ipcMain, db, isPlaywright)
+  registerLeaderboardHandlers(ipcMain, db)
 
   // Start MCP server (use port 0 in Playwright to avoid conflict with dev instance)
   const mcpPort = (() => {
@@ -1106,40 +1209,102 @@ app.whenReady().then(async () => {
       return target.isDevToolsOpened()
     }
 
+    // In Electron 39+, when using setDevToolsWebContents, the devtools-opened event
+    // and isDevToolsOpened() don't fire/return true because the native window never opens.
+    // Instead, detect success by watching the host WebContents URL change to devtools://.
+    const waitForHostDevTools = (timeoutMs = 6000) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false
+        const settle = (result: boolean) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          host.off('did-navigate', onNavigate)
+          resolve(result)
+        }
+        const timer = setTimeout(() => settle(false), timeoutMs)
+        const isDevToolsUrl = (url: string) => url.startsWith('devtools://') || url.includes('chrome-devtools://')
+        const onNavigate = (_: unknown, url: string) => { if (isDevToolsUrl(url)) settle(true) }
+        host.on('did-navigate', onNavigate)
+        // Check if already loaded
+        const current = host.getURL()
+        if (isDevToolsUrl(current)) settle(true)
+      })
+
     try {
       if (target.isDevToolsOpened()) target.closeDevTools()
       target.setDevToolsWebContents(host)
-      const openedPromise = waitForOpened()
-      target.openDevTools({ mode: 'detach', activate: false })
-      const openedEvent = await openedPromise
-      const openedState = await waitForOpenState()
+      const attempts: string[] = []
+      const variants: Array<{ mode: DevToolsDockMode; activate: boolean }> = [
+        { mode: 'undocked', activate: false },
+      ]
 
-      if (openedState) {
-        console.log('[webview:open-devtools-inline] opened', {
-          targetWebviewId,
-          targetType: target.getType(),
-          hostType: host.getType(),
-          openedEvent
-        })
-        return {
-          ok: true as const,
-          reason: 'opened' as const,
-          targetType: target.getType(),
-          hostType: host.getType(),
+      // undocked mode creates a native floating window (empty since content goes to our BrowserView).
+      // Intercept and destroy it immediately.
+      const onDevToolsWindowCreated = (_event: Electron.Event, win: BrowserWindow) => {
+        if (win !== mainWindow) {
+          win.setOpacity(0)
+          win.setPosition(-10000, -10000)
+          win.hide()
+          win.on('show', () => { win.setPosition(-10000, -10000); win.hide() })
+        }
+      }
+      app.once('browser-window-created', onDevToolsWindowCreated)
+
+      for (const variant of variants) {
+        if (target.isDestroyed()) break
+        if (target.isDevToolsOpened()) target.closeDevTools()
+        const openedPromise = waitForOpened()
+        const hostDevToolsPromise = waitForHostDevTools()
+        target.openDevTools({ mode: variant.mode, activate: variant.activate })
+        const openedEvent = await openedPromise
+        const openedState = await waitForOpenState()
+        const hostLoaded = !openedState ? await hostDevToolsPromise : false
+        const success = openedState || hostLoaded
+        attempts.push(`${variant.mode}:${success ? 'opened' : openedEvent ? 'event-only' : 'closed'}`)
+        if (success) {
+          view.setBounds(normalizeInlineDevToolsBounds(bounds))
+          let deviceToolbarResult: string | undefined
+          if (ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK) {
+            deviceToolbarResult = await tuneInlineDevToolsFrontend(host)
+            scheduleDisableDevToolsDeviceToolbar(host)
+          }
+          console.log('[webview:open-devtools-inline] opened', {
+            targetWebviewId,
+            targetType: target.getType(),
+            hostType: host.getType(),
+            mode: variant.mode,
+            openedEvent,
+            openedState,
+            hostLoaded,
+            deviceToolbarResult,
+            attempts,
+          })
+          return {
+            ok: true as const,
+            reason: 'opened' as const,
+            targetType: target.getType(),
+            hostType: host.getType(),
+            mode: variant.mode,
+            deviceToolbar: deviceToolbarResult,
+            attempts,
+          }
         }
       }
 
-      console.warn('[webview:open-devtools-inline] open-state-false', {
+      app.off('browser-window-created', onDevToolsWindowCreated)
+      console.warn('[webview:open-devtools-inline] no-variant-opened', {
         targetWebviewId,
         targetType: target.getType(),
         hostType: host.getType(),
-        openedEvent
+        attempts,
       })
       return {
         ok: false as const,
-        reason: 'open-state-false' as const,
+        reason: 'no-variant-opened' as const,
         targetType: target.getType(),
         hostType: host.getType(),
+        attempts,
       }
     } catch (err) {
       console.warn('[webview:open-devtools-inline] failed', {
@@ -1162,6 +1327,7 @@ app.whenReady().then(async () => {
     if (!mainWindow || mainWindow.isDestroyed()) return false
     if (!inlineDevToolsView || inlineDevToolsView.webContents.isDestroyed()) return false
     if (!inlineDevToolsViewAttached) return false
+    mainWindow.setTopBrowserView(inlineDevToolsView)
     inlineDevToolsView.setBounds(normalizeInlineDevToolsBounds(bounds))
     return true
   })
@@ -1220,6 +1386,30 @@ app.whenReady().then(async () => {
 
 
   createWindow()
+  if (mainWindow) setProcessManagerWindow(mainWindow)
+
+  // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
+  ipcMain.handle('processes:create', (_event, taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => {
+    return createProcess(taskId, label, command, cwd, autoRestart)
+  })
+  ipcMain.handle('processes:spawn', (_event, taskId: string, label: string, command: string, cwd: string, autoRestart: boolean) => {
+    return spawnProcess(taskId, label, command, cwd, autoRestart)
+  })
+  ipcMain.handle('processes:kill', (_event, processId: string) => {
+    return killProcess(processId)
+  })
+  ipcMain.handle('processes:restart', (_event, processId: string) => {
+    return restartProcess(processId)
+  })
+  ipcMain.handle('processes:list', (_event, taskId: string) => {
+    return listProcesses(taskId)
+  })
+  ipcMain.handle('processes:listAll', () => {
+    return listAllProcesses()
+  })
+  ipcMain.handle('processes:killTask', (_event, taskId: string) => {
+    killTaskProcesses(taskId)
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -1282,6 +1472,7 @@ app.on('will-quit', () => {
   stopDiagnostics()
   stopIdleChecker()
   killAllPtys()
+  killAllProcesses()
   closeDatabase()
 })
 
