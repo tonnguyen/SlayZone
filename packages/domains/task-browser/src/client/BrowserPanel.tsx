@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, SquareTerminal, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, SquareTerminal } from 'lucide-react'
 import {
   Button,
   Input,
@@ -548,28 +548,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     })()
   }, [multiDeviceMode, webviewReady, webviewId, inlineDevToolsOpen, inlineDevToolsAttached])
 
-  const openDetachedDevTools = useCallback(() => {
-    if (multiDeviceMode || !webviewReady) {
-      setDevToolsStatus(multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Webview not ready yet')
-      return
-    }
-    const wv = webviewRef.current
-    if (!wv) {
-      setDevToolsStatus('No active webview')
-      return
-    }
-    void (async () => {
-      try {
-        const id = webviewId ?? wv.getWebContentsId()
-        const ok = await window.api.webview.openDevToolsDetached(id)
-        setDevToolsStatus(ok ? 'Native DevTools window opened' : 'Failed to open native DevTools window')
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        setDevToolsStatus(`DevTools error: ${message}`)
-      }
-    })()
-  }, [multiDeviceMode, webviewReady, webviewId])
-
   useEffect(() => {
     if (multiDeviceMode) {
       void window.api.webview.closeDevToolsInline(webviewId ?? undefined)
@@ -809,25 +787,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
             {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle Chromium DevTools'}
           </TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                data-testid="browser-devtools-detached"
-                variant="ghost"
-                size="icon-sm"
-                disabled={multiDeviceMode || !webviewReady}
-                onClick={openDetachedDevTools}
-              >
-                <ExternalLink className="size-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Open native DevTools window'}
-          </TooltipContent>
-        </Tooltip>
-
         <Tooltip>
           <TooltipTrigger asChild>
             <span>
