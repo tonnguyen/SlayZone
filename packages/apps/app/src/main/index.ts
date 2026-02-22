@@ -244,64 +244,34 @@ function removeInlineDevToolsView(win: BrowserWindow | null): void {
 
 async function tuneInlineDevToolsFrontend(devtoolsContents: Electron.WebContents): Promise<string> {
   if (devtoolsContents.isDestroyed()) return 'destroyed'
+  // Runs once after the DevTools frontend has fully navigated (did-navigate fires when ready).
+  // forceUndocked removed — openDevTools({ mode: 'undocked' }) already handles dock state.
   const script = `
-    (async () => {
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    (() => {
+      const ui = globalThis.UI
+      const common = globalThis.Common
+      const settings = common?.Settings?.Settings?.instance?.()
 
-      const forceUndocked = async () => {
-        try {
-          const ui = globalThis.UI
-          const common = globalThis.Common
-          const settings = common?.Settings?.Settings?.instance?.()
-          settings?.moduleSetting?.('currentDockState')?.set?.('undocked')
-          settings?.moduleSetting?.('last-dock-state')?.set?.('undocked')
-          settings?.moduleSetting?.('lastDockState')?.set?.('undocked')
-          const controller = ui?.DockController?.DockController?.instance?.()
-          controller?.setCanDock?.(false)
-          controller?.setDockSide?.('undocked')
-          return true
-        } catch {
-          return false
-        }
-      }
-
-      const disableDeviceMode = async () => {
-        const ui = globalThis.UI
-        const common = globalThis.Common
-        const settings = common?.Settings?.Settings?.instance?.()
-        const deviceModeSetting = settings?.moduleSetting?.('emulation.showDeviceMode')
-        if (deviceModeSetting?.get?.() === true) {
-          deviceModeSetting.set(false)
-          return 'disabled-via-setting'
-        }
-
+      // Cancel inspect-element mode if active (can activate automatically on open)
+      try {
         const registry = ui?.actionRegistry?.instance?.()
-        const action = registry?.action?.('emulation.toggle-device-mode')
-        if (!action) return null
+        const inspectAction = registry?.action?.('elements.inspect-element')
+        if (inspectAction?.toggled?.()) inspectAction.execute?.()
+      } catch {}
 
-        if (action.toggled?.() === true) {
-          await action.execute?.()
-          return 'disabled-via-action'
-        }
-        return 'already-off-via-action'
+      // Disable device emulation if it was left on from a previous session
+      const deviceModeSetting = settings?.moduleSetting?.('emulation.showDeviceMode')
+      if (deviceModeSetting?.get?.() === true) {
+        deviceModeSetting.set(false)
+        return 'disabled-device-mode-via-setting'
       }
-
-      const cancelInspectMode = () => {
-        try {
-          const registry = globalThis.UI?.actionRegistry?.instance?.()
-          const action = registry?.action?.('elements.inspect-element')
-          if (action?.toggled?.()) action.execute?.()
-        } catch {}
+      const registry = ui?.actionRegistry?.instance?.()
+      const deviceAction = registry?.action?.('emulation.toggle-device-mode')
+      if (deviceAction?.toggled?.() === true) {
+        void deviceAction.execute?.()
+        return 'disabled-device-mode-via-action'
       }
-
-      for (let i = 0; i < 24; i += 1) {
-        await forceUndocked()
-        cancelInspectMode()
-        const byAction = await disableDeviceMode()
-        if (byAction) return byAction
-        await sleep(100)
-      }
-      return 'not-found'
+      return 'ok'
     })();
   `
   try {
@@ -319,13 +289,14 @@ async function tuneInlineDevToolsFrontend(devtoolsContents: Electron.WebContents
 function scheduleDisableDevToolsDeviceToolbar(devtoolsContents: Electron.WebContents): void {
   for (const timer of inlineDeviceToolbarDisableTimers) clearTimeout(timer)
   inlineDeviceToolbarDisableTimers = []
-  for (const ms of [0, 250, 700, 1500, 3000]) {
-    const timer = setTimeout(() => {
-      if (devtoolsContents.isDestroyed()) return
-      void tuneInlineDevToolsFrontend(devtoolsContents)
-    }, ms)
-    inlineDeviceToolbarDisableTimers.push(timer)
-  }
+  // Single deferred call after did-navigate has fired — DevTools modules are ready by then.
+  // The caller (openDevToolsInline) already awaits tuneInlineDevToolsFrontend once on open;
+  // this handles the case where the user navigates the DevTools itself (rare but possible).
+  const timer = setTimeout(() => {
+    if (devtoolsContents.isDestroyed()) return
+    void tuneInlineDevToolsFrontend(devtoolsContents)
+  }, 500)
+  inlineDeviceToolbarDisableTimers.push(timer)
 }
 
 function emitOAuthCallback(payload: { code?: string; error?: string }): void {
@@ -1254,6 +1225,17 @@ app.whenReady().then(async () => {
           const hide = () => { if (!win.isDestroyed()) { win.setOpacity(0); win.setBounds({ x: -32000, y: -32000, width: 1, height: 1 }); win.hide() } }
           win.on('ready-to-show', hide)
           win.on('show', hide)
+          // Verify this is actually the DevTools popup; restore if not.
+          win.webContents.once('did-navigate', (_, url) => {
+            const isDevTools = url.startsWith('devtools://') || url.includes('chrome-devtools://')
+            if (!isDevTools) {
+              win.off('ready-to-show', hide)
+              win.off('show', hide)
+              win.setOpacity(1)
+              win.setBounds({ x: 100, y: 100, width: 800, height: 600 })
+              win.show()
+            }
+          })
         }
         app.once('browser-window-created', suppressPopup)
         target.openDevTools({ mode: variant.mode, activate: variant.activate })
@@ -1269,8 +1251,18 @@ app.whenReady().then(async () => {
           view.setBounds(normalizeInlineDevToolsBounds(bounds))
           let deviceToolbarResult: string | undefined
           if (ENABLE_INLINE_DEVTOOLS_DEVICE_TOOLBAR_HACK) {
-            deviceToolbarResult = await tuneInlineDevToolsFrontend(host)
-            scheduleDisableDevToolsDeviceToolbar(host)
+            // Tune after did-navigate so DevTools modules (UI, Common) are fully loaded.
+            // If already navigated (pre-warm path), call immediately; otherwise wait for nav.
+            const isDevToolsUrl = (url: string) => url.startsWith('devtools://') || url.includes('chrome-devtools://')
+            const runTune = async () => {
+              deviceToolbarResult = await tuneInlineDevToolsFrontend(host)
+              scheduleDisableDevToolsDeviceToolbar(host)
+            }
+            if (isDevToolsUrl(host.getURL())) {
+              await runTune()
+            } else {
+              host.once('did-navigate', (_, url) => { if (isDevToolsUrl(url)) void runTune() })
+            }
           }
           console.log('[webview:open-devtools-inline] opened', {
             targetWebviewId,
