@@ -1009,7 +1009,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
           {inlineDevToolsOpen && (
             <>
               <div
-                className="w-full h-3 shrink-0 cursor-row-resize border-t border-border/80 bg-black/80 hover:bg-black"
+                className="w-full h-1 shrink-0 cursor-row-resize bg-border/30 hover:bg-border/60"
                 onMouseDown={startInlineDevToolsResize}
                 title="Drag to resize DevTools"
               />
