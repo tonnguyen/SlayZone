@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.1.61...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.61...main)
+
+### 🩹 Fixes
+
+- **ci:** Commit convex _generated types for build typecheck ([7cbd9e6](https://github.com/debuglebowski/SlayZone/commit/7cbd9e6))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.60...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.60...main)
