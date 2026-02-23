@@ -105,9 +105,11 @@ function App(): React.JSX.Element {
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [explodeMode, setExplodeMode] = useState(false)
-  const [globalPanelActive, setGlobalPanelActive] = useState<'git' | 'editor' | 'processes' | null>(null)
+  const [activePanels, setActivePanels] = useState<Set<'git' | 'editor' | 'processes'>>(new Set())
   const [globalPanelWidth, setGlobalPanelWidth] = useState(480)
   const globalPanelResizingRef = useRef(false)
+  const togglePanel = (id: 'git' | 'editor' | 'processes') =>
+    setActivePanels(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   // Project path validation
@@ -998,16 +1000,16 @@ function App(): React.JSX.Element {
                               {selectedProjectId && (
                                 <div className="flex items-center bg-surface-2 rounded-lg p-1 gap-0.5">
                                   {([
-                                    { id: 'git', icon: GitBranch, label: 'Git' },
-                                    { id: 'editor', icon: FileCode, label: 'Editor' },
-                                    { id: 'processes', icon: Cpu, label: 'Processes' },
-                                  ] as const).map(({ id, icon: Icon, label }) => (
+                                    { id: 'git' as const, icon: GitBranch, label: 'Git' },
+                                    { id: 'editor' as const, icon: FileCode, label: 'Editor' },
+                                    { id: 'processes' as const, icon: Cpu, label: 'Processes' },
+                                  ]).map(({ id, icon: Icon, label }) => (
                                     <button
                                       key={id}
-                                      onClick={() => setGlobalPanelActive(prev => prev === id ? null : id)}
+                                      onClick={() => togglePanel(id)}
                                       className={cn(
                                         'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                                        globalPanelActive === id
+                                        activePanels.has(id)
                                           ? 'bg-muted text-foreground shadow-sm'
                                           : 'text-muted-foreground hover:text-foreground'
                                       )}
@@ -1061,7 +1063,7 @@ function App(): React.JSX.Element {
                                   onArchiveAllTasks={archiveTasks}
                                 />
                               </div>
-                              {globalPanelActive && (
+                              {activePanels.size > 0 && (
                                 <>
                                   <div
                                     className="w-1 shrink-0 cursor-col-resize group flex items-center justify-center z-10"
@@ -1072,7 +1074,7 @@ function App(): React.JSX.Element {
                                       const startW = globalPanelWidth
                                       const onMove = (ev: MouseEvent) => {
                                         if (!globalPanelResizingRef.current) return
-                                        setGlobalPanelWidth(Math.max(280, startW - (ev.clientX - startX)))
+                                        setGlobalPanelWidth(Math.max(200, startW - (ev.clientX - startX) / activePanels.size))
                                       }
                                       const onUp = () => {
                                         globalPanelResizingRef.current = false
@@ -1085,27 +1087,14 @@ function App(): React.JSX.Element {
                                   >
                                     <div className="w-0.5 h-8 rounded-full opacity-0 group-hover:opacity-100 bg-primary/30 transition-opacity" />
                                   </div>
-                                  <div
-                                    className="shrink-0 min-h-0 rounded-lg overflow-hidden border border-border bg-background"
-                                    style={{ width: globalPanelWidth }}
-                                  >
-                                    {globalPanelActive === 'git' && (
-                                      <ProjectGitPanel
-                                        projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? null}
-                                        visible={true}
-                                      />
-                                    )}
-                                    {globalPanelActive === 'editor' && (
-                                      <FileEditorView
-                                        projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? ''}
-                                      />
-                                    )}
-                                    {globalPanelActive === 'processes' && (
-                                      <ProcessesPanel
-                                        taskId={null}
-                                        cwd={projects.find(p => p.id === selectedProjectId)?.path ?? null}
-                                      />
-                                    )}
+                                  <div className="shrink-0 flex min-h-0 gap-1" style={{ width: globalPanelWidth * activePanels.size }}>
+                                    {(['git', 'editor', 'processes'] as const).filter(id => activePanels.has(id)).map(id => (
+                                      <div key={id} className="flex-1 min-w-0 min-h-0 rounded-lg overflow-hidden border border-border bg-background">
+                                        {id === 'git' && <ProjectGitPanel projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? null} visible={true} />}
+                                        {id === 'editor' && <FileEditorView projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? ''} />}
+                                        {id === 'processes' && <ProcessesPanel taskId={null} cwd={projects.find(p => p.id === selectedProjectId)?.path ?? null} />}
+                                      </div>
+                                    ))}
                                   </div>
                                 </>
                               )}
