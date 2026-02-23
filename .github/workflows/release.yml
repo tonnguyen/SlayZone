@@ -77,7 +77,7 @@ jobs:
         env:
           CI_SKIP_POSTINSTALL: '1'
 
-- name: Build CLI
+      - name: Build CLI
         if: runner.os == 'macOS'
         run: pnpm --filter @slayzone/cli build
 
