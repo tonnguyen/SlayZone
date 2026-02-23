@@ -27,5 +27,3 @@ playwright-report/
 .e2e-userdata/
 .e2e-runtime/
 
-# Convex generated artifacts
-convex/_generated/
