@@ -98,7 +98,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const inlineDevToolsPanelRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inlineAttachAttemptRef = useRef(0)
-  const prewarmRef = useRef(false)
 
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
@@ -322,26 +321,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     }
   }, []) // stable callbacks via refs
 
-  // Pre-warm: open DevTools off-screen when webview first loads so popup appears at page load
-  // (unnoticeable) rather than when user clicks the button.
-  useEffect(() => {
-    if (prewarmRef.current || webviewId === null) return
-    prewarmRef.current = true
-    void (async () => {
-      try {
-        const result = await Promise.race<Awaited<ReturnType<typeof window.api.webview.openDevToolsInline>> | 'timeout'>([
-          window.api.webview.openDevToolsInline(webviewId, { x: -10000, y: -10000, width: 1, height: 1 }),
-          new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 10000))
-        ])
-        if (result !== 'timeout' && result.ok) {
-          setInlineDevToolsAttached(true)
-        }
-      } catch {
-        // prewarm failed — normal attach path handles it when user opens DevTools
-      }
-    })()
-  }, [webviewId])
-
   const getInlineDevToolsBounds = useCallback(() => {
     const el = inlineDevToolsPanelRef.current
     if (!el) return null
@@ -410,13 +389,15 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
         }
         if (!result.ok) {
           setInlineDevToolsAttached(false)
+          setInlineDevToolsOpen(false)
           const details = [
             `reason=${result.reason}`,
             result.targetType ? `targetType=${result.targetType}` : null,
             result.hostType ? `hostType=${result.hostType}` : null,
             result.attempts?.length ? `attempts=[${result.attempts.join(', ')}]` : null,
           ].filter(Boolean).join(' ')
-          setDevToolsStatus(`Failed to open inline Chromium DevTools (${details || 'no details'})`)
+          setDevToolsStatus(`Inline DevTools failed (${details || 'no details'}) — opening native`)
+          void window.api.webview.openDevToolsDetached(webviewId)
           return
         }
         setInlineDevToolsAttached(true)
@@ -430,7 +411,8 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
         const message = err instanceof Error ? err.message : String(err)
         setInlineDevToolsOpen(false)
         setInlineDevToolsAttached(false)
-        setDevToolsStatus(`DevTools error: ${message}`)
+        setDevToolsStatus(`Inline DevTools error: ${message} — opening native`)
+        if (webviewId !== null) void window.api.webview.openDevToolsDetached(webviewId)
       }
     })()
     return undefined
@@ -531,12 +513,12 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
           return
         }
         if (inlineDevToolsAttached) {
-          // Pre-warm succeeded — no IPC needed, just show the panel
+          // Already attached (stay-attached after close) — no IPC, just show the panel
           setInlineDevToolsOpen(true)
           setDevToolsStatus('Chromium DevTools opened inline')
           return
         }
-        // Pre-warm failed or not done — fall back to normal attach path
+        // Not yet attached — start attach
         const opened = await window.api.webview.isDevToolsOpened(id)
         if (opened) await window.api.webview.closeDevTools(id)
         setInlineDevToolsOpen(true)

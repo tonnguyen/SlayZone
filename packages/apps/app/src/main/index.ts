@@ -1180,7 +1180,9 @@ app.whenReady().then(async () => {
         // Intercept the native DevTools popup window that undocked mode creates.
         // Register BEFORE openDevTools() so we catch the window at creation time,
         // before Electron calls Show() on it.
+        let popupCaught = false
         const suppressPopup = (_: unknown, win: Electron.BrowserWindow) => {
+          popupCaught = true
           if (win.isDestroyed()) return
           win.setOpacity(0)
           win.setBounds({ x: -32000, y: -32000, width: 1, height: 1 })
@@ -1190,12 +1192,12 @@ app.whenReady().then(async () => {
         }
         app.once('browser-window-created', suppressPopup)
         target.openDevTools({ mode: 'undocked', activate: false })
-        // Clean up listener if openDevTools didn't create a window (e.g. already opened)
+        // Clean up listener if openDevTools didn't create a window (e.g. already opened).
+        // Only wait if the popup hasn't been caught yet — avoids unnecessary 500ms delay
+        // on the common (pre-warm already attached) path.
         const cleanupSuppressListener = () => app.off('browser-window-created', suppressPopup)
         const hostLoaded = await hostDevToolsPromise
-        // Small delay ensures the popup window (created async by openDevTools) has been
-        // created and caught by suppressPopup before we remove the listener.
-        await new Promise(resolve => setTimeout(resolve, 500))
+        if (!popupCaught) await new Promise(resolve => setTimeout(resolve, 500))
         cleanupSuppressListener()
         if (hostLoaded) {
           view.setBounds(normalizeInlineDevToolsBounds(bounds))
