@@ -82,4 +82,17 @@ test('includes provider flags while resuming', () => {
   expect(result.postSpawnCommand).toBe("exec 'codex' 'resume' 'thread-123' '--search'")
 })
 
+console.log('\nCodexAdapter.detectError\n')
+
+test('detects stale codex resume session as SESSION_NOT_FOUND', () => {
+  const result = adapter.detectError('ERROR: No saved session found with ID 019c7a76-280a-7dc0-8af6-affe6cf174b2')
+  expect(result?.code).toBe('SESSION_NOT_FOUND')
+})
+
+test('detects generic codex error line', () => {
+  const result = adapter.detectError('ERROR: Something went wrong')
+  expect(result?.code).toBe('CLI_ERROR')
+  expect(result?.message).toBe('Something went wrong')
+})
+
 console.log('\nDone\n')

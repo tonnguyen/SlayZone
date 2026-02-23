@@ -61,7 +61,31 @@ export class CodexAdapter implements TerminalAdapter {
   }
 
   detectError(_data: string): ErrorInfo | null {
-    // TODO: Implement when Codex output format is known
+    const stripped = CodexAdapter.stripAnsi(_data)
+
+    // Codex resume session not found variants.
+    if (
+      /no saved session found with id/i.test(stripped)
+      || /no conversation found with (?:session )?id/i.test(stripped)
+      || /session .* not found/i.test(stripped)
+    ) {
+      return {
+        code: 'SESSION_NOT_FOUND',
+        message: 'Session not found',
+        recoverable: false
+      }
+    }
+
+    // Generic CLI error.
+    const errorMatch = stripped.match(/\bERROR:\s*(.+)/i)
+    if (errorMatch) {
+      return {
+        code: 'CLI_ERROR',
+        message: errorMatch[1].trim(),
+        recoverable: true
+      }
+    }
+
     return null
   }
 
