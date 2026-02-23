@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.1.58...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.58...main)
+
+### 🩹 Fixes
+
+- **ci:** Add @convex-dev/auth to root deps for convex deploy ([931caff](https://github.com/debuglebowski/SlayZone/commit/931caff))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.57...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.57...main)
