@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -70,25 +70,6 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<string | null>(null)
-  const [showLeftFade, setShowLeftFade] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const updateFades = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    setShowLeftFade(el.scrollLeft > 0)
-  }, [])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    updateFades()
-    el.addEventListener('scroll', updateFades, { passive: true })
-    const ro = new ResizeObserver(updateFades)
-    ro.observe(el)
-    return () => { el.removeEventListener('scroll', updateFades); ro.disconnect() }
-  }, [updateFades])
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -224,11 +205,7 @@ export function KanbanBoard({
       onDragEnd={handleDragEnd}
     >
       <div className="relative h-full min-h-0">
-        {showLeftFade && (
-          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-16 z-10 bg-gradient-to-r from-background to-transparent" />
-        )}
-        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 z-10 bg-gradient-to-l from-background to-transparent" />
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 pr-16 h-full [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/25 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 [&::-webkit-scrollbar-thumb]:rounded-full">
+      <div className="flex gap-4 overflow-x-auto pr-16 h-full [&::-webkit-scrollbar]:hidden">
         {columns.map((column) => (
           <KanbanColumn
             key={column.id}

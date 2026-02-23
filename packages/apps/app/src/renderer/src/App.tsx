@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { AlertTriangle, LayoutGrid, TerminalSquare, GitBranch, FileCode, Cpu } from 'lucide-react'
+import { AlertTriangle, LayoutGrid, TerminalSquare, GitBranch, FileCode, Cpu, Kanban } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
@@ -13,7 +13,7 @@ import {
   applyFilters,
   type Column
 } from '@slayzone/tasks'
-import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel } from '@slayzone/task'
+import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle } from '@slayzone/task'
 import { ProjectGitPanel } from '@slayzone/worktrees'
 import { FileEditorView } from '@slayzone/file-editor/client'
 import { CreateProjectDialog, ProjectSettingsDialog, DeleteProjectDialog } from '@slayzone/projects'
@@ -40,7 +40,7 @@ import {
   toast,
   UpdateToast
 } from '@slayzone/ui'
-import { SidebarProvider, cn } from '@slayzone/ui'
+import { SidebarProvider, cn, PanelToggle } from '@slayzone/ui'
 import { AppSidebar } from '@/components/sidebar/AppSidebar'
 import { TabBar } from '@/components/tabs/TabBar'
 import { LeaderboardPage } from '@/components/leaderboard/LeaderboardPage'
@@ -105,11 +105,31 @@ function App(): React.JSX.Element {
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [explodeMode, setExplodeMode] = useState(false)
-  const [activePanels, setActivePanels] = useState<Set<'git' | 'editor' | 'processes'>>(new Set())
-  const [globalPanelWidth, setGlobalPanelWidth] = useState(480)
-  const globalPanelResizingRef = useRef(false)
-  const togglePanel = (id: 'git' | 'editor' | 'processes') =>
-    setActivePanels(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
+  const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
+  const HANDLE_WIDTH = 16
+
+  const [homePanelVisibility, setHomePanelVisibility] = useState<Record<HomePanel, boolean>>({ kanban: true, git: false, editor: false, processes: false })
+  const [homePanelSizes, setHomePanelSizes] = useState<Record<string, number | 'auto'>>({ kanban: 'auto', git: 'auto', editor: 'auto', processes: 'auto' })
+  const [homeContainerWidth, setHomeContainerWidth] = useState(0)
+  const homeRoRef = useRef<ResizeObserver | null>(null)
+  const homeContainerRef = useCallback((el: HTMLDivElement | null) => {
+    homeRoRef.current?.disconnect()
+    if (el) {
+      homeRoRef.current = new ResizeObserver(([entry]) => setHomeContainerWidth(entry.contentRect.width))
+      homeRoRef.current.observe(el)
+    }
+  }, [])
+
+  const homeResolvedWidths = useMemo(() => {
+    const visible = HOME_PANEL_ORDER.filter(id => homePanelVisibility[id])
+    const handleCount = Math.max(0, visible.length - 1)
+    const available = homeContainerWidth - handleCount * HANDLE_WIDTH
+    const autoCount = visible.filter(id => homePanelSizes[id] === 'auto').length
+    const fixedSum = visible.filter(id => homePanelSizes[id] !== 'auto').reduce((s, id) => s + (homePanelSizes[id] as number), 0)
+    const autoWidth = autoCount > 0 ? Math.max(200, (available - fixedSum) / autoCount) : 0
+    return Object.fromEntries(visible.map(id => [id, homePanelSizes[id] === 'auto' ? autoWidth : (homePanelSizes[id] as number)]))
+  }, [homeContainerWidth, homePanelVisibility, homePanelSizes])
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   // Project path validation
@@ -997,28 +1017,18 @@ function App(): React.JSX.Element {
                               {projects.length > 0 && !(projectPathMissing && selectedProjectId) && (
                                 <FilterBar filter={filter} onChange={setFilter} tags={tags} />
                               )}
-                              {selectedProjectId && (
-                                <div className="flex items-center bg-surface-2 rounded-lg p-1 gap-0.5">
-                                  {([
-                                    { id: 'git' as const, icon: GitBranch, label: 'Git' },
-                                    { id: 'editor' as const, icon: FileCode, label: 'Editor' },
-                                    { id: 'processes' as const, icon: Cpu, label: 'Processes' },
-                                  ]).map(({ id, icon: Icon, label }) => (
-                                    <button
-                                      key={id}
-                                      onClick={() => togglePanel(id)}
-                                      className={cn(
-                                        'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                                        activePanels.has(id)
-                                          ? 'bg-muted text-foreground shadow-sm'
-                                          : 'text-muted-foreground hover:text-foreground'
-                                      )}
-                                    >
-                                      <Icon className="size-3.5" />
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
+                              {projects.length > 0 && (
+                                <PanelToggle
+                                  panels={[
+                                    { id: 'kanban', icon: Kanban, label: 'Kanban', active: homePanelVisibility.kanban },
+                                    ...(selectedProjectId ? [
+                                      { id: 'git', icon: GitBranch, label: 'Git', active: homePanelVisibility.git },
+                                      { id: 'editor', icon: FileCode, label: 'Editor', active: homePanelVisibility.editor },
+                                      { id: 'processes', icon: Cpu, label: 'Processes', active: homePanelVisibility.processes },
+                                    ] : []),
+                                  ]}
+                                  onChange={(id, active) => setHomePanelVisibility(prev => ({ ...prev, [id]: active }))}
+                                />
                               )}
                             </div>
                           </header>
@@ -1039,65 +1049,51 @@ function App(): React.JSX.Element {
                               </div>
                             </div>
                           ) : (
-                            <div className="flex-1 min-h-0 flex">
-                              <div className="flex-1 min-w-0 min-h-0">
-                                <KanbanBoard
-                                  tasks={displayTasks}
-                                  groupBy={filter.groupBy}
-                                  sortBy={filter.sortBy}
-                                  isActive={tabs[activeTabIndex]?.type === 'home'}
-                                  onTaskMove={handleTaskMove}
-                                  onTaskReorder={reorderTasks}
-                                  onTaskClick={handleTaskClick}
-                                  onCreateTask={handleCreateTaskFromColumn}
-                                  projectsMap={projectsMap}
-                                  showProjectDot={selectedProjectId === null}
-                                  disableDrag={filter.groupBy === 'due_date'}
-                                  taskTags={taskTags}
-                                  tags={tags}
-                                  blockedTaskIds={blockedTaskIds}
-                                  allProjects={projects}
-                                  onUpdateTask={contextMenuUpdate}
-                                  onArchiveTask={archiveTask}
-                                  onDeleteTask={deleteTask}
-                                  onArchiveAllTasks={archiveTasks}
-                                />
-                              </div>
-                              {activePanels.size > 0 && (
-                                <>
-                                  <div
-                                    className="w-1 shrink-0 cursor-col-resize group flex items-center justify-center z-10"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault()
-                                      globalPanelResizingRef.current = true
-                                      const startX = e.clientX
-                                      const startW = globalPanelWidth
-                                      const onMove = (ev: MouseEvent) => {
-                                        if (!globalPanelResizingRef.current) return
-                                        setGlobalPanelWidth(Math.max(200, startW - (ev.clientX - startX) / activePanels.size))
-                                      }
-                                      const onUp = () => {
-                                        globalPanelResizingRef.current = false
-                                        document.removeEventListener('mousemove', onMove)
-                                        document.removeEventListener('mouseup', onUp)
-                                      }
-                                      document.addEventListener('mousemove', onMove)
-                                      document.addEventListener('mouseup', onUp)
-                                    }}
-                                  >
-                                    <div className="w-0.5 h-8 rounded-full opacity-0 group-hover:opacity-100 bg-primary/30 transition-opacity" />
-                                  </div>
-                                  <div className="shrink-0 flex min-h-0 gap-1" style={{ width: globalPanelWidth * activePanels.size }}>
-                                    {(['git', 'editor', 'processes'] as const).filter(id => activePanels.has(id)).map(id => (
-                                      <div key={id} className="flex-1 min-w-0 min-h-0 rounded-lg overflow-hidden border border-border bg-background">
-                                        {id === 'git' && <ProjectGitPanel projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? null} visible={true} />}
-                                        {id === 'editor' && <FileEditorView projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? ''} />}
-                                        {id === 'processes' && <ProcessesPanel taskId={null} cwd={projects.find(p => p.id === selectedProjectId)?.path ?? null} />}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
+                            <div ref={homeContainerRef} className="flex-1 min-h-0 flex">
+                              {HOME_PANEL_ORDER.filter(id => homePanelVisibility[id]).map((id, i) => {
+                                const projectPath = projects.find(p => p.id === selectedProjectId)?.path ?? null
+                                const w = homeResolvedWidths[id] ?? 400
+                                return (
+                                  <React.Fragment key={id}>
+                                    {i > 0 && (
+                                      <ResizeHandle
+                                        width={w}
+                                        minWidth={id === 'kanban' ? 400 : 200}
+                                        onWidthChange={w => setHomePanelSizes(prev => ({ ...prev, [id]: w }))}
+                                        onReset={() => setHomePanelSizes(prev => ({ ...prev, [id]: 'auto' }))}
+                                      />
+                                    )}
+                                    <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : id === 'kanban' ? 'p-3' : '')} style={{ width: w }}>
+                                      {id === 'kanban' && (
+                                        <KanbanBoard
+                                          tasks={displayTasks}
+                                          groupBy={filter.groupBy}
+                                          sortBy={filter.sortBy}
+                                          isActive={tabs[activeTabIndex]?.type === 'home'}
+                                          onTaskMove={handleTaskMove}
+                                          onTaskReorder={reorderTasks}
+                                          onTaskClick={handleTaskClick}
+                                          onCreateTask={handleCreateTaskFromColumn}
+                                          projectsMap={projectsMap}
+                                          showProjectDot={selectedProjectId === null}
+                                          disableDrag={filter.groupBy === 'due_date'}
+                                          taskTags={taskTags}
+                                          tags={tags}
+                                          blockedTaskIds={blockedTaskIds}
+                                          allProjects={projects}
+                                          onUpdateTask={contextMenuUpdate}
+                                          onArchiveTask={archiveTask}
+                                          onDeleteTask={deleteTask}
+                                          onArchiveAllTasks={archiveTasks}
+                                        />
+                                      )}
+                                      {id === 'git' && <ProjectGitPanel projectPath={projectPath} visible={true} />}
+                                      {id === 'editor' && <FileEditorView projectPath={projectPath ?? ''} />}
+                                      {id === 'processes' && <ProcessesPanel taskId={null} cwd={projectPath} />}
+                                    </div>
+                                  </React.Fragment>
+                                )
+                              })}
                             </div>
                           )}
                         </div>

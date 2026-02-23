@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react'
 import type { TerminalState, PromptInfo } from '@slayzone/terminal/shared'
+import { disposeTerminal } from './terminal-cache'
 
 export type CodeMode = 'normal' | 'plan' | 'accept-edits' | 'bypass'
 
@@ -160,6 +161,20 @@ export function PtyProvider({ children }: { children: ReactNode }) {
       }
 
       applyExitEvent(sessionId, exitCode, state, stateSubsRef.current, exitSubsRef.current)
+
+      // Free xterm.js instance + PtyContext state. Handles the case where Terminal
+      // component is unmounted (tab closed before PTY exits). If Terminal was still
+      // mounted, it already called these synchronously above — all no-ops here.
+      disposeTerminal(sessionId)
+      statesRef.current.delete(sessionId)
+      dataSubsRef.current.delete(sessionId)
+      exitSubsRef.current.delete(sessionId)
+      sessionInvalidSubsRef.current.delete(sessionId)
+      attentionSubsRef.current.delete(sessionId)
+      stateSubsRef.current.delete(sessionId)
+      promptSubsRef.current.delete(sessionId)
+      sessionDetectedSubsRef.current.delete(sessionId)
+      devServerSubsRef.current.delete(sessionId)
     })
 
     const unsubSessionNotFound = window.api.pty.onSessionNotFound((sessionId) => {

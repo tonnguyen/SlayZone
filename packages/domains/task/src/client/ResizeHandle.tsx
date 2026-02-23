@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 
 interface ResizeHandleProps {
   width: number
@@ -20,6 +20,11 @@ export function ResizeHandle({
   const isDragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(width)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -40,11 +45,16 @@ export function ResizeHandle({
         isDragging.current = false
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
+        cleanupRef.current = null
         onDragEnd?.()
       }
 
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      cleanupRef.current = () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
     },
     [width, minWidth, onWidthChange, onDragStart, onDragEnd]
   )
