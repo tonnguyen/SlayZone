@@ -149,7 +149,9 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener('app:update-status', handler)
     },
     restartForUpdate: () => ipcRenderer.invoke('app:restart-for-update'),
-    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates')
+    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    cliStatus: () => ipcRenderer.invoke('app:cli-status'),
+    installCli: () => ipcRenderer.invoke('app:install-cli')
   },
   window: {
     close: () => ipcRenderer.invoke('window:close')

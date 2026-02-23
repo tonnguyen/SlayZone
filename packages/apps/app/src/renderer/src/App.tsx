@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { AlertTriangle, LayoutGrid, TerminalSquare } from 'lucide-react'
+import { AlertTriangle, LayoutGrid, TerminalSquare, GitBranch, FileCode, Cpu } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
@@ -13,7 +13,9 @@ import {
   applyFilters,
   type Column
 } from '@slayzone/tasks'
-import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage } from '@slayzone/task'
+import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel } from '@slayzone/task'
+import { ProjectGitPanel } from '@slayzone/worktrees'
+import { FileEditorView } from '@slayzone/file-editor/client'
 import { CreateProjectDialog, ProjectSettingsDialog, DeleteProjectDialog } from '@slayzone/projects'
 import { UserSettingsDialog, useViewState } from '@slayzone/settings'
 import { OnboardingDialog } from '@slayzone/onboarding'
@@ -103,6 +105,9 @@ function App(): React.JSX.Element {
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [explodeMode, setExplodeMode] = useState(false)
+  const [globalPanelActive, setGlobalPanelActive] = useState<'git' | 'editor' | 'processes' | null>(null)
+  const [globalPanelWidth, setGlobalPanelWidth] = useState(480)
+  const globalPanelResizingRef = useRef(false)
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   // Project path validation
@@ -990,6 +995,29 @@ function App(): React.JSX.Element {
                               {projects.length > 0 && !(projectPathMissing && selectedProjectId) && (
                                 <FilterBar filter={filter} onChange={setFilter} tags={tags} />
                               )}
+                              {selectedProjectId && (
+                                <div className="flex items-center bg-surface-2 rounded-lg p-1 gap-0.5">
+                                  {([
+                                    { id: 'git', icon: GitBranch, label: 'Git' },
+                                    { id: 'editor', icon: FileCode, label: 'Editor' },
+                                    { id: 'processes', icon: Cpu, label: 'Processes' },
+                                  ] as const).map(({ id, icon: Icon, label }) => (
+                                    <button
+                                      key={id}
+                                      onClick={() => setGlobalPanelActive(prev => prev === id ? null : id)}
+                                      className={cn(
+                                        'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                                        globalPanelActive === id
+                                          ? 'bg-muted text-foreground shadow-sm'
+                                          : 'text-muted-foreground hover:text-foreground'
+                                      )}
+                                    >
+                                      <Icon className="size-3.5" />
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </header>
 
@@ -1009,8 +1037,8 @@ function App(): React.JSX.Element {
                               </div>
                             </div>
                           ) : (
-                            <>
-                              <div className="flex-1 min-h-0">
+                            <div className="flex-1 min-h-0 flex">
+                              <div className="flex-1 min-w-0 min-h-0">
                                 <KanbanBoard
                                   tasks={displayTasks}
                                   groupBy={filter.groupBy}
@@ -1033,7 +1061,55 @@ function App(): React.JSX.Element {
                                   onArchiveAllTasks={archiveTasks}
                                 />
                               </div>
-                            </>
+                              {globalPanelActive && (
+                                <>
+                                  <div
+                                    className="w-1 shrink-0 cursor-col-resize group flex items-center justify-center z-10"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      globalPanelResizingRef.current = true
+                                      const startX = e.clientX
+                                      const startW = globalPanelWidth
+                                      const onMove = (ev: MouseEvent) => {
+                                        if (!globalPanelResizingRef.current) return
+                                        setGlobalPanelWidth(Math.max(280, startW - (ev.clientX - startX)))
+                                      }
+                                      const onUp = () => {
+                                        globalPanelResizingRef.current = false
+                                        document.removeEventListener('mousemove', onMove)
+                                        document.removeEventListener('mouseup', onUp)
+                                      }
+                                      document.addEventListener('mousemove', onMove)
+                                      document.addEventListener('mouseup', onUp)
+                                    }}
+                                  >
+                                    <div className="w-0.5 h-8 rounded-full opacity-0 group-hover:opacity-100 bg-primary/30 transition-opacity" />
+                                  </div>
+                                  <div
+                                    className="shrink-0 min-h-0 rounded-lg overflow-hidden border border-border bg-background"
+                                    style={{ width: globalPanelWidth }}
+                                  >
+                                    {globalPanelActive === 'git' && (
+                                      <ProjectGitPanel
+                                        projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? null}
+                                        visible={true}
+                                      />
+                                    )}
+                                    {globalPanelActive === 'editor' && (
+                                      <FileEditorView
+                                        projectPath={projects.find(p => p.id === selectedProjectId)?.path ?? ''}
+                                      />
+                                    )}
+                                    {globalPanelActive === 'processes' && (
+                                      <ProcessesPanel
+                                        taskId={null}
+                                        cwd={projects.find(p => p.id === selectedProjectId)?.path ?? null}
+                                      />
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           )}
                         </div>
                         ) : tab.type === 'leaderboard' ? (

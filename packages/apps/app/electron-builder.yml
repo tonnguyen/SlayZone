@@ -44,6 +44,11 @@ deb:
   artifactName: ${productName}-${arch}.${ext}
 appImage:
   artifactName: ${productName}.${ext}
+extraResources:
+  - from: "../cli/dist/slay.js"
+    to: "bin/slay.js"
+  - from: "../cli/bin/slay"
+    to: "bin/slay"
 npmRebuild: true
 nativeRebuilder: sequential
 publish:

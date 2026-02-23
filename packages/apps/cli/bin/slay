@@ -1,0 +1,27 @@
+#!/bin/sh
+SELF="$0"
+while [ -L "$SELF" ]; do SELF=$(readlink "$SELF"); done
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+
+NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])" 2>/dev/null)
+if [ -z "$NODE_MAJOR" ]; then
+  echo "slay: node not found in PATH" >&2
+  exit 1
+fi
+
+# Production: slay.js is next to this script; dev: it's in ../dist/
+if [ -f "$SCRIPT_DIR/slay.js" ]; then
+  SLAY_JS="$SCRIPT_DIR/slay.js"
+elif [ -f "$SCRIPT_DIR/../dist/slay.js" ]; then
+  SLAY_JS="$SCRIPT_DIR/../dist/slay.js"
+else
+  echo "slay: slay.js not found" >&2
+  exit 1
+fi
+
+# node:sqlite needs --experimental-sqlite on Node 22; suppress ExperimentalWarning on all versions
+if [ "$NODE_MAJOR" -le 22 ]; then
+  exec node --experimental-sqlite --no-warnings "$SLAY_JS" "$@"
+else
+  exec node --no-warnings "$SLAY_JS" "$@"
+fi

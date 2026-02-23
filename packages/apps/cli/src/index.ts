@@ -1,0 +1,19 @@
+import { Command } from 'commander'
+import { tasksCommand } from './commands/tasks'
+
+const program = new Command()
+  .name('slay')
+  .description('SlayZone CLI')
+  .version('0.1.0')
+  .option('--dev', 'Use development database (slayzone.dev.sqlite)')
+  .hook('preAction', (thisCommand) => {
+    const root = thisCommand.parent ?? thisCommand
+    if (root.opts().dev) process.env.SLAYZONE_DEV = '1'
+  })
+
+program.addCommand(tasksCommand())
+
+program.parseAsync(process.argv).catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err))
+  process.exit(1)
+})

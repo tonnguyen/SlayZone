@@ -77,3 +77,25 @@ export function closeDatabase(): void {
     db = null
   }
 }
+
+export function watchDatabase(onChange: () => void): () => void {
+  // Watch the WAL file — in WAL mode all writes land here first (internal and external).
+  // Spurious fires from internal app writes are harmless (renderer re-fetches same data).
+  const walPath = getDatabasePath() + '-wal'
+  let debounce: ReturnType<typeof setTimeout> | null = null
+  let watcher: fs.FSWatcher | null = null
+
+  try {
+    watcher = fs.watch(walPath, () => {
+      if (debounce) clearTimeout(debounce)
+      debounce = setTimeout(onChange, 200)
+    })
+  } catch {
+    // WAL file may not exist yet — ignore
+  }
+
+  return () => {
+    watcher?.close()
+    if (debounce) clearTimeout(debounce)
+  }
+}

@@ -3,7 +3,7 @@ import { app, shell, BrowserWindow, BrowserView, ipcMain, nativeTheme, session, 
 import { join, extname, normalize, sep, resolve } from 'path'
 import { homedir } from 'os'
 import { createServer, type Server as HttpServer } from 'http'
-import { readFileSync, promises as fsp } from 'fs'
+import { readFileSync, promises as fsp, existsSync, unlinkSync, symlinkSync } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 
 // Custom protocol for serving local files in browser panel webviews
@@ -27,7 +27,7 @@ if (is.dev && !isPlaywright) {
 }
 import icon from '../../resources/icon.png?asset'
 import logoSolid from '../../resources/logo-solid.svg?asset'
-import { getDatabase, closeDatabase } from './db'
+import { getDatabase, closeDatabase, watchDatabase } from './db'
 // Domain handlers
 import { registerProjectHandlers } from '@slayzone/projects/main'
 import { registerTaskHandlers, registerAiHandlers, registerFilesHandlers } from '@slayzone/task/main'
@@ -178,6 +178,7 @@ let inlineDevToolsViewAttached = false
 let inlineDeviceToolbarDisableTimers: NodeJS.Timeout[] = []
 let linearSyncPoller: NodeJS.Timeout | null = null
 let mcpCleanup: (() => void) | null = null
+let stopDbWatcher: (() => void) = () => {}
 let pendingOAuthCallback: { code?: string; error?: string } | null = null
 let oauthCallbackServer: HttpServer | null = null
 const OAUTH_LOOPBACK_HOST = '127.0.0.1'
@@ -379,7 +380,7 @@ function startOAuthLoopbackServer(): void {
   oauthCallbackServer.listen(OAUTH_LOOPBACK_PORT, OAUTH_LOOPBACK_HOST, () => {})
 }
 
-const gotSingleInstanceLock = app.requestSingleInstanceLock()
+const gotSingleInstanceLock = isPlaywright || app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {
@@ -410,6 +411,42 @@ function emitOpenProjectSettings(): void {
 
 function emitNewTemporaryTask(): void {
   mainWindow?.webContents.send('app:new-temporary-task')
+}
+
+const CLI_TARGET = '/usr/local/bin/slay'
+
+function getCliSrc(): string {
+  return is.dev
+    ? join(app.getAppPath(), '../cli/bin/slay')
+    : join(process.resourcesPath, 'bin', 'slay')
+}
+
+function installSlayCli(): void {
+  const result = installSlayCliResult()
+  if (result.ok) {
+    dialog.showMessageBox({ message: `'slay' installed to ${CLI_TARGET}` })
+  } else if (result.permissionDenied) {
+    dialog.showMessageBox({
+      type: 'warning',
+      message: 'Permission denied',
+      detail: `Run this in Terminal to install manually:\n\nsudo ln -sf "${getCliSrc()}" ${CLI_TARGET}`
+    })
+  } else {
+    dialog.showErrorBox('Install failed', result.error ?? 'Unknown error')
+  }
+}
+
+function installSlayCliResult(): { ok: boolean; permissionDenied?: boolean; error?: string } {
+  const src = getCliSrc()
+  try {
+    if (existsSync(CLI_TARGET)) unlinkSync(CLI_TARGET)
+    symlinkSync(src, CLI_TARGET)
+    return { ok: true }
+  } catch (err: unknown) {
+    const code = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined
+    if (code === 'EACCES') return { ok: false, permissionDenied: true, error: `sudo ln -sf "${src}" ${CLI_TARGET}` }
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 function closeSplash(): void {
@@ -607,6 +644,11 @@ app.whenReady().then(async () => {
             label: 'Project Settings...',
             accelerator: 'Cmd+Shift+,',
             click: () => emitOpenProjectSettings()
+          },
+          { type: 'separator' },
+          {
+            label: "Install 'slay' CLI...",
+            click: () => installSlayCli()
           },
           { type: 'separator' },
           { role: 'services' },
@@ -930,6 +972,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:restart-for-update', () => restartForUpdate())
   ipcMain.handle('app:check-for-updates', () => checkForUpdates())
+  ipcMain.handle('app:cli-status', () => ({ installed: existsSync(CLI_TARGET) }))
+  ipcMain.handle('app:install-cli', () => installSlayCliResult())
 
   // Window close
   ipcMain.handle('window:close', (event) => {
@@ -1325,6 +1369,11 @@ app.whenReady().then(async () => {
   createWindow()
   if (mainWindow) setProcessManagerWindow(mainWindow)
 
+  // Watch DB for external changes (e.g. slay CLI) and notify renderer
+  stopDbWatcher = watchDatabase(() => {
+    mainWindow?.webContents.send('tasks:changed')
+  })
+
   // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
   ipcMain.handle('processes:create', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
     return createProcess(taskId, label, command, cwd, autoRestart)
@@ -1341,7 +1390,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('processes:restart', (_event, processId: string) => {
     return restartProcess(processId)
   })
-  ipcMain.handle('processes:listForTask', (_event, taskId: string) => {
+  ipcMain.handle('processes:listForTask', (_event, taskId: string | null) => {
     return listForTask(taskId)
   })
   ipcMain.handle('processes:listAll', () => {
@@ -1413,6 +1462,7 @@ app.on('will-quit', () => {
   stopIdleChecker()
   killAllPtys()
   killAllProcesses()
+  stopDbWatcher()
   closeDatabase()
 })
 

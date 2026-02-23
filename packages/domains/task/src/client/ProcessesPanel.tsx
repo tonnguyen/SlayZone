@@ -244,7 +244,7 @@ function SectionHeader({ label }: { label: string }) {
   )
 }
 
-export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: string; cwd?: string | null; terminalSessionId?: string }) {
+export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: string | null; cwd?: string | null; terminalSessionId?: string }) {
   const [processes, setProcesses] = useState<ProcessEntry[]>([])
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [view, setView] = useState<'list' | 'new'>('list')
@@ -310,7 +310,7 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
 
   useEffect(() => {
     const unsub = window.api.app.onCloseTask((closedTaskId) => {
-      if (closedTaskId === taskId) window.api.processes.killTask(taskId)
+      if (taskId && closedTaskId === taskId) window.api.processes.killTask(taskId)
     })
     return unsub
   }, [taskId])
@@ -417,7 +417,7 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
   const goToList = useCallback(() => { setView('list'); setEditingId(null); setForm(EMPTY_FORM) }, [])
 
   const globalProcesses = useMemo(() => processes.filter(p => p.taskId === null), [processes])
-  const taskProcesses = useMemo(() => processes.filter(p => p.taskId === taskId), [processes, taskId])
+  const taskProcesses = useMemo(() => taskId ? processes.filter(p => p.taskId === taskId) : [], [processes, taskId])
 
   const allSuggestions: SuggestionGroup[] = [
     ...(pkgScripts.length > 0 ? [{ category: 'package.json', items: pkgScripts }] : []),

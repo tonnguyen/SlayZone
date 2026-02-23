@@ -200,8 +200,8 @@ export function killTaskProcesses(taskId: string): void {
   }
 }
 
-/** Returns task-scoped processes for taskId plus all global (taskId=null) processes. */
-export function listForTask(taskId: string): ProcessInfo[] {
+/** Returns task-scoped processes for taskId plus all global (taskId=null) processes. When taskId is null, returns only global processes. */
+export function listForTask(taskId: string | null): ProcessInfo[] {
   return Array.from(processes.values())
     .filter(p => p.taskId === taskId || p.taskId === null)
     .map(({ child: _, ...info }) => info)

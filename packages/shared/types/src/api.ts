@@ -212,6 +212,8 @@ export interface ElectronAPI {
     onCloseActiveTask: (callback: () => void) => () => void
     restartForUpdate: () => Promise<void>
     checkForUpdates: () => Promise<void>
+    cliStatus: () => Promise<{ installed: boolean }>
+    installCli: () => Promise<{ ok: boolean; permissionDenied?: boolean; error?: string }>
   }
   window: {
     close: () => Promise<void>
@@ -434,7 +436,7 @@ export interface ElectronAPI {
     update: (processId: string, updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId'>>) => Promise<boolean>
     kill: (processId: string) => Promise<boolean>
     restart: (processId: string) => Promise<boolean>
-    listForTask: (taskId: string) => Promise<ProcessInfo[]>
+    listForTask: (taskId: string | null) => Promise<ProcessInfo[]>
     listAll: () => Promise<ProcessInfo[]>
     killTask: (taskId: string) => Promise<void>
     onLog: (cb: (processId: string, line: string) => void) => () => void

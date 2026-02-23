@@ -1,0 +1,17 @@
+{
+  "name": "@slayzone/cli",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --outfile=dist/slay.js --banner:js='#!/usr/bin/env node' --external:node:sqlite",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -80,6 +80,9 @@ export function UserSettingsDialog({
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [exportProjectId, setExportProjectId] = useState('')
   const [importedProjects, setImportedProjects] = useState<Array<{ id: string; name: string; path: string }>>([])
+  const [cliInstalled, setCliInstalled] = useState(false)
+  const [cliInstalling, setCliInstalling] = useState(false)
+  const [cliMessage, setCliMessage] = useState('')
   const loadRequestIdRef = useRef(0)
 
   useEffect(() => {
@@ -118,12 +121,15 @@ export function UserSettingsDialog({
         window.api.settings.get('default_terminal_mode'),
         ...providerFlagKeys.map(k => window.api.settings.get(k)),
       ])
-      const [devToast, devAutoOpen, mcpPortSetting] = await Promise.allSettled([
+      const [devToast, devAutoOpen, mcpPortSetting, cliStatus] = await Promise.allSettled([
         window.api.settings.get('dev_server_toast_enabled'),
         window.api.settings.get('dev_server_auto_open_browser'),
-        window.api.settings.get('mcp_server_port')
+        window.api.settings.get('mcp_server_port'),
+        window.api.app.cliStatus()
       ])
       if (isStale()) return
+
+      setCliInstalled(cliStatus.status === 'fulfilled' ? cliStatus.value.installed : false)
 
       setTags(loadedTags.status === 'fulfilled' ? loadedTags.value : [])
       setProjects(loadedProjects.status === 'fulfilled' ? loadedProjects.value : [])
@@ -1175,6 +1181,44 @@ export function UserSettingsDialog({
                   </div>
                 </div>
 
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">CLI Tool</Label>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <span className={cliInstalled ? 'text-green-500' : 'text-muted-foreground'}>●</span>
+                      {cliInstalled ? 'Installed at /usr/local/bin/slay' : 'Not installed'}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={cliInstalling}
+                      onClick={async () => {
+                        setCliInstalling(true)
+                        setCliMessage('')
+                        try {
+                          const result = await window.api.app.installCli()
+                          if (result.ok) {
+                            setCliInstalled(true)
+                            setCliMessage('Installed successfully.')
+                          } else if (result.permissionDenied) {
+                            setCliMessage(`Permission denied. Run in Terminal:\n${result.error}`)
+                          } else {
+                            setCliMessage(result.error ?? 'Install failed.')
+                          }
+                        } catch (err) {
+                          setCliMessage(err instanceof Error ? err.message : 'Install failed.')
+                        } finally {
+                          setCliInstalling(false)
+                        }
+                      }}
+                    >
+                      {cliInstalling ? 'Installing…' : cliInstalled ? 'Reinstall' : 'Install'}
+                    </Button>
+                  </div>
+                  {cliMessage && (
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap">{cliMessage}</pre>
+                  )}
+                </div>
               </>
             )}
 

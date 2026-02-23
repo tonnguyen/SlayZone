@@ -25,7 +25,7 @@ function snapshotsEqual(a: GitDiffSnapshot, b: GitDiffSnapshot): boolean {
 }
 
 interface GitDiffPanelProps {
-  task: Task
+  task: Task | null
   projectPath: string | null
   visible: boolean
   pollIntervalMs?: number
@@ -183,7 +183,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   onAbortMerge
 }, ref) {
   const isMergeMode = mergeState === 'uncommitted'
-  const targetPath = useMemo(() => task.worktree_path ?? projectPath, [task.worktree_path, projectPath])
+  const targetPath = useMemo(() => task?.worktree_path ?? projectPath, [task?.worktree_path, projectPath])
   const [snapshot, setSnapshot] = useState<GitDiffSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -38,7 +38,7 @@ Claude Code, Codex, Gemini, and more — running inside task terminals. Spin up 
 
 ### &nbsp;&#x1F9E9;&nbsp; Agent-Kanban interaction
 
-Use SlayZone's MCP server so agents can read task context and update tasks, statuses, and subtasks from the terminal.
+Use SlayZone's MCP server so agents can read task context and update tasks, statuses, and subtasks from the terminal. Or use the `slay` CLI to manage tasks directly from any shell.
 
 ### &nbsp;&#x1F310;&nbsp; Embedded browser panels
 
@@ -57,6 +57,26 @@ Isolated branches with built-in diff, conflict resolution, and commit UI. One br
 Your agents run locally on your machine — SlayZone is just the interface.
 
 <br />
+
+---
+
+### `slay` CLI
+
+Manage tasks from any terminal without opening the app. The app live-updates when you make changes. Requires Node 24+.
+
+```bash
+slay tasks list
+slay tasks list --status in_progress --project "My Project"
+slay tasks list --done
+slay tasks create --project "My Project" --title "Fix bug"
+slay tasks done <id>
+```
+
+Install via **SlayZone → Settings → About → Install**, or manually:
+
+```bash
+sudo ln -sf /Applications/SlayZone.app/Contents/Resources/bin/slay /usr/local/bin/slay
+```
 
 ---
 
