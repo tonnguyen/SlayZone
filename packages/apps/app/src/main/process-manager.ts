@@ -29,6 +29,13 @@ const LOG_BUFFER_MAX = 500
 let win: BrowserWindow | null = null
 let db: Database | null = null
 const processes = new Map<string, ManagedProcess>()
+const logSubscribers = new Map<string, Set<(line: string) => void>>()
+
+export function subscribeToProcessLogs(id: string, cb: (line: string) => void): () => void {
+  if (!logSubscribers.has(id)) logSubscribers.set(id, new Set())
+  logSubscribers.get(id)!.add(cb)
+  return () => logSubscribers.get(id)?.delete(cb)
+}
 
 export function setProcessManagerWindow(window: BrowserWindow): void {
   win = window
@@ -63,6 +70,7 @@ function pushLog(proc: ManagedProcess, line: string): void {
   if (!win?.webContents.isDestroyed()) {
     win?.webContents.send('processes:log', proc.id, line)
   }
+  logSubscribers.get(proc.id)?.forEach((cb) => cb(line))
 }
 
 function setStatus(proc: ManagedProcess, status: ProcessStatus): void {

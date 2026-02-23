@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { tasksCommand } from './commands/tasks'
 import { projectsCommand } from './commands/projects'
 import { processesCommand } from './commands/processes'
+import { completionsCommand } from './commands/completions'
 
 const program = new Command()
   .name('slay')
@@ -16,6 +17,7 @@ const program = new Command()
 program.addCommand(tasksCommand())
 program.addCommand(projectsCommand())
 program.addCommand(processesCommand())
+program.addCommand(completionsCommand())
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(err instanceof Error ? err.message : String(err))

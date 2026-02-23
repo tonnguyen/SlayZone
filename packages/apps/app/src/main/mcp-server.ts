@@ -9,7 +9,7 @@ import { z } from 'zod'
 import type { Database } from 'better-sqlite3'
 import { updateTask } from '@slayzone/task/main'
 import { PROVIDER_DEFAULTS, TASK_STATUSES } from '@slayzone/task/shared'
-import { listAllProcesses } from './process-manager'
+import { listAllProcesses, killProcess, subscribeToProcessLogs } from './process-manager'
 
 let httpServer: Server | null = null
 let idleTimer: NodeJS.Timeout | null = null
@@ -322,6 +322,36 @@ export function startMcpServer(db: Database, port: number): void {
     const proc = listAllProcesses().find(p => p.id === req.params.id)
     if (!proc) { res.status(404).json({ error: `Process not found` }); return }
     res.json({ id: proc.id, label: proc.label, logs: proc.logBuffer })
+  })
+
+  app.delete(`/api/processes/:id`, (req, res) => {
+    const ok = killProcess(req.params.id)
+    if (!ok) { res.status(404).json({ error: `Process not found` }); return }
+    res.json({ ok: true })
+  })
+
+  app.get(`/api/processes/:id/follow`, (req, res) => {
+    const proc = listAllProcesses().find(p => p.id === req.params.id)
+    if (!proc) { res.status(404).json({ error: `Process not found` }); return }
+
+    // Already finished: dump buffer and close
+    if (proc.status !== 'running') {
+      res.setHeader('Content-Type', 'text/plain')
+      res.end(proc.logBuffer.join('\n'))
+      return
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.flushHeaders()
+
+    for (const line of proc.logBuffer) res.write(`data: ${line}\n\n`)
+
+    const unsub = subscribeToProcessLogs(proc.id, (line) => {
+      res.write(`data: ${line}\n\n`)
+    })
+
+    req.on('close', unsub)
   })
 
   httpServer = app.listen(port, '127.0.0.1', () => {

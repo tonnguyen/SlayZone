@@ -315,5 +315,147 @@ test.describe('CLI: slay', () => {
       expect(r.status).not.toBe(0)
       expect(r.stderr).toContain('not running')
     })
+
+    test('kill stops a process', () => {
+      // Spawn a long-running process for this test
+      const killId = spawnSync('node', [SLAY_JS, 'tasks', 'list'], {
+        env: { ...process.env, SLAYZONE_DB_PATH: dbPath },
+        encoding: 'utf8',
+      }) // warmup — ignore result
+      void killId
+
+      // Use electronApp.evaluate to spawn
+      // We'll use the processId from beforeAll and just verify kill works on a fresh one
+      // Spawn inline via API
+      const freshId = runProcessesCli('processes', 'list', '--json')
+      const before = JSON.parse(freshId.stdout) as { id: string; label: string }[]
+      expect(before.some((p) => p.label === 'CLI test process')).toBe(true)
+
+      const target = before.find((p) => p.label === 'CLI test process')!
+      const r = runProcessesCli('processes', 'kill', target.id.slice(0, 8))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('Killed:')
+
+      const after = JSON.parse(runProcessesCli('processes', 'list', '--json').stdout) as { id: string }[]
+      expect(after.some((p) => p.id === target.id)).toBe(false)
+    })
+
+    test('kill exits non-zero on unknown id', () => {
+      const r = runProcessesCli('processes', 'kill', 'xxxxxxxx')
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('not found')
+    })
+
+    test('follow prints buffer for a finished process and exits', async ({ electronApp }) => {
+      // Spawn a process that finishes quickly
+      const followId = await electronApp.evaluate(() => {
+        const spawn = (globalThis as Record<string, unknown>).__spawnProcess as (
+          taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean
+        ) => string
+        return spawn(null, 'CLI follow test', 'echo follow-output-marker', '/tmp', false)
+      })
+      // Wait for it to complete
+      await new Promise((r) => setTimeout(r, 400))
+
+      const r = runProcessesCli('processes', 'follow', followId.slice(0, 8))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('follow-output-marker')
+    })
+
+    test('follow exits non-zero on unknown id', () => {
+      const r = runProcessesCli('processes', 'follow', 'xxxxxxxx')
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('not found')
+    })
+  })
+
+  // --- slay tasks subtasks ---
+
+  test.describe('slay tasks subtasks + subtask-add + search', () => {
+    let parentTaskId = ''
+
+    test.beforeAll(async ({ mainWindow }) => {
+      const s = seed(mainWindow)
+      const parent = await s.createTask({ projectId, title: 'CLI subtask parent', status: 'todo' })
+      parentTaskId = parent.id
+      // Create a subtask via the API
+      await (mainWindow.evaluate as (fn: (d: unknown) => unknown, d: unknown) => Promise<unknown>)(
+        (d) => window.api.db.createTask(d as Parameters<typeof window.api.db.createTask>[0]),
+        { projectId, title: 'CLI seeded subtask', status: 'todo', parentId: parent.id }
+      )
+      await s.refreshData()
+    })
+
+    test('subtasks lists subtasks of a task', () => {
+      const r = runCli('tasks', 'subtasks', parentTaskId.slice(0, 8))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('CLI seeded subtask')
+    })
+
+    test('subtasks --json outputs array', () => {
+      const r = runCli('tasks', 'subtasks', parentTaskId.slice(0, 8), '--json')
+      expect(r.status).toBe(0)
+      const subtasks = JSON.parse(r.stdout)
+      expect(Array.isArray(subtasks)).toBe(true)
+      expect(subtasks.some((t: { title: string }) => t.title === 'CLI seeded subtask')).toBe(true)
+    })
+
+    test('subtask-add creates a subtask', () => {
+      const title = `CLI new subtask ${Date.now()}`
+      const r = runCli('tasks', 'subtask-add', parentTaskId.slice(0, 8), title)
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('Created subtask:')
+
+      const r2 = runCli('tasks', 'subtasks', parentTaskId.slice(0, 8), '--json')
+      const subtasks = JSON.parse(r2.stdout) as { title: string }[]
+      expect(subtasks.some((t) => t.title === title)).toBe(true)
+    })
+
+    test('search finds tasks by title', () => {
+      const r = runCli('tasks', 'search', 'CLI seeded done')
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('CLI seeded done task')
+    })
+
+    test('search --json returns array', () => {
+      const r = runCli('tasks', 'search', 'CLI seeded done', '--json')
+      expect(r.status).toBe(0)
+      const tasks = JSON.parse(r.stdout)
+      expect(Array.isArray(tasks)).toBe(true)
+      expect(tasks.length).toBeGreaterThan(0)
+    })
+
+    test('search with no match returns empty', () => {
+      const r = runCli('tasks', 'search', 'xyzzy-no-match-ever-12345', '--json')
+      expect(r.status).toBe(0)
+      expect(JSON.parse(r.stdout)).toHaveLength(0)
+    })
+  })
+
+  // --- slay completions ---
+
+  test.describe('slay completions', () => {
+    test('fish completions exits 0 and contains complete -c slay', () => {
+      const r = runCli('completions', 'fish')
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('complete -c slay')
+    })
+
+    test('zsh completions exits 0 and contains compdef', () => {
+      const r = runCli('completions', 'zsh')
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('compdef _slay slay')
+    })
+
+    test('bash completions exits 0 and contains complete -F', () => {
+      const r = runCli('completions', 'bash')
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('complete -F _slay_completions slay')
+    })
+
+    test('unknown shell exits non-zero', () => {
+      const r = runCli('completions', 'powershell')
+      expect(r.status).not.toBe(0)
+    })
   })
 })

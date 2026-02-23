@@ -31,6 +31,24 @@ async function apiGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function apiDelete<T>(path: string): Promise<T> {
+  const port = getPort()
+  const url = `http://127.0.0.1:${port}${path}`
+  let res: Response
+  try {
+    res = await fetch(url, { method: 'DELETE' })
+  } catch {
+    console.error('SlayZone is not running (could not connect to app).')
+    process.exit(1)
+  }
+  if (!res.ok) {
+    const body = await res.text()
+    console.error(`API error ${res.status}: ${body}`)
+    process.exit(1)
+  }
+  return res.json() as Promise<T>
+}
+
 interface ProcessInfo {
   id: string
   taskId: string | null
@@ -105,6 +123,78 @@ export function processesCommand(): Command {
       }
 
       console.log(output.join('\n'))
+    })
+
+  // slay processes kill <id>
+  cmd
+    .command('kill <id>')
+    .description('Kill a process (id prefix supported)')
+    .action(async (idPrefix) => {
+      const procs = await apiGet<ProcessInfo[]>('/api/processes')
+      const matches = procs.filter((p) => p.id.startsWith(idPrefix))
+
+      if (matches.length === 0) {
+        console.error(`Process not found: ${idPrefix}`)
+        process.exit(1)
+      }
+      if (matches.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${matches.map((p) => p.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const proc = matches[0]
+      await apiDelete<{ ok: boolean }>(`/api/processes/${proc.id}`)
+      console.log(`Killed: ${proc.id.slice(0, 8)}  ${proc.label}`)
+    })
+
+  // slay processes follow <id>
+  cmd
+    .command('follow <id>')
+    .description('Stream logs for a process in real time (id prefix supported)')
+    .action(async (idPrefix) => {
+      const procs = await apiGet<ProcessInfo[]>('/api/processes')
+      const matches = procs.filter((p) => p.id.startsWith(idPrefix))
+
+      if (matches.length === 0) {
+        console.error(`Process not found: ${idPrefix}`)
+        process.exit(1)
+      }
+      if (matches.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${matches.map((p) => p.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const proc = matches[0]
+      const port = getPort()
+      let res: Response
+      try {
+        res = await fetch(`http://127.0.0.1:${port}/api/processes/${proc.id}/follow`)
+      } catch {
+        console.error('SlayZone is not running (could not connect to app).')
+        process.exit(1)
+      }
+
+      if (!res.ok || !res.body) {
+        console.error(`Failed to follow process: ${res.status}`)
+        process.exit(1)
+      }
+
+      const contentType = res.headers.get('content-type') ?? ''
+
+      if (!contentType.includes('event-stream')) {
+        // Finished process — plain text dump
+        console.log(await res.text())
+        return
+      }
+
+      // SSE stream
+      const decoder = new TextDecoder()
+      for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
+        const text = decoder.decode(chunk)
+        for (const line of text.split('\n')) {
+          if (line.startsWith('data: ')) process.stdout.write(line.slice(6) + '\n')
+        }
+      }
     })
 
   return cmd

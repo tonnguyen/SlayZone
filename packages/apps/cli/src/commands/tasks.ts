@@ -13,6 +13,15 @@ interface TaskRow extends Record<string, unknown> {
 
 const STATUSES = ['inbox', 'backlog', 'todo', 'in_progress', 'review', 'done'] as const
 
+function resolveId(explicit?: string): string {
+  const id = explicit ?? process.env.SLAYZONE_TASK_ID
+  if (!id) {
+    console.error('No task ID provided and $SLAYZONE_TASK_ID is not set.')
+    process.exit(1)
+  }
+  return id
+}
+
 function printTasks(tasks: TaskRow[]) {
   if (tasks.length === 0) {
     console.log('No tasks found.')
@@ -150,9 +159,10 @@ export function tasksCommand(): Command {
 
   // slay tasks view
   cmd
-    .command('view <id>')
-    .description('Show task details (id prefix supported)')
+    .command('view [id]')
+    .description('Show task details (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
     .action(async (idPrefix) => {
+      idPrefix = resolveId(idPrefix)
       const db = openDb()
 
       const tasks = db.query<TaskRow & { description: string; due_date: string }>(
@@ -183,9 +193,10 @@ export function tasksCommand(): Command {
 
   // slay tasks done
   cmd
-    .command('done <id>')
-    .description('Mark a task as done (id prefix supported)')
+    .command('done [id]')
+    .description('Mark a task as done (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
     .action(async (idPrefix) => {
+      idPrefix = resolveId(idPrefix)
       const db = openDb()
 
       const tasks = db.query<{ id: string; title: string }>(
@@ -213,12 +224,13 @@ export function tasksCommand(): Command {
 
   // slay tasks update
   cmd
-    .command('update <id>')
-    .description('Update a task (id prefix supported)')
+    .command('update [id]')
+    .description('Update a task (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
     .option('--title <title>', 'New title')
     .option('--status <status>', `New status: ${STATUSES.join(' | ')}`)
     .option('--priority <n>', 'New priority 1-5')
     .action(async (idPrefix, opts) => {
+      idPrefix = resolveId(idPrefix)
       if (!opts.title && !opts.status && !opts.priority) {
         console.error('Provide at least one of --title, --status, --priority')
         process.exit(1)
@@ -311,9 +323,10 @@ export function tasksCommand(): Command {
 
   // slay tasks open
   cmd
-    .command('open <id>')
-    .description('Open a task in the SlayZone app (id prefix supported)')
+    .command('open [id]')
+    .description('Open a task in the SlayZone app (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
     .action(async (idPrefix) => {
+      idPrefix = resolveId(idPrefix)
       const db = openDb()
 
       const tasks = db.query<{ id: string; title: string }>(
@@ -341,6 +354,141 @@ export function tasksCommand(): Command {
       } catch {
         console.error(`Failed to open URL. Try manually: ${url}`)
         process.exit(1)
+      }
+    })
+
+  // slay tasks subtasks [id]
+  cmd
+    .command('subtasks [id]')
+    .description('List subtasks of a task (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
+    .option('--json', 'Output as JSON')
+    .action(async (idPrefix, opts) => {
+      idPrefix = resolveId(idPrefix)
+      const db = openDb()
+
+      const parents = db.query<{ id: string }>(
+        `SELECT id FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+        { ':prefix': idPrefix }
+      )
+
+      if (parents.length === 0) { console.error(`Task not found: ${idPrefix}`); process.exit(1) }
+      if (parents.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${parents.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const tasks = db.query<TaskRow>(
+        `SELECT t.id, t.title, t.status, t.priority, p.name AS project_name, t.created_at
+         FROM tasks t JOIN projects p ON t.project_id = p.id
+         WHERE t.parent_id = :id AND t.archived_at IS NULL
+         ORDER BY t."order" ASC`,
+        { ':id': parents[0].id }
+      )
+
+      if (opts.json) {
+        console.log(JSON.stringify(tasks, null, 2))
+      } else {
+        printTasks(tasks)
+      }
+    })
+
+  // slay tasks subtask-add [parentId] <title>
+  cmd
+    .command('subtask-add [parentId] <title>')
+    .description('Add a subtask (parentId defaults to $SLAYZONE_TASK_ID)')
+    .option('--status <status>', 'Initial status', 'inbox')
+    .option('--priority <n>', 'Priority 1-5', '3')
+    .action(async (parentId, title, opts) => {
+      parentId = resolveId(parentId)
+      const db = openDb()
+
+      const parents = db.query<{ id: string; project_id: string; terminal_mode: string | null }>(
+        `SELECT id, project_id, terminal_mode FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+        { ':prefix': parentId }
+      )
+
+      if (parents.length === 0) { console.error(`Task not found: ${parentId}`); process.exit(1) }
+      if (parents.length > 1) {
+        console.error(`Ambiguous id prefix "${parentId}". Matches: ${parents.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const parent = parents[0]
+
+      if (!STATUSES.includes(opts.status)) {
+        console.error(`Unknown status: ${opts.status}. Valid: ${STATUSES.join(', ')}`)
+        process.exit(1)
+      }
+
+      const priority = parseInt(opts.priority, 10)
+      if (isNaN(priority) || priority < 1 || priority > 5) {
+        console.error('Priority must be 1-5.')
+        process.exit(1)
+      }
+
+      const terminalMode = parent.terminal_mode
+        ?? (db.query<{ value: string }>(`SELECT value FROM settings WHERE key = 'default_terminal_mode' LIMIT 1`)[0]?.value)
+        ?? 'claude-code'
+
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+
+      db.run(
+        `INSERT INTO tasks (id, project_id, parent_id, title, status, priority, terminal_mode, "order", created_at, updated_at, is_temporary)
+         VALUES (:id, :projectId, :parentId, :title, :status, :priority, :terminalMode,
+           (SELECT COALESCE(MAX("order"), 0) + 1 FROM tasks WHERE project_id = :projectId),
+           :now, :now, 0)`,
+        {
+          ':id': id,
+          ':projectId': parent.project_id,
+          ':parentId': parent.id,
+          ':title': title,
+          ':status': opts.status,
+          ':priority': priority,
+          ':terminalMode': terminalMode,
+          ':now': now,
+        }
+      )
+
+      console.log(`Created subtask: ${id.slice(0, 8)}  ${title}`)
+    })
+
+  // slay tasks search <query>
+  cmd
+    .command('search <query>')
+    .description('Search tasks by title or description (includes subtasks)')
+    .option('--project <name|id>', 'Filter by project name or ID')
+    .option('--limit <n>', 'Max results', '50')
+    .option('--json', 'Output as JSON')
+    .action(async (query, opts) => {
+      const db = openDb()
+      const q = `%${query.toLowerCase()}%`
+      const limit = parseInt(opts.limit, 10)
+
+      const conditions: string[] = [
+        't.is_temporary = 0',
+        '(LOWER(t.title) LIKE :q OR LOWER(COALESCE(t.description, \'\')) LIKE :q)',
+      ]
+      const params: Record<string, string | number | null> = { ':q': q, ':limit': limit }
+
+      if (opts.project) {
+        conditions.push('(p.id = :proj OR LOWER(p.name) LIKE :projLike)')
+        params[':proj'] = opts.project
+        params[':projLike'] = `%${opts.project.toLowerCase()}%`
+      }
+
+      const tasks = db.query<TaskRow>(
+        `SELECT t.id, t.title, t.status, t.priority, p.name AS project_name, t.created_at
+         FROM tasks t JOIN projects p ON t.project_id = p.id
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY t.updated_at DESC LIMIT :limit`,
+        params
+      )
+
+      if (opts.json) {
+        console.log(JSON.stringify(tasks, null, 2))
+      } else {
+        printTasks(tasks)
       }
     })
 
