@@ -10,6 +10,7 @@ logs/
 # Environment
 .env
 .env.local
+convex/.env.local
 
 # Auto Claude data directory
 .auto-claude/
@@ -25,3 +26,6 @@ test-results/
 playwright-report/
 .e2e-userdata/
 .e2e-runtime/
+
+# Convex generated artifacts
+convex/_generated/

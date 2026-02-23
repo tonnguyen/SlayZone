@@ -51,6 +51,7 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@renderer': resolve('src/renderer/src'),
           '@': resolve('src/renderer/src'),
+          'convex/_generated': resolve(root, 'convex/_generated'),
           'posthog-js': 'posthog-js/dist/module.no-external.js'
         }
       },

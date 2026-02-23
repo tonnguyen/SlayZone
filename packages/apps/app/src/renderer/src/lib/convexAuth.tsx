@@ -10,6 +10,7 @@ interface LeaderboardAuthState {
   lastError: string | null
   signInWithGitHub: () => Promise<void>
   signOut: () => Promise<void>
+  forgetMe: () => Promise<void>
 }
 
 const defaultState: LeaderboardAuthState = {
@@ -18,7 +19,8 @@ const defaultState: LeaderboardAuthState = {
   isAuthenticated: false,
   lastError: null,
   signInWithGitHub: async () => {},
-  signOut: async () => {}
+  signOut: async () => {},
+  forgetMe: async () => {}
 }
 
 const LeaderboardAuthContext = createContext<LeaderboardAuthState>(defaultState)
@@ -31,6 +33,18 @@ const AUTH_STORAGE_NAMESPACE = convexUrl.replace(/\/+$/, '')
 function namespacedVerifierKey(namespace: string): string {
   const escapedNamespace = namespace.replace(/[^a-zA-Z0-9]/g, '')
   return `${VERIFIER_STORAGE_KEY}_${escapedNamespace}`
+}
+
+function clearConvexAuthStorage(): void {
+  const keysToRemove: string[] = []
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i)
+    if (!key) continue
+    if (key.startsWith('__convexAuth')) keysToRemove.push(key)
+  }
+  for (const key of keysToRemove) {
+    window.localStorage.removeItem(key)
+  }
 }
 
 function ConvexAuthBridge({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -169,6 +183,19 @@ function ConvexAuthBridge({ children }: { children: React.ReactNode }): React.JS
           await actions.signOut()
         } catch (error) {
           setLastError(error instanceof Error ? error.message : 'Sign-out failed')
+        }
+      },
+      forgetMe: async () => {
+        try {
+          setLastError(null)
+          try {
+            await actions.signOut()
+          } catch {
+            // Ignore sign-out failures after account deletion.
+          }
+          clearConvexAuthStorage()
+        } catch (error) {
+          setLastError(error instanceof Error ? error.message : 'Forget-me failed')
         }
       }
     }),

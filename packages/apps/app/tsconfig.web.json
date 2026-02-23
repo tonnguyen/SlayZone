@@ -15,6 +15,9 @@
       ],
       "@/*": [
         "./src/renderer/src/*"
+      ],
+      "convex/_generated/*": [
+        "../../../convex/_generated/*"
       ]
     }
   }

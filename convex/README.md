@@ -1,39 +1,53 @@
-# Convex Leaderboard Scaffold
+# Convex Setup (SlayZone)
 
-This folder contains a starter backend for leaderboard auth + totals using Convex Auth.
+This folder contains Convex backend code used by leaderboard auth/data.
 
-## Included
+## Dev Setup
 
-- `auth.config.ts`: Convex auth provider config.
-- `auth.ts`: Convex Auth setup with GitHub OAuth provider.
-- `http.ts`: Registers auth HTTP routes.
-- `schema.ts`: `users` and `leaderboardTotals` tables.
-- `leaderboard.ts`: starter mutations/queries for:
-  - `totalTokens`
-  - `totalCompletedTasks`
+1. Install dependencies from repo root:
+   - `pnpm install`
+2. Push backend changes to your dev deployment:
+   - `npx convex dev --once`
+3. Confirm required env vars exist:
+   - `npx convex env list`
 
-## Required env vars
-
-Set these in Convex:
-
+Required env vars:
 - `AUTH_GITHUB_ID`
 - `AUTH_GITHUB_SECRET`
+- `SITE_URL` (desktop callback base, currently `http://127.0.0.1:3210`)
+- `JWT_PRIVATE_KEY`
+- `JWKS`
 
-## Typical setup
+## Production Pre-Ship Checklist
 
-1. Initialize/login to Convex and connect a project.
-2. Generate Convex types:
-   - `npx convex codegen`
-3. Deploy/push functions:
-   - `npx convex dev`
-
-In the Electron renderer, set:
-
-- `VITE_CONVEX_URL=<your convex deployment url>`
-
-Then use the leaderboard page sign-in button in dev mode to test auth flow.
+1. Create a separate GitHub OAuth app for production.
+2. Set production callback URL in GitHub OAuth app:
+   - `https://<your-prod-convex-site>/api/auth/callback/github`
+3. Point production client to production Convex URL (`VITE_CONVEX_URL`).
+4. Set production Convex env vars (`--prod`):
+   - `AUTH_GITHUB_ID`
+   - `AUTH_GITHUB_SECRET`
+   - `SITE_URL=http://127.0.0.1:3210`
+5. Generate and set auth keys as a pair on prod:
+   - `JWT_PRIVATE_KEY`
+   - `JWKS`
+   - Important: these must match each other.
+6. Verify desktop callback routing works in packaged app:
+   - protocol/deeplink and loopback callback flow both tested
+   - sign-in results in authenticated state after redirect
+7. Verify CSP still allows Convex endpoints in renderer:
+   - `https://*.convex.cloud`
+   - `wss://*.convex.cloud`
+   - `https://*.convex.site`
+   - `wss://*.convex.site`
+8. Smoke test sign-in/sign-out on production deployment with a real GitHub account.
+9. Add basic monitoring:
+   - watch `npx convex logs --prod` for auth callback/sign-in errors after release.
+10. Keep auth hidden behind your intended feature flag/environment gate until rollout.
 
 ## Notes
 
-- This is a starter scaffold, not anti-cheat hardened yet.
-- Current leaderboard UI still uses mock list values until wired to Convex queries.
+- For desktop OAuth, `SITE_URL` is used to validate allowed `redirectTo`.
+- `JWT_PRIVATE_KEY`/`JWKS` errors usually show up as:
+  - missing env var
+  - sign-in callback succeeds but session activation fails
