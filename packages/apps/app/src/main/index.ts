@@ -321,6 +321,20 @@ function handleOAuthDeepLink(url: string): void {
 
   if (parsed.protocol !== 'slayzone:') return
   const normalizedPath = parsed.pathname.replace(/\/+$/, '')
+
+  // slayzone://task/<id> — open task in app
+  if (parsed.hostname === 'task' && normalizedPath.length > 1) {
+    const taskId = normalizedPath.slice(1)
+    const wc = mainWindow?.webContents
+    if (wc && !wc.isDestroyed()) wc.send('app:open-task', taskId)
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+    return
+  }
+
   const isAuthCallback =
     (parsed.hostname === 'auth' && normalizedPath === '/callback') ||
     // Some platforms can normalize custom URLs as slayzone:///auth/callback

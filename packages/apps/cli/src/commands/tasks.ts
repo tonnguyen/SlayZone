@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { execSync } from 'child_process'
 import { openDb } from '../db'
 
 interface TaskRow extends Record<string, unknown> {
@@ -208,6 +209,139 @@ export function tasksCommand(): Command {
       })
 
       console.log(`Done: ${task.id.slice(0, 8)}  ${task.title}`)
+    })
+
+  // slay tasks update
+  cmd
+    .command('update <id>')
+    .description('Update a task (id prefix supported)')
+    .option('--title <title>', 'New title')
+    .option('--status <status>', `New status: ${STATUSES.join(' | ')}`)
+    .option('--priority <n>', 'New priority 1-5')
+    .action(async (idPrefix, opts) => {
+      if (!opts.title && !opts.status && !opts.priority) {
+        console.error('Provide at least one of --title, --status, --priority')
+        process.exit(1)
+      }
+
+      const db = openDb()
+
+      const tasks = db.query<{ id: string; title: string }>(
+        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+        { ':prefix': idPrefix }
+      )
+
+      if (tasks.length === 0) { console.error(`Task not found: ${idPrefix}`); process.exit(1) }
+      if (tasks.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${tasks.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      if (opts.status && !STATUSES.includes(opts.status)) {
+        console.error(`Unknown status: ${opts.status}. Valid: ${STATUSES.join(', ')}`)
+        process.exit(1)
+      }
+
+      if (opts.priority) {
+        const p = parseInt(opts.priority, 10)
+        if (isNaN(p) || p < 1 || p > 5) { console.error('Priority must be 1-5.'); process.exit(1) }
+      }
+
+      const task = tasks[0]
+      const sets: string[] = ['updated_at = :now']
+      const params: Record<string, string | number | null> = { ':now': new Date().toISOString(), ':id': task.id }
+
+      if (opts.title)    { sets.push('title = :title');       params[':title'] = opts.title }
+      if (opts.status)   { sets.push('status = :status');     params[':status'] = opts.status }
+      if (opts.priority) { sets.push('priority = :priority'); params[':priority'] = parseInt(opts.priority, 10) }
+
+      db.run(`UPDATE tasks SET ${sets.join(', ')} WHERE id = :id`, params)
+      console.log(`Updated: ${task.id.slice(0, 8)}  ${opts.title ?? task.title}`)
+    })
+
+  // slay tasks archive
+  cmd
+    .command('archive <id>')
+    .description('Archive a task — hidden from kanban but kept in DB (id prefix supported)')
+    .action(async (idPrefix) => {
+      const db = openDb()
+
+      const tasks = db.query<{ id: string; title: string }>(
+        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' AND archived_at IS NULL LIMIT 2`,
+        { ':prefix': idPrefix }
+      )
+
+      if (tasks.length === 0) { console.error(`Task not found: ${idPrefix}`); process.exit(1) }
+      if (tasks.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${tasks.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const task = tasks[0]
+      db.run(`UPDATE tasks SET archived_at = :now, updated_at = :now WHERE id = :id`, {
+        ':now': new Date().toISOString(),
+        ':id': task.id,
+      })
+
+      console.log(`Archived: ${task.id.slice(0, 8)}  ${task.title}`)
+    })
+
+  // slay tasks delete
+  cmd
+    .command('delete <id>')
+    .description('Permanently delete a task (id prefix supported)')
+    .action(async (idPrefix) => {
+      const db = openDb()
+
+      const tasks = db.query<{ id: string; title: string }>(
+        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+        { ':prefix': idPrefix }
+      )
+
+      if (tasks.length === 0) { console.error(`Task not found: ${idPrefix}`); process.exit(1) }
+      if (tasks.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${tasks.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const task = tasks[0]
+      db.run(`DELETE FROM tasks WHERE id = :id`, { ':id': task.id })
+      console.log(`Deleted: ${task.id.slice(0, 8)}  ${task.title}`)
+    })
+
+  // slay tasks open
+  cmd
+    .command('open <id>')
+    .description('Open a task in the SlayZone app (id prefix supported)')
+    .action(async (idPrefix) => {
+      const db = openDb()
+
+      const tasks = db.query<{ id: string; title: string }>(
+        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+        { ':prefix': idPrefix }
+      )
+
+      if (tasks.length === 0) { console.error(`Task not found: ${idPrefix}`); process.exit(1) }
+      if (tasks.length > 1) {
+        console.error(`Ambiguous id prefix "${idPrefix}". Matches: ${tasks.map((t) => t.id.slice(0, 8)).join(', ')}`)
+        process.exit(1)
+      }
+
+      const task = tasks[0]
+      const url = `slayzone://task/${task.id}`
+
+      const opener =
+        process.platform === 'darwin' ? 'open' :
+        process.platform === 'win32'  ? 'start' :
+        'xdg-open'
+
+      try {
+        execSync(`${opener} "${url}"`, { stdio: 'ignore' })
+        console.log(`Opening: ${task.id.slice(0, 8)}  ${task.title}`)
+      } catch {
+        console.error(`Failed to open URL. Try manually: ${url}`)
+        process.exit(1)
+      }
     })
 
   return cmd
