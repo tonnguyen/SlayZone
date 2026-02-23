@@ -33,6 +33,7 @@
     "release:tag": "bash scripts/tag-release.sh"
   },
   "devDependencies": {
+    "@auth/core": "^0.37.4",
     "@convex-dev/auth": "^0.0.90",
     "@typescript/native-preview": "7.0.0-dev.20260217.1",
     "changelogen": "^0.6.2",
