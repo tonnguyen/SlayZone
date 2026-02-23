@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Play, RotateCcw, Plus, Trash2, ArrowLeft, Cpu, Pencil, FileText, MoreHorizontal, CornerDownLeft } from 'lucide-react'
+import { Play, RotateCcw, Plus, Trash2, ArrowLeft, Cpu, Pencil, FileText, MoreHorizontal, CornerDownLeft, Info } from 'lucide-react'
 import { cn, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Tooltip, TooltipTrigger, TooltipContent } from '@slayzone/ui'
 
 type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
@@ -433,6 +433,14 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
         {view === 'list' ? (
           <>
             <span className="text-xs font-medium text-muted-foreground px-1">Processes</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="size-3 text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-default shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-64">
+                Background processes (dev servers, watchers, etc.) that run alongside your task. Task-scoped processes start and stop with the task; global processes always run.
+              </TooltipContent>
+            </Tooltip>
             <div className="flex-1" />
             <button
               onClick={goToNew}
@@ -577,15 +585,22 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
                 className="w-full rounded-md border border-input bg-surface-2 px-3 py-2 text-sm font-mono outline-none focus:border-ring transition-colors"
               />
             </div>
-            <label className="flex items-center gap-2.5 text-xs text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.autoRestart}
-                onChange={e => setForm(f => ({ ...f, autoRestart: e.target.checked }))}
-                className="size-3.5 rounded"
-              />
-              Auto-restart on crash
-            </label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-2.5 text-xs text-muted-foreground cursor-pointer select-none w-fit">
+                  <input
+                    type="checkbox"
+                    checked={form.autoRestart}
+                    onChange={e => setForm(f => ({ ...f, autoRestart: e.target.checked }))}
+                    className="size-3.5 rounded"
+                  />
+                  Auto-restart on crash
+                </label>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-64">
+                Automatically restarts the process if it exits with a non-zero code. Won't restart if you stop it manually.
+              </TooltipContent>
+            </Tooltip>
             {saveError && (
               <p className="text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{saveError}</p>
             )}

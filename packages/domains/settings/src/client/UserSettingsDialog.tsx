@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { XIcon, Pencil, Trash2, Plus, Settings2, SquareTerminal, Globe, FileCode, GitCompare, SlidersHorizontal, FolderOpen } from 'lucide-react'
-import { SettingsLayout } from '@slayzone/ui'
+import { SettingsLayout, Tooltip, TooltipTrigger, TooltipContent } from '@slayzone/ui'
 import { Button } from '@slayzone/ui'
 import { Input } from '@slayzone/ui'
 import { Label } from '@slayzone/ui'
@@ -463,7 +463,14 @@ export function UserSettingsDialog({
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Git</Label>
                   <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
-                    <span className="text-sm">Worktree base path</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-sm cursor-default">Worktree base path</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-64">
+                        Where git worktrees are created when starting a task on a new branch. Use {'{project}'} as a placeholder for the project directory.
+                      </TooltipContent>
+                    </Tooltip>
                     <Input
                       className="w-full max-w-lg"
                       placeholder="{project}/.."
@@ -654,7 +661,14 @@ export function UserSettingsDialog({
                 {/* External panels */}
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-base font-semibold">External</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Label className="text-base font-semibold cursor-default">External</Label>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-64">
+                        Custom web panels embedded inside each task. Toggle them via the panel bar. Assign a keyboard shortcut for quick access.
+                      </TooltipContent>
+                    </Tooltip>
                     <p className="text-xs text-muted-foreground mt-1">Web views embedded as panels inside tasks.</p>
                   </div>
 

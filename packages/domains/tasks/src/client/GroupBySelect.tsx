@@ -3,7 +3,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent
 } from '@slayzone/ui'
 import type { GroupKey } from './FilterState'
 
@@ -20,17 +23,24 @@ const GROUP_OPTIONS: { value: GroupKey; label: string }[] = [
 
 export function GroupBySelect({ value, onChange }: GroupBySelectProps): React.JSX.Element {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as GroupKey)}>
-      <SelectTrigger className="w-[120px]" size="sm">
-        <SelectValue placeholder="Group by" />
-      </SelectTrigger>
-      <SelectContent>
-        {GROUP_OPTIONS.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Select value={value} onValueChange={(v) => onChange(v as GroupKey)}>
+          <SelectTrigger className="w-[120px]" size="sm">
+            <SelectValue placeholder="Group by" />
+          </SelectTrigger>
+          <SelectContent>
+            {GROUP_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        Group tasks by field. Note: Due Date grouping disables drag-to-reorder.
+      </TooltipContent>
+    </Tooltip>
   )
 }

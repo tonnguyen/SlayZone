@@ -1524,9 +1524,17 @@ export function TaskDetailPage({
           {showSessionBanner && (
             <div className="shrink-0 bg-blue-500/10 border-b border-blue-500/20 px-4 py-1.5 flex items-center gap-2">
               <TerminalIcon className="h-3.5 w-3.5 text-blue-500" />
-              <span className="text-xs text-blue-500">
-                Session not saved — resume won't work until detected
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-blue-500 cursor-default">
+                    Session not saved — resume won't work until detected
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-72">
+                  The AI provider's session ID hasn't been captured yet. Without it, closing and reopening this task will start a fresh conversation instead of resuming. Click "Run {sessionIdCommand}" to detect it automatically.
+                </TooltipContent>
+
+              </Tooltip>
               <Button
                 size="sm"
                 variant="outline"
@@ -1581,6 +1589,8 @@ export function TaskDetailPage({
                           "flex items-center gap-2 transition-opacity",
                           !isMainTabActive && !task.is_temporary && "opacity-40 pointer-events-none"
                         )}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                           <Select
                             value={task.terminal_mode}
                             onValueChange={(value) => handleModeChange(value as TerminalMode)}
@@ -1601,6 +1611,11 @@ export function TaskDetailPage({
                               <SelectItem value="terminal">Terminal</SelectItem>
                             </SelectContent>
                           </Select>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              AI provider for this task. Each provider tracks its own conversation history separately.
+                            </TooltipContent>
+                          </Tooltip>
 
                           {task.terminal_mode !== 'terminal' && (
                             isEditingFlags ? (
@@ -1629,22 +1644,43 @@ export function TaskDetailPage({
                             ) : (
                               flagsInputValue.trim().length === 0 ? (
                                 <div className="flex items-center gap-2">
-                                  <Button variant="outline" size="sm" className="!h-7 !min-h-7 text-xs" onClick={() => setIsEditingFlags(true)}>
-                                    Set flags
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="!h-7 !min-h-7 text-xs" onClick={() => { void handleSetDefaultFlags() }}>
-                                    Set default flags
-                                  </Button>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="outline" size="sm" className="!h-7 !min-h-7 text-xs" onClick={() => setIsEditingFlags(true)}>
+                                        Set flags
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="max-w-64">
+                                      CLI flags passed to the provider on startup (e.g. --no-cache). Overrides the defaults set in settings.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button variant="outline" size="sm" className="!h-7 !min-h-7 text-xs" onClick={() => { void handleSetDefaultFlags() }}>
+                                        Set default flags
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="max-w-64">
+                                      Copy the default flags from settings into this task.
+                                    </TooltipContent>
+                                  </Tooltip>
                                 </div>
                               ) : (
-                                <div
-                                  className="h-7 w-fit max-w-72 px-2 flex items-center cursor-pointer rounded hover:bg-muted/50"
-                                  onClick={() => setIsEditingFlags(true)}
-                                >
-                                  <div className="text-xs text-neutral-700 dark:text-neutral-200 truncate">
-                                    {flagsInputValue}
-                                  </div>
-                                </div>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      className="h-7 w-fit max-w-72 px-2 flex items-center cursor-pointer rounded hover:bg-muted/50"
+                                      onClick={() => setIsEditingFlags(true)}
+                                    >
+                                      <div className="text-xs text-neutral-700 dark:text-neutral-200 truncate">
+                                        {flagsInputValue}
+                                      </div>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom" className="max-w-64">
+                                    CLI flags for {task.terminal_mode}. Click to edit.
+                                  </TooltipContent>
+                                </Tooltip>
                               )
                             )
                           )}
