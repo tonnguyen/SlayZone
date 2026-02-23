@@ -729,11 +729,13 @@ export function TaskDetailPage({
 
   // Track last-focused sub-panel via focusin (macOS native menu accelerators clear activeElement by callback time)
   const lastFocusedPanelRef = useRef<'terminal' | 'editor' | 'browser' | null>(null)
+  const [focusedPanel, setFocusedPanel] = useState<string | null>(null)
   const onCloseTabRef = useRef(onCloseTab)
   onCloseTabRef.current = onCloseTab
   useEffect(() => {
     const handleFocusIn = (e: FocusEvent): void => {
       const target = e.target as HTMLElement | null
+      // Cmd+W tracking (sticky ref, specific selectors)
       if (target?.classList.contains('xterm-helper-textarea') || target?.closest('.xterm')) {
         lastFocusedPanelRef.current = 'terminal'
       } else if (target?.closest('.cm-editor')) {
@@ -741,9 +743,28 @@ export function TaskDetailPage({
       } else if (target?.closest('[data-browser-panel]')) {
         lastFocusedPanelRef.current = 'browser'
       }
+      // Glow tracking (data-panel-id on all panel wrappers)
+      const panelId = target?.closest('[data-panel-id]')?.getAttribute('data-panel-id')
+      if (panelId) setFocusedPanel(panelId)
+    }
+    const handleFocusOut = (e: FocusEvent): void => {
+      const related = e.relatedTarget as HTMLElement | null
+      if (!related?.closest('[data-panel-id]')) setFocusedPanel(null)
+    }
+    // Webviews don't bubble focusin to the host page — use mousedown as fallback
+    const handleMouseDown = (e: MouseEvent): void => {
+      const panelId = (e.target as HTMLElement | null)?.closest('[data-panel-id]')?.getAttribute('data-panel-id')
+      if (panelId) setFocusedPanel(panelId)
+      else setFocusedPanel(null)
     }
     window.addEventListener('focusin', handleFocusIn)
-    return () => window.removeEventListener('focusin', handleFocusIn)
+    window.addEventListener('focusout', handleFocusOut)
+    window.addEventListener('mousedown', handleMouseDown)
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn)
+      window.removeEventListener('focusout', handleFocusOut)
+      window.removeEventListener('mousedown', handleMouseDown)
+    }
   }, [])
 
   // Cmd+W: close focused sub-item (terminal group, browser tab, editor file),
@@ -959,6 +980,9 @@ export function TaskDetailPage({
         } else if (e.key === 's' && isBuiltinEnabled('settings')) {
           e.preventDefault()
           handlePanelToggle('settings', !panelVisibility.settings)
+        } else if (e.key === 'o' && import.meta.env.DEV && isBuiltinEnabled('processes')) {
+          e.preventDefault()
+          handlePanelToggle('processes', !panelVisibility.processes)
         } else {
           // Web panel shortcuts
           for (const wp of enabledWebPanels) {
@@ -1405,7 +1429,7 @@ export function TaskDetailPage({
                     { id: 'browser', icon: Globe, label: 'Browser', shortcut: '⌘B' },
                     { id: 'editor', icon: FileCode, label: 'Editor', shortcut: '⌘E' },
                     { id: 'diff', icon: GitBranch, label: 'Git', shortcut: '⌘G' },
-                    ...(import.meta.env.DEV ? [{ id: 'processes', icon: Cpu, label: 'Processes' }] : []),
+                    ...(import.meta.env.DEV ? [{ id: 'processes', icon: Cpu, label: 'Processes', shortcut: '⌘O' }] : []),
                     { id: 'settings', icon: Settings2, label: 'Settings', shortcut: '⌘S' },
                   ].filter(p => isBuiltinEnabled(p.id) && !(task.is_temporary && p.id === 'settings'))
 
@@ -1464,9 +1488,11 @@ export function TaskDetailPage({
         {/* Terminal Panel */}
         {(compact || panelVisibility.terminal) && (
         <div
+          data-panel-id="terminal"
           className={cn(
-            "min-w-0 shrink-0 overflow-hidden flex flex-col",
-            !compact && "rounded-md bg-surface-1 border border-border"
+            "min-w-0 shrink-0 overflow-hidden flex flex-col transition-shadow duration-200",
+            !compact && "rounded-md bg-surface-1",
+            !compact && focusedPanel === 'terminal' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]"
           )}
           style={compact ? { flex: 1 } : containerWidth > 0 ? { width: resolvedWidths.terminal } : { flex: 1 }}
         >
@@ -1712,7 +1738,7 @@ export function TaskDetailPage({
 
         {/* Browser Panel */}
         {!compact && panelVisibility.browser && (
-          <div className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden" style={{ width: resolvedWidths.browser }}>
+          <div data-panel-id="browser" className={cn("shrink-0 rounded-md bg-surface-1 overflow-hidden transition-shadow duration-200", focusedPanel === 'browser' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.browser }}>
             <BrowserPanel
               ref={browserPanelRef}
               className="h-full"
@@ -1741,7 +1767,7 @@ export function TaskDetailPage({
 
         {/* File Editor Panel */}
         {!compact && panelVisibility.editor && project?.path && (
-          <div className="shrink-0 overflow-hidden rounded-md bg-surface-1 border border-border" style={{ width: resolvedWidths.editor }}>
+          <div data-panel-id="editor" className={cn("shrink-0 overflow-hidden rounded-md bg-surface-1 transition-shadow duration-200", focusedPanel === 'editor' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.editor }}>
             <FileEditorView
               ref={fileEditorRefCallback}
               projectPath={task.worktree_path || project.path}
@@ -1769,7 +1795,7 @@ export function TaskDetailPage({
                   onReset={resetAllPanels}
                 />
               )}
-              <div className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden" style={{ width: resolvedWidths[wp.id] }}>
+              <div data-panel-id={wp.id} className={cn("shrink-0 rounded-md bg-surface-1 overflow-hidden transition-shadow duration-200", focusedPanel === wp.id && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths[wp.id] }}>
                 <WebPanelView
                   panelId={wp.id}
                   url={task.web_panel_urls?.[wp.id] || wp.baseUrl}
@@ -1800,7 +1826,7 @@ export function TaskDetailPage({
 
         {/* Git Panel */}
         {!compact && panelVisibility.diff && (
-          <div data-testid="task-git-panel" className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col" style={{ width: resolvedWidths.diff }}>
+          <div data-panel-id="diff" data-testid="task-git-panel" className={cn("shrink-0 rounded-md bg-surface-1 overflow-hidden flex flex-col transition-shadow duration-200", focusedPanel === 'diff' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.diff }}>
             <UnifiedGitPanel
               ref={gitPanelRef}
               task={task}
@@ -1828,7 +1854,7 @@ export function TaskDetailPage({
 
         {/* Settings Panel */}
         {!compact && panelVisibility.settings && (
-        <div data-testid="task-settings-panel" className="shrink-0 rounded-md bg-surface-1 border border-border p-3 flex flex-col gap-4 overflow-y-auto" style={{ width: resolvedWidths.settings }}>
+        <div data-panel-id="settings" data-testid="task-settings-panel" className={cn("shrink-0 rounded-md bg-surface-1 p-3 flex flex-col gap-4 overflow-y-auto transition-shadow duration-200", focusedPanel === 'settings' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.settings }}>
           {/* Description */}
           <div className="flex flex-col min-h-0 relative">
             <RichTextEditor
@@ -1963,7 +1989,7 @@ export function TaskDetailPage({
         {/* Processes Panel — dev mode only */}
         {import.meta.env.DEV && !compact && panelVisibility.processes && (
           <div className="shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col" style={{ width: resolvedWidths.processes }}>
-            <ProcessesPanel taskId={task.id} cwd={task.worktree_path || project?.path} />
+            <ProcessesPanel taskId={task.id} cwd={task.worktree_path || project?.path} terminalSessionId={getMainSessionId(task.id)} />
           </div>
         )}
       </div>
