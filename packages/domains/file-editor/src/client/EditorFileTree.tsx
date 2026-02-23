@@ -431,9 +431,9 @@ export function EditorFileTree({ projectPath, onOpenFile, onFileRenamed, activeF
   const isRootDropHover = dropTarget === ''
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface-1">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-10 border-b shrink-0">
+      <div className="flex items-center justify-between px-3 h-10 border-b border-border shrink-0 bg-surface-1">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Files</span>
         <div className="flex items-center gap-1">
           <button

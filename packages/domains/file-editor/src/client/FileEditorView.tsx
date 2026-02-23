@@ -265,7 +265,7 @@ export const FileEditorView = forwardRef<FileEditorViewHandle, FileEditorViewPro
             onMouseDown={handleResizeStart}
           />
         )}
-        <div className="flex items-center shrink-0 border-b bg-surface-1">
+        <div className="flex items-center shrink-0 h-10 border-b border-border bg-surface-1">
           <EditorTabBar
             files={openFiles}
             activeFilePath={activeFilePath}

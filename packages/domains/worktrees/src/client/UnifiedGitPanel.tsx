@@ -115,7 +115,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
   return (
     <div className="h-full flex flex-col">
       {/* Unified header: tabs left, actions right */}
-      <div className="shrink-0 h-10 px-2 border-b flex items-center gap-1">
+      <div className="shrink-0 h-10 px-2 border-b border-border flex items-center gap-1">
         <TabButton
           active={activeTab === 'general'}
           onClick={() => setActiveTab('general')}
