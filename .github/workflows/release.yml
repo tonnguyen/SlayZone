@@ -116,6 +116,7 @@ jobs:
 
       - name: Package and publish
         shell: bash
+        timeout-minutes: 30
         run: pnpm --filter @slayzone/app exec electron-builder ${{ matrix.build_args }} -c.electronVersion=${{ env.ELECTRON_VERSION }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
