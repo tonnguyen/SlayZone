@@ -9,6 +9,9 @@ import { CommitTimeline } from './CommitTimeline'
 import { GeneralTabContent } from './GeneralTabContent'
 
 export type GitTabId = 'general' | 'changes' | 'conflicts'
+const isMac = navigator.platform.startsWith('Mac')
+const gitGeneralShortcut = isMac ? '⌘G' : 'Ctrl+G'
+const gitDiffShortcut = isMac ? '⌘⇧G' : 'Ctrl+Shift+G'
 
 interface UnifiedGitPanelProps {
   task: Task
@@ -113,12 +116,14 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
         <TabButton
           active={activeTab === 'general'}
           onClick={() => setActiveTab('general')}
+          shortcut={gitGeneralShortcut}
         >
           General
         </TabButton>
         <TabButton
           active={activeTab === 'changes'}
           onClick={() => setActiveTab('changes')}
+          shortcut={gitDiffShortcut}
         >
           Diff
         </TabButton>
@@ -206,23 +211,29 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
 
 // --- Tab button ---
 
-function TabButton({ active, onClick, children, badge }: {
+function TabButton({ active, onClick, children, shortcut, badge }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
+  shortcut?: string
   badge?: boolean
 }) {
   return (
     <button
       className={cn(
-        'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+        'flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors',
         active
-          ? 'bg-muted text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground'
+          ? 'bg-muted text-foreground border-border shadow-sm'
+          : 'bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/70 hover:text-foreground'
       )}
       onClick={onClick}
     >
       {children}
+      {shortcut && (
+        <span className={cn('text-[10px] leading-none', active ? 'text-foreground/70' : 'text-muted-foreground')}>
+          {shortcut}
+        </span>
+      )}
       {badge && (
         <AlertTriangle className="h-3 w-3 text-yellow-500" />
       )}
