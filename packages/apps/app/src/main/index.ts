@@ -1193,6 +1193,9 @@ app.whenReady().then(async () => {
         // Clean up listener if openDevTools didn't create a window (e.g. already opened)
         const cleanupSuppressListener = () => app.off('browser-window-created', suppressPopup)
         const hostLoaded = await hostDevToolsPromise
+        // Small delay ensures the popup window (created async by openDevTools) has been
+        // created and caught by suppressPopup before we remove the listener.
+        await new Promise(resolve => setTimeout(resolve, 500))
         cleanupSuppressListener()
         if (hostLoaded) {
           view.setBounds(normalizeInlineDevToolsBounds(bounds))

@@ -98,6 +98,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const inlineDevToolsPanelRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inlineAttachAttemptRef = useRef(0)
+  const prewarmRef = useRef(false)
 
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
@@ -320,6 +321,26 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       wv.removeEventListener('new-window', handleNewWindow)
     }
   }, []) // stable callbacks via refs
+
+  // Pre-warm: open DevTools off-screen when webview first loads so popup appears at page load
+  // (unnoticeable) rather than when user clicks the button.
+  useEffect(() => {
+    if (prewarmRef.current || webviewId === null) return
+    prewarmRef.current = true
+    void (async () => {
+      try {
+        const result = await Promise.race<Awaited<ReturnType<typeof window.api.webview.openDevToolsInline>> | 'timeout'>([
+          window.api.webview.openDevToolsInline(webviewId, { x: -10000, y: -10000, width: 1, height: 1 }),
+          new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 10000))
+        ])
+        if (result !== 'timeout' && result.ok) {
+          setInlineDevToolsAttached(true)
+        }
+      } catch {
+        // prewarm failed — normal attach path handles it when user opens DevTools
+      }
+    })()
+  }, [webviewId])
 
   const getInlineDevToolsBounds = useCallback(() => {
     const el = inlineDevToolsPanelRef.current
