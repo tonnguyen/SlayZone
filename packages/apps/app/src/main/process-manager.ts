@@ -2,8 +2,9 @@ import { spawn } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
 import type { BrowserWindow } from 'electron'
+import type { Database } from 'better-sqlite3'
 
-export type ProcessStatus = 'running' | 'stopped' | 'error'
+export type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 
 export interface ProcessInfo {
   id: string
@@ -26,10 +27,34 @@ interface ManagedProcess extends ProcessInfo {
 const LOG_BUFFER_MAX = 500
 
 let win: BrowserWindow | null = null
+let db: Database | null = null
 const processes = new Map<string, ManagedProcess>()
 
 export function setProcessManagerWindow(window: BrowserWindow): void {
   win = window
+}
+
+export function initProcessManager(database: Database): void {
+  db = database
+  const rows = db.prepare('SELECT * FROM processes ORDER BY created_at').all() as Array<{
+    id: string; task_id: string | null; label: string; command: string; cwd: string; auto_restart: number
+  }>
+  for (const row of rows) {
+    processes.set(row.id, {
+      id: row.id,
+      taskId: row.task_id,
+      label: row.label,
+      command: row.command,
+      cwd: row.cwd,
+      autoRestart: row.auto_restart === 1,
+      status: 'stopped',
+      pid: null,
+      exitCode: null,
+      logBuffer: [],
+      child: null,
+      startedAt: new Date().toISOString(),
+    })
+  }
 }
 
 function pushLog(proc: ManagedProcess, line: string): void {
@@ -81,7 +106,7 @@ function doSpawn(proc: ManagedProcess): void {
         if (processes.has(proc.id)) doSpawn(proc)
       }, 1000)
     } else {
-      setStatus(proc, code === 0 ? 'stopped' : 'error')
+      setStatus(proc, code === 0 ? 'completed' : 'error')
     }
   })
 }
@@ -101,6 +126,8 @@ export function createProcess(
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
+  db?.prepare('INSERT INTO processes (id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, taskId, label, command, cwd, autoRestart ? 1 : 0)
   return id
 }
 
@@ -119,8 +146,25 @@ export function spawnProcess(
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
+  db?.prepare('INSERT INTO processes (id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, taskId, label, command, cwd, autoRestart ? 1 : 0)
   doSpawn(proc)
   return id
+}
+
+export function updateProcess(
+  id: string,
+  updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId'>>
+): boolean {
+  const proc = processes.get(id)
+  if (!proc) return false
+  Object.assign(proc, updates)
+  db?.prepare(`
+    UPDATE processes SET
+      task_id = ?, label = ?, command = ?, cwd = ?, auto_restart = ?
+    WHERE id = ?
+  `).run(proc.taskId, proc.label, proc.command, proc.cwd, proc.autoRestart ? 1 : 0, id)
+  return true
 }
 
 export function killProcess(id: string): boolean {
@@ -130,6 +174,7 @@ export function killProcess(id: string): boolean {
   proc.child?.kill()
   proc.child = null
   processes.delete(id)
+  db?.prepare('DELETE FROM processes WHERE id = ?').run(id)
   return true
 }
 

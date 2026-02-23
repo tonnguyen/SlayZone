@@ -56,7 +56,7 @@ export interface LocalLeaderboardStats {
   days: LocalLeaderboardDay[]
 }
 
-export type ProcessStatus = 'running' | 'stopped' | 'error'
+export type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 
 export interface ProcessInfo {
   id: string
@@ -236,6 +236,7 @@ export interface ElectronAPI {
       providerFlags?: string | null
     ) => Promise<{ success: boolean; error?: string }>
     write: (sessionId: string, data: string) => Promise<boolean>
+    writeTerminalResponse: (sessionId: string, data: string) => Promise<boolean>
     resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>
     kill: (sessionId: string) => Promise<boolean>
     exists: (sessionId: string) => Promise<boolean>
@@ -430,6 +431,7 @@ export interface ElectronAPI {
   processes: {
     create: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
     spawn: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    update: (processId: string, updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId'>>) => Promise<boolean>
     kill: (processId: string) => Promise<boolean>
     restart: (processId: string) => Promise<boolean>
     listForTask: (taskId: string) => Promise<ProcessInfo[]>

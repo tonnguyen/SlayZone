@@ -41,7 +41,7 @@ import { registerAiConfigHandlers } from '@slayzone/ai-config/main'
 import { registerIntegrationHandlers, startLinearSyncPoller } from '@slayzone/integrations/main'
 import { registerFileEditorHandlers } from '@slayzone/file-editor/main'
 import { registerScreenshotHandlers } from './screenshot'
-import { setProcessManagerWindow, createProcess, spawnProcess, updateProcess, killProcess, restartProcess, listForTask, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
+import { setProcessManagerWindow, initProcessManager, createProcess, spawnProcess, updateProcess, killProcess, restartProcess, listForTask, listAllProcesses, killTaskProcesses, killAllProcesses } from './process-manager'
 import { registerExportImportHandlers } from './export-import'
 import { registerLeaderboardHandlers } from './leaderboard'
 import { initAutoUpdater, checkForUpdates, restartForUpdate } from './auto-updater'
@@ -1321,6 +1321,7 @@ app.whenReady().then(async () => {
   })
 
 
+  initProcessManager(db)
   createWindow()
   if (mainWindow) setProcessManagerWindow(mainWindow)
 

@@ -1,8 +1,17 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Play, RotateCcw, Plus, ChevronDown, ChevronRight, X, ArrowLeft, Cpu } from 'lucide-react'
-import { cn } from '@slayzone/ui'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Play, RotateCcw, Plus, Trash2, ArrowLeft, Cpu, Pencil, FileText, MoreHorizontal, CornerDownLeft } from 'lucide-react'
+import { cn, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Tooltip, TooltipTrigger, TooltipContent } from '@slayzone/ui'
 
-type ProcessStatus = 'running' | 'stopped' | 'error'
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 
 interface ProcessEntry {
   id: string
@@ -73,10 +82,26 @@ const STATIC_SUGGESTIONS: SuggestionGroup[] = [
   },
 ]
 
-const STATUS_BADGE: Record<ProcessStatus, string> = {
-  running: 'bg-green-500/10 text-green-500 border-green-500/25',
-  stopped: 'bg-muted/60 text-muted-foreground border-border',
-  error: 'bg-red-500/10 text-red-500 border-red-500/25',
+const STATUS_CONFIG: Record<ProcessStatus, { label: string; dot: string; badge: string }> = {
+  running:   { label: 'Running',   dot: 'bg-green-500',              badge: 'text-green-500 bg-green-500/10 border-green-500/20' },
+  stopped:   { label: 'Idle',      dot: 'bg-muted-foreground/30',    badge: 'text-muted-foreground bg-muted/60 border-border' },
+  completed: { label: 'Completed', dot: 'bg-blue-400',               badge: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
+  error:     { label: 'Failed',    dot: 'bg-red-500',                badge: 'text-red-500 bg-red-500/10 border-red-500/20' },
+}
+
+function StatusBadge({ status }: { status: ProcessStatus }) {
+  const { label, dot, badge } = STATUS_CONFIG[status]
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0', badge)}>
+      <span className="relative flex size-1.5">
+        {status === 'running' && (
+          <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-60', dot)} />
+        )}
+        <span className={cn('relative inline-flex rounded-full size-1.5', dot)} />
+      </span>
+      {label}
+    </span>
+  )
 }
 
 const EMPTY_FORM: AddFormState = { label: '', command: '', autoRestart: false, scope: 'task' }
@@ -87,6 +112,8 @@ function ProcessRow({
   onToggleLog,
   onRestart,
   onKill,
+  onEdit,
+  onInject,
   logEndRef,
 }: {
   proc: ProcessEntry
@@ -94,52 +121,117 @@ function ProcessRow({
   onToggleLog: () => void
   onRestart: () => void
   onKill: () => void
+  onEdit: () => void
+  onInject: () => void
   logEndRef: (el: HTMLDivElement | null) => void
 }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-2 overflow-hidden group">
+    <div className="rounded-lg border border-border bg-surface-2 overflow-hidden group/row">
       <div className="flex items-center gap-3 px-3.5 py-3">
-        <div className="flex flex-col min-w-0 flex-1 gap-1">
-          <span className="text-sm font-medium leading-none">{proc.label}</span>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground/40 font-mono select-none">$</span>
-            <span className="text-[11px] font-mono text-muted-foreground/70 truncate">{proc.command}</span>
+        {/* Label + command */}
+        <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium leading-tight truncate">{proc.label}</span>
+            {proc.autoRestart && (
+              <span className="text-[10px] text-muted-foreground/40 shrink-0" title="Auto-restart enabled">↺</span>
+            )}
           </div>
+          <span className="text-[11px] font-mono text-muted-foreground/55 truncate">{proc.command}</span>
         </div>
-        <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0', STATUS_BADGE[proc.status])}>
-          {proc.status}
-        </span>
-        <div className="flex items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-          <button
-            title={proc.status !== 'running' ? 'Start' : 'Restart'}
-            onClick={onRestart}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {proc.status !== 'running' ? <Play className="size-3.5" /> : <RotateCcw className="size-3.5" />}
-          </button>
-          <button
-            title="Remove"
-            onClick={onKill}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors"
-          >
-            <X className="size-3.5" />
-          </button>
+
+        {/* Status + metadata */}
+        <div className="flex items-center gap-2 shrink-0">
+          {proc.status === 'error' && proc.exitCode !== null && (
+            <span className="text-[10px] text-red-400/70 font-mono">exit {proc.exitCode}</span>
+          )}
+          {proc.status === 'running' && proc.pid && (
+            <span className="text-[10px] text-muted-foreground/30 font-mono">pid {proc.pid}</span>
+          )}
+          <StatusBadge status={proc.status} />
         </div>
-        <button
-          onClick={onToggleLog}
-          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0 opacity-40 group-hover:opacity-100"
-        >
-          {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-        </button>
+
+        {/* Restart — always visible when running */}
+        {proc.status === 'running' && (
+          <Tip label="Restart">
+            <button
+              onClick={onRestart}
+              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <RotateCcw className="size-3.5" />
+            </button>
+          </Tip>
+        )}
+
+        <div className="flex items-center gap-0.5 shrink-0">
+          {proc.status !== 'running' && (
+            <Tip label="Start">
+              <button
+                onClick={onRestart}
+                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Play className="size-3.5" />
+              </button>
+            </Tip>
+          )}
+          <Tip label="Logs">
+            <button
+              onClick={onToggleLog}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                expanded ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <FileText className="size-3.5" />
+            </button>
+          </Tip>
+          <Tip label="Send output to terminal">
+            <button
+              onClick={onInject}
+              disabled={proc.logBuffer.length === 0}
+              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <CornerDownLeft className="size-3.5" />
+            </button>
+          </Tip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Tip label="More">
+                <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                  <MoreHorizontal className="size-3.5" />
+                </button>
+              </Tip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="size-3.5 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onKill} className="text-red-500 focus:text-red-500">
+                <Trash2 className="size-3.5 mr-2 text-red-500" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      {/* Log panel */}
       {expanded && (
-        <div className="bg-neutral-950 dark:bg-black border-t border-neutral-900 max-h-56 overflow-y-auto">
-          <pre className="text-[10px] font-mono text-neutral-300 px-4 py-3 whitespace-pre-wrap break-all leading-relaxed">
-            {proc.logBuffer.length === 0
-              ? <span className="text-neutral-600 italic">No output yet</span>
-              : proc.logBuffer.join('\n')}
-          </pre>
-          <div ref={logEndRef} />
+        <div className="bg-neutral-950 dark:bg-black border-t border-neutral-900">
+          <div className="flex items-center px-4 py-1.5 border-b border-neutral-900/80">
+            <span className="text-[10px] text-neutral-600 font-mono">
+              {proc.logBuffer.length === 0 ? 'no output' : `${proc.logBuffer.length} lines`}
+            </span>
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            <pre className="text-[10px] font-mono text-neutral-300 px-4 py-3 whitespace-pre-wrap break-all leading-relaxed">
+              {proc.logBuffer.length === 0
+                ? <span className="text-neutral-600 italic">Waiting for output…</span>
+                : proc.logBuffer.join('\n')}
+            </pre>
+            <div ref={logEndRef} />
+          </div>
         </div>
       )}
     </div>
@@ -159,6 +251,9 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [view, setView] = useState<'list' | 'new'>('list')
   const [form, setForm] = useState<AddFormState>(EMPTY_FORM)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [pkgScripts, setPkgScripts] = useState<SuggestionItem[]>([])
   const logEndRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const labelRef = useRef<HTMLInputElement>(null)
@@ -169,11 +264,32 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
 
   useEffect(() => {
     if (!cwd) return
-    window.api.fs.readFile(cwd, 'package.json').then((result) => {
+    window.api.fs.readFile(cwd, 'package.json').then(async (result) => {
       if (!result.content) return
       try {
-        const pkg = JSON.parse(result.content) as { scripts?: Record<string, string> }
-        setPkgScripts(Object.entries(pkg.scripts ?? {}).map(([name]) => ({ name, command: name })))
+        const pkg = JSON.parse(result.content) as { scripts?: Record<string, string>; packageManager?: string }
+
+        // Detect package manager: packageManager field → lock file → npm
+        let pm = 'npm'
+        if (pkg.packageManager) {
+          if (pkg.packageManager.startsWith('pnpm')) pm = 'pnpm'
+          else if (pkg.packageManager.startsWith('yarn')) pm = 'yarn'
+          else if (pkg.packageManager.startsWith('bun')) pm = 'bun'
+        } else {
+          const hasPnpm = await window.api.fs.readFile(cwd, 'pnpm-lock.yaml').then(r => !!r.content).catch(() => false)
+          if (hasPnpm) pm = 'pnpm'
+          else {
+            const hasYarn = await window.api.fs.readFile(cwd, 'yarn.lock').then(r => !!r.content).catch(() => false)
+            if (hasYarn) pm = 'yarn'
+            else {
+              const hasBun = await window.api.fs.readFile(cwd, 'bun.lockb').then(r => !!r.content).catch(() => false)
+              if (hasBun) pm = 'bun'
+            }
+          }
+        }
+
+        const prefix = pm === 'yarn' ? 'yarn' : `${pm} run`
+        setPkgScripts(Object.entries(pkg.scripts ?? {}).map(([name]) => ({ name, command: `${prefix} ${name}` })))
       } catch { /* no-op */ }
     }).catch(() => { /* no package.json */ })
   }, [cwd])
@@ -226,23 +342,52 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
   }, [])
 
   const handleCreate = useCallback(async () => {
-    if (!form.label.trim() || !form.command.trim()) return
-    const tid = form.scope === 'global' ? null : taskId
-    await window.api.processes.create(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
-    await refreshList()
-    setView('list')
-    setForm(EMPTY_FORM)
-  }, [taskId, cwd, form, refreshList])
+if (!form.label.trim() || !form.command.trim()) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const tid = form.scope === 'global' ? null : taskId
+      if (editingId) {
+        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid })
+      } else {
+        await window.api.processes.create(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
+      }
+      await refreshList()
+      setEditingId(null)
+      setView('list')
+      setForm(EMPTY_FORM)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }, [taskId, cwd, form, editingId, refreshList])
 
   const handleSpawn = useCallback(async () => {
     if (!form.label.trim() || !form.command.trim()) return
-    const tid = form.scope === 'global' ? null : taskId
-    const id = await window.api.processes.spawn(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
-    await refreshList()
-    setExpandedLogs(prev => new Set(prev).add(id))
-    setView('list')
-    setForm(EMPTY_FORM)
-  }, [taskId, cwd, form, refreshList])
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const tid = form.scope === 'global' ? null : taskId
+      if (editingId) {
+        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid })
+        await window.api.processes.restart(editingId)
+        await refreshList()
+        setExpandedLogs(prev => new Set(prev).add(editingId))
+      } else {
+        const id = await window.api.processes.spawn(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
+        await refreshList()
+        setExpandedLogs(prev => new Set(prev).add(id))
+      }
+      setEditingId(null)
+      setView('list')
+      setForm(EMPTY_FORM)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }, [taskId, cwd, form, editingId, refreshList])
 
   const handleKill = useCallback(async (id: string) => {
     await window.api.processes.kill(id)
@@ -254,13 +399,24 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
     await window.api.processes.restart(id)
   }, [])
 
+  const handleInject = useCallback((proc: ProcessEntry) => {
+    if (proc.logBuffer.length === 0) return
+    const output = `\r\n--- ${proc.label} output ---\r\n${proc.logBuffer.join('\r\n')}\r\n---\r\n`
+    void window.api.pty.writeTerminalResponse(taskId, output)
+  }, [taskId])
+
   const applySuggestion = useCallback((item: SuggestionItem) => {
     setForm(f => ({ ...f, label: f.label || item.name, command: item.command }))
     labelRef.current?.focus()
   }, [])
 
-  const goToNew = useCallback(() => { setForm(EMPTY_FORM); setView('new') }, [])
-  const goToList = useCallback(() => { setView('list'); setForm(EMPTY_FORM) }, [])
+  const goToNew = useCallback(() => { setEditingId(null); setForm(EMPTY_FORM); setView('new') }, [])
+  const goToEdit = useCallback((proc: ProcessEntry) => {
+    setEditingId(proc.id)
+    setForm({ label: proc.label, command: proc.command, autoRestart: proc.autoRestart, scope: proc.taskId === null ? 'global' : 'task' })
+    setView('new')
+  }, [])
+  const goToList = useCallback(() => { setView('list'); setEditingId(null); setForm(EMPTY_FORM) }, [])
 
   const globalProcesses = useMemo(() => processes.filter(p => p.taskId === null), [processes])
   const taskProcesses = useMemo(() => processes.filter(p => p.taskId === taskId), [processes, taskId])
@@ -274,7 +430,6 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-surface-1">
-
       {/* Header */}
       <div className="shrink-0 h-10 px-2 border-b border-border flex items-center gap-1">
         {view === 'list' ? (
@@ -295,7 +450,7 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
             className="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             <ArrowLeft className="size-3.5" />
-            New process
+            {editingId ? 'Edit process' : 'New process'}
           </button>
         )}
       </div>
@@ -337,6 +492,8 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
                       onToggleLog={() => toggleLog(proc.id)}
                       onRestart={() => void handleRestart(proc.id)}
                       onKill={() => void handleKill(proc.id)}
+                      onEdit={() => goToEdit(proc)}
+                      onInject={() => handleInject(proc)}
                       logEndRef={el => { logEndRefs.current[proc.id] = el }}
                     />
                   ))}
@@ -353,6 +510,8 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
                       onToggleLog={() => toggleLog(proc.id)}
                       onRestart={() => void handleRestart(proc.id)}
                       onKill={() => void handleKill(proc.id)}
+                      onEdit={() => goToEdit(proc)}
+                      onInject={() => handleInject(proc)}
                       logEndRef={el => { logEndRefs.current[proc.id] = el }}
                     />
                   ))}
@@ -429,20 +588,23 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
               />
               Auto-restart on crash
             </label>
+            {saveError && (
+              <p className="text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{saveError}</p>
+            )}
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => void handleCreate()}
-                disabled={!form.label.trim() || !form.command.trim()}
+                disabled={saving || !form.label.trim() || !form.command.trim()}
                 className="flex-1 py-2 rounded-md border border-border bg-surface-2 text-sm font-medium text-foreground disabled:opacity-40 hover:bg-muted/50 transition-colors"
               >
-                Save
+                {saving ? '…' : editingId ? 'Update' : 'Save'}
               </button>
               <button
                 onClick={() => void handleSpawn()}
-                disabled={!form.label.trim() || !form.command.trim()}
+                disabled={saving || !form.label.trim() || !form.command.trim()}
                 className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
               >
-                Run
+                {saving ? '…' : editingId ? 'Update & run' : 'Run'}
               </button>
             </div>
           </div>

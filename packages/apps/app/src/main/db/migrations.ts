@@ -691,6 +691,23 @@ const migrations: Migration[] = [
       // Backfill: each existing tab becomes its own group
       db.exec(`UPDATE terminal_tabs SET group_id = id WHERE group_id IS NULL`)
     }
+  },
+  {
+    version: 40,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS processes (
+          id TEXT PRIMARY KEY,
+          task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+          label TEXT NOT NULL,
+          command TEXT NOT NULL,
+          cwd TEXT NOT NULL DEFAULT '',
+          auto_restart INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_processes_task ON processes(task_id);
+      `)
+    }
   }
 ]
 
