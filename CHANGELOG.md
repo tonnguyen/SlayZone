@@ -1,6 +1,41 @@
 # Changelog
 
 
+## v0.1.62...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.62...main)
+
+### 🚀 Enhancements
+
+- **cli:** Add slay CLI with DB watcher and install UI ([4345619](https://github.com/debuglebowski/SlayZone/commit/4345619))
+- **cli:** Add update, archive, delete, open, projects list ([a73d5e0](https://github.com/debuglebowski/SlayZone/commit/a73d5e0))
+- **cli:** Add processes list and logs commands ([5f4608f](https://github.com/debuglebowski/SlayZone/commit/5f4608f))
+- **app:** Allow multiple global panels active simultaneously ([a051b2a](https://github.com/debuglebowski/SlayZone/commit/a051b2a))
+- **cli:** Add subtasks, search, kill, follow, completions + auto-scoping ([e011d2a](https://github.com/debuglebowski/SlayZone/commit/e011d2a))
+- **diagnostics:** Separate diagnostics DB to avoid watchDatabase conflicts ([de75eff](https://github.com/debuglebowski/SlayZone/commit/de75eff))
+- **app:** Multi-panel home tab, ResizeHandle cleanup, PTY dispose on exit ([6b35695](https://github.com/debuglebowski/SlayZone/commit/6b35695))
+- **ui:** Add tooltips to panels, settings, and task controls ([b771e70](https://github.com/debuglebowski/SlayZone/commit/b771e70))
+
+### 🩹 Fixes
+
+- **cli:** Replace watchDatabase polling with REST notify ([b33ab51](https://github.com/debuglebowski/SlayZone/commit/b33ab51))
+- **app:** Dynamic remote-debug port, mcp port try-catch, rm stale watchDatabase comments ([9a6be73](https://github.com/debuglebowski/SlayZone/commit/9a6be73))
+
+### 💅 Refactors
+
+- **worktrees:** Unify home+task git panels, share panel sizes ([f04d218](https://github.com/debuglebowski/SlayZone/commit/f04d218))
+
+### 🏡 Chore
+
+- Add macOS code signing and notarization ([3714c06](https://github.com/debuglebowski/SlayZone/commit/3714c06))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.61...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.61...main)
