@@ -43,6 +43,37 @@ test.describe('Browser panel', () => {
   const urlInput = (page: import('@playwright/test').Page) =>
     page.locator('input[placeholder="Enter URL..."]:visible').first()
 
+  const devToolsBtn = (page: import('@playwright/test').Page) =>
+    page.getByTestId('browser-devtools').first()
+
+  const devToolsStatus = (page: import('@playwright/test').Page) =>
+    page.getByTestId('browser-devtools-status').first()
+
+  const responsivePreviewBtn = (page: import('@playwright/test').Page) =>
+    page.locator('[data-browser-panel="true"] button:has(.lucide-layout-grid):not([disabled])').first()
+
+  const activeBrowserWebviewId = async (page: import('@playwright/test').Page) => {
+    let webviewId = 0
+    await expect.poll(async () => {
+      webviewId = await page.evaluate(() => {
+        const wv = document.querySelector('[data-browser-panel="true"] webview') as
+          | (HTMLElement & { getWebContentsId?: () => number })
+          | null
+        return wv?.getWebContentsId?.() ?? 0
+      })
+      return webviewId
+    }).toBeGreaterThan(0)
+    return webviewId
+  }
+
+  const testInvoke = async (page: import('@playwright/test').Page, channel: string, ...args: unknown[]) => {
+    return await page.evaluate(async ({ c, a }) => {
+      const invoke = (window as unknown as { __testInvoke?: (ch: string, ...rest: unknown[]) => Promise<unknown> }).__testInvoke
+      if (!invoke) throw new Error('__testInvoke unavailable in e2e')
+      return await invoke(c, ...(a ?? []))
+    }, { c: channel, a: args })
+  }
+
   /** Browser tab bar — the h-10 bar containing tab buttons */
   const tabBar = (page: import('@playwright/test').Page) =>
     page.locator('.h-10.overflow-x-auto:visible').first()
@@ -90,6 +121,41 @@ test.describe('Browser panel', () => {
     await input.click()
     await input.fill('https://example.com')
     await expect(input).toHaveValue('https://example.com')
+  })
+
+  test('devtools button is visible in browser toolbar', async ({ mainWindow }) => {
+    await ensureBrowserPanelVisible(mainWindow)
+    await expect(devToolsBtn(mainWindow)).toBeVisible()
+  })
+
+  test('devtools button is disabled in responsive mode', async ({ mainWindow }) => {
+    await ensureBrowserPanelVisible(mainWindow)
+    await expect(devToolsBtn(mainWindow)).toBeEnabled()
+    await responsivePreviewBtn(mainWindow).click()
+    await expect(devToolsBtn(mainWindow)).toBeDisabled()
+    await responsivePreviewBtn(mainWindow).click()
+  })
+
+  test('webview devtools IPC can open and close active browser webview', async ({ mainWindow }) => {
+    await ensureBrowserPanelVisible(mainWindow)
+    const webviewId = await activeBrowserWebviewId(mainWindow)
+
+    await testInvoke(mainWindow, 'webview:close-devtools', webviewId)
+    await expect.poll(() => testInvoke(mainWindow, 'webview:is-devtools-opened', webviewId)).toBe(false)
+
+    await expect.poll(() => testInvoke(mainWindow, 'webview:open-devtools-bottom', webviewId)).toBe(true)
+    await expect.poll(() => testInvoke(mainWindow, 'webview:is-devtools-opened', webviewId)).toBe(true)
+
+    await expect.poll(() => testInvoke(mainWindow, 'webview:close-devtools', webviewId)).toBe(true)
+    await expect.poll(() => testInvoke(mainWindow, 'webview:is-devtools-opened', webviewId)).toBe(false)
+  })
+
+  test('devtools toggle reports inline open and close status', async ({ mainWindow }) => {
+    await ensureBrowserPanelVisible(mainWindow)
+    await devToolsBtn(mainWindow).click()
+    await expect(devToolsStatus(mainWindow)).toContainText('Chromium DevTools opened inline')
+    await devToolsBtn(mainWindow).click()
+    await expect(devToolsStatus(mainWindow)).toContainText('Chromium DevTools closed')
   })
 
   test('create new tab via plus button', async ({ mainWindow }) => {
