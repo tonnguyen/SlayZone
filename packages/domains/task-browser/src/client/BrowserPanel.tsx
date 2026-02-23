@@ -74,7 +74,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   isResizing,
   isActive,
   onElementSnippet,
-  canUseDomPicker = true
+  canUseDomPicker = true,
 }: BrowserPanelProps, ref) {
   const [inputUrl, setInputUrl] = useState('')
   const [canGoBack, setCanGoBack] = useState(false)
@@ -300,6 +300,8 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       }
     }
 
+    const handleWebviewFocus = () => wv.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+
     wv.addEventListener('dom-ready', handleDomReady)
     wv.addEventListener('did-navigate', handleNavigate)
     wv.addEventListener('did-navigate-in-page', handleNavigate)
@@ -308,6 +310,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
     wv.addEventListener('page-title-updated', handleTitleUpdate)
     wv.addEventListener('page-favicon-updated', handleFaviconUpdate)
     wv.addEventListener('new-window', handleNewWindow)
+    wv.addEventListener('focus', handleWebviewFocus)
 
     return () => {
       wv.removeEventListener('dom-ready', handleDomReady)
@@ -317,6 +320,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       wv.removeEventListener('did-stop-loading', handleStopLoading)
       wv.removeEventListener('page-title-updated', handleTitleUpdate)
       wv.removeEventListener('page-favicon-updated', handleFaviconUpdate)
+      wv.removeEventListener('focus', handleWebviewFocus)
       wv.removeEventListener('new-window', handleNewWindow)
     }
   }, []) // stable callbacks via refs
@@ -651,7 +655,6 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       data-picker-active={isPickingElement ? 'true' : 'false'}
       className={cn(
         'flex flex-col rounded-md transition-shadow',
-        isFocused && 'ring-2 ring-blue-500/50',
         isPickingElement && 'ring-2 ring-amber-500/70',
         className
       )}

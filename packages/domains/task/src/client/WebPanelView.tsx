@@ -106,12 +106,15 @@ export function WebPanelView({
       }
     }
 
+    const onFocus = () => wv.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+
     wv.addEventListener('did-navigate', handleNavigate)
     wv.addEventListener('did-navigate-in-page', handleNavigate)
     wv.addEventListener('did-start-loading', onStartLoading)
     wv.addEventListener('did-stop-loading', onStopLoading)
     wv.addEventListener('page-favicon-updated', onFavicon)
     wv.addEventListener('new-window', onNewWindow)
+    wv.addEventListener('focus', onFocus)
 
     return () => {
       wv.removeEventListener('did-navigate', handleNavigate)
@@ -120,6 +123,7 @@ export function WebPanelView({
       wv.removeEventListener('did-stop-loading', onStopLoading)
       wv.removeEventListener('page-favicon-updated', onFavicon)
       wv.removeEventListener('new-window', onNewWindow)
+      wv.removeEventListener('focus', onFocus)
     }
   }, [handleNavigate, panelId, onFaviconChange])
 
