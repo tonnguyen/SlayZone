@@ -7,21 +7,22 @@ import { GitDiffPanel, type GitDiffPanelHandle } from './GitDiffPanel'
 import { ConflictFileView } from './ConflictFileView'
 import { CommitTimeline } from './CommitTimeline'
 import { GeneralTabContent } from './GeneralTabContent'
+import { ProjectGeneralTab } from './ProjectGeneralTab'
 
 export type GitTabId = 'general' | 'changes' | 'conflicts'
 const isMac = navigator.platform.startsWith('Mac')
 const gitGeneralShortcut = isMac ? '⌘G' : 'Ctrl+G'
 const gitDiffShortcut = isMac ? '⌘⇧G' : 'Ctrl+Shift+G'
 
-interface UnifiedGitPanelProps {
-  task: Task
+type UnifiedGitPanelProps = {
   projectPath: string | null
   visible: boolean
   pollIntervalMs?: number
   defaultTab?: GitTabId
-  onUpdateTask: (data: UpdateTaskInput) => Promise<Task>
-  onTaskUpdated: (task: Task) => void
-}
+} & (
+  | { task: Task; onUpdateTask: (data: UpdateTaskInput) => Promise<Task>; onTaskUpdated: (task: Task) => void }
+  | { task?: null; onUpdateTask?: never; onTaskUpdated?: never }
+)
 
 interface ConflictToolbarData {
   resolvedCount: number
@@ -51,9 +52,9 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
     switchToTab: setActiveTab,
     getActiveTab: () => activeTab
   }), [activeTab])
-  const hasConflicts = task.merge_state === 'conflicts' || task.merge_state === 'rebase-conflicts'
-  const isUncommitted = task.merge_state === 'uncommitted'
-  const isRebase = task.merge_state === 'rebase-conflicts'
+  const hasConflicts = !!task && (task.merge_state === 'conflicts' || task.merge_state === 'rebase-conflicts')
+  const isUncommitted = !!task && task.merge_state === 'uncommitted'
+  const isRebase = !!task && task.merge_state === 'rebase-conflicts'
   const diffRef = useRef<GitDiffPanelHandle>(null)
   const [conflictToolbar, setConflictToolbar] = useState<ConflictToolbarData | null>(null)
 
@@ -69,6 +70,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
 
   // Merge-mode: commit and continue merge
   const handleCommitAndContinueMerge = useCallback(async () => {
+    if (!task) return
     const targetPath = task.worktree_path ?? projectPath
     if (!targetPath) return
 
@@ -102,12 +104,13 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
   }, [task, projectPath, onUpdateTask, onTaskUpdated])
 
   const handleAbortMerge = useCallback(async () => {
+    if (!task) return
     if (projectPath) {
       try { await window.api.git.abortMerge(projectPath) } catch { /* already aborted */ }
     }
     const updated = await onUpdateTask({ id: task.id, mergeState: null, mergeContext: null })
     onTaskUpdated(updated)
-  }, [task.id, projectPath, onUpdateTask, onTaskUpdated])
+  }, [task, projectPath, onUpdateTask, onTaskUpdated])
 
   return (
     <div className="h-full flex flex-col">
@@ -170,29 +173,37 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
       {/* Tab content */}
       <div className="flex-1 min-h-0 relative">
         <div className={cn('absolute inset-0 overflow-y-auto', activeTab !== 'general' && 'hidden')}>
-          <GeneralTabContent
-            task={task}
-            projectPath={projectPath}
-            visible={visible && activeTab === 'general'}
-            pollIntervalMs={pollIntervalMs}
-            onUpdateTask={onUpdateTask}
-            onTaskUpdated={onTaskUpdated}
-            onSwitchTab={setActiveTab}
-          />
+          {task ? (
+            <GeneralTabContent
+              task={task}
+              projectPath={projectPath}
+              visible={visible && activeTab === 'general'}
+              pollIntervalMs={pollIntervalMs}
+              onUpdateTask={onUpdateTask}
+              onTaskUpdated={onTaskUpdated}
+              onSwitchTab={setActiveTab}
+            />
+          ) : (
+            <ProjectGeneralTab
+              projectPath={projectPath}
+              visible={visible && activeTab === 'general'}
+              onSwitchToDiff={() => setActiveTab('changes')}
+            />
+          )}
         </div>
         <div className={cn('absolute inset-0', activeTab !== 'changes' && 'hidden')}>
           <GitDiffPanel
             ref={diffRef}
-            task={task}
+            task={task ?? null}
             projectPath={projectPath}
             visible={visible && activeTab === 'changes'}
             pollIntervalMs={pollIntervalMs}
-            mergeState={task.merge_state}
-            onCommitAndContinueMerge={handleCommitAndContinueMerge}
-            onAbortMerge={handleAbortMerge}
+            mergeState={task?.merge_state}
+            onCommitAndContinueMerge={task ? handleCommitAndContinueMerge : undefined}
+            onAbortMerge={task ? handleAbortMerge : undefined}
           />
         </div>
-        {hasConflicts && (
+        {hasConflicts && task && (
           <div className={cn('absolute inset-0', activeTab !== 'conflicts' && 'hidden')}>
             <ConflictPhaseContent
               task={task}

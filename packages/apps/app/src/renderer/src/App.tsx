@@ -13,8 +13,8 @@ import {
   applyFilters,
   type Column
 } from '@slayzone/tasks'
-import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle } from '@slayzone/task'
-import { ProjectGitPanel } from '@slayzone/worktrees'
+import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle, usePanelSizes } from '@slayzone/task'
+import { UnifiedGitPanel } from '@slayzone/worktrees'
 import { FileEditorView } from '@slayzone/file-editor/client'
 import { CreateProjectDialog, ProjectSettingsDialog, DeleteProjectDialog } from '@slayzone/projects'
 import { UserSettingsDialog, useViewState } from '@slayzone/settings'
@@ -57,6 +57,11 @@ import { useUsage } from '@/components/usage/useUsage'
 import { useQuery } from 'convex/react'
 import { api } from 'convex/_generated/api'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
+
+type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
+const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
+const HOME_PANEL_SIZE_KEY: Record<HomePanel, string> = { kanban: 'kanban', git: 'diff', editor: 'editor', processes: 'processes' }
+const HANDLE_WIDTH = 16
 
 function App(): React.JSX.Element {
   // Core data from domain hook
@@ -105,12 +110,8 @@ function App(): React.JSX.Element {
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
   const [explodeMode, setExplodeMode] = useState(false)
-  type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
-  const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
-  const HANDLE_WIDTH = 16
-
+  const [panelSizes, updatePanelSizes, resetPanelSize] = usePanelSizes()
   const [homePanelVisibility, setHomePanelVisibility] = useState<Record<HomePanel, boolean>>({ kanban: true, git: false, editor: false, processes: false })
-  const [homePanelSizes, setHomePanelSizes] = useState<Record<string, number | 'auto'>>({ kanban: 'auto', git: 'auto', editor: 'auto', processes: 'auto' })
   const [homeContainerWidth, setHomeContainerWidth] = useState(0)
   const homeRoRef = useRef<ResizeObserver | null>(null)
   const homeContainerRef = useCallback((el: HTMLDivElement | null) => {
@@ -125,11 +126,12 @@ function App(): React.JSX.Element {
     const visible = HOME_PANEL_ORDER.filter(id => homePanelVisibility[id])
     const handleCount = Math.max(0, visible.length - 1)
     const available = homeContainerWidth - handleCount * HANDLE_WIDTH
-    const autoCount = visible.filter(id => homePanelSizes[id] === 'auto').length
-    const fixedSum = visible.filter(id => homePanelSizes[id] !== 'auto').reduce((s, id) => s + (homePanelSizes[id] as number), 0)
+    const sizeOf = (id: HomePanel) => panelSizes[HOME_PANEL_SIZE_KEY[id]] ?? 'auto'
+    const autoCount = visible.filter(id => sizeOf(id) === 'auto').length
+    const fixedSum = visible.filter(id => sizeOf(id) !== 'auto').reduce((s, id) => s + (sizeOf(id) as number), 0)
     const autoWidth = autoCount > 0 ? Math.max(200, (available - fixedSum) / autoCount) : 0
-    return Object.fromEntries(visible.map(id => [id, homePanelSizes[id] === 'auto' ? autoWidth : (homePanelSizes[id] as number)]))
-  }, [homeContainerWidth, homePanelVisibility, homePanelSizes])
+    return Object.fromEntries(visible.map(id => [id, sizeOf(id) === 'auto' ? autoWidth : (sizeOf(id) as number)]))
+  }, [homeContainerWidth, homePanelVisibility, panelSizes])
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
 
   // Project path validation
@@ -1059,8 +1061,8 @@ function App(): React.JSX.Element {
                                       <ResizeHandle
                                         width={w}
                                         minWidth={id === 'kanban' ? 400 : 200}
-                                        onWidthChange={w => setHomePanelSizes(prev => ({ ...prev, [id]: w }))}
-                                        onReset={() => setHomePanelSizes(prev => ({ ...prev, [id]: 'auto' }))}
+                                        onWidthChange={w => updatePanelSizes({ [HOME_PANEL_SIZE_KEY[id]]: w })}
+                                        onReset={() => resetPanelSize(HOME_PANEL_SIZE_KEY[id])}
                                       />
                                     )}
                                     <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : id === 'kanban' ? 'p-3' : '')} style={{ width: w }}>
@@ -1087,7 +1089,7 @@ function App(): React.JSX.Element {
                                           onArchiveAllTasks={archiveTasks}
                                         />
                                       )}
-                                      {id === 'git' && <ProjectGitPanel projectPath={projectPath} visible={true} />}
+                                      {id === 'git' && <UnifiedGitPanel projectPath={projectPath} visible={true} />}
                                       {id === 'editor' && <FileEditorView projectPath={projectPath ?? ''} />}
                                       {id === 'processes' && <ProcessesPanel taskId={null} cwd={projectPath} />}
                                     </div>

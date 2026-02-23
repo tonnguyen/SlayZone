@@ -1,5 +1,3 @@
-export { GitPanel } from './GitPanel'
-export { ProjectGitPanel } from './ProjectGitPanel'
 export { CreateWorktreeDialog } from './CreateWorktreeDialog'
 export { GitDiffPanel } from './GitDiffPanel'
 export { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from './UnifiedGitPanel'
