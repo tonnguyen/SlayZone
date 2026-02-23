@@ -10,6 +10,7 @@ const SLAY_JS = path.resolve(__dirname, '..', '..', 'cli', 'dist', 'slay.js')
 test.describe('CLI: slay', () => {
   let dbPath = ''
   let projectId = ''
+  let mcpPort = 0
   const PROJECT_ABBREV = 'CL'
 
   test.beforeAll(async ({ electronApp, mainWindow }) => {
@@ -21,6 +22,17 @@ test.describe('CLI: slay', () => {
     const dbDir = await electronApp.evaluate(() => process.env.SLAYZONE_DB_DIR!)
     // Tests always run non-packaged, so DB name is always slayzone.dev.sqlite
     dbPath = path.join(dbDir, 'slayzone.dev.sqlite')
+
+    // Discover dynamic MCP port
+    mcpPort = await electronApp.evaluate(async () => {
+      for (let i = 0; i < 20; i++) {
+        const p = (globalThis as Record<string, unknown>).__mcpPort
+        if (p) return p as number
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      return 0
+    })
+    expect(mcpPort).toBeTruthy()
 
     const s = seed(mainWindow)
     const p = await s.createProject({ name: 'CLI Test', color: '#10b981', path: TEST_PROJECT_PATH })
@@ -243,6 +255,65 @@ test.describe('CLI: slay', () => {
       const r = runCli('tasks', 'done', 'xxxxxxxx')
       expect(r.status).not.toBe(0)
       expect(r.stderr).toContain('not found')
+    })
+  })
+
+  // --- slay processes ---
+
+  test.describe('slay processes', () => {
+    let processId = ''
+
+    test.beforeAll(async ({ electronApp }) => {
+      // Spawn a short-lived process via test global exposed in Playwright mode
+      processId = await electronApp.evaluate(() => {
+        const spawn = (globalThis as Record<string, unknown>).__spawnProcess as (
+          taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean
+        ) => string
+        return spawn(null, 'CLI test process', 'echo hello-from-slay-cli', '/tmp', false)
+      })
+      // Give it a moment to produce output
+      await new Promise((r) => setTimeout(r, 300))
+    })
+
+    const runProcessesCli = (...args: string[]) =>
+      spawnSync('node', [SLAY_JS, ...args], {
+        env: { ...process.env, SLAYZONE_DB_PATH: dbPath, SLAYZONE_MCP_PORT: String(mcpPort) },
+        encoding: 'utf8',
+      })
+
+    test('lists processes', () => {
+      const r = runProcessesCli('processes', 'list')
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('CLI test process')
+    })
+
+    test('--json outputs valid JSON array', () => {
+      const r = runProcessesCli('processes', 'list', '--json')
+      expect(r.status).toBe(0)
+      const procs = JSON.parse(r.stdout)
+      expect(Array.isArray(procs)).toBe(true)
+      expect(procs.some((p: { label: string }) => p.label === 'CLI test process')).toBe(true)
+    })
+
+    test('shows logs for a process', () => {
+      const r = runProcessesCli('processes', 'logs', processId.slice(0, 8))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('hello-from-slay-cli')
+    })
+
+    test('logs exits non-zero on unknown id prefix', () => {
+      const r = runProcessesCli('processes', 'logs', 'xxxxxxxx')
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('not found')
+    })
+
+    test('exits non-zero when app is not running', () => {
+      const r = spawnSync('node', [SLAY_JS, 'processes', 'list'], {
+        env: { ...process.env, SLAYZONE_DB_PATH: dbPath, SLAYZONE_MCP_PORT: '1' },
+        encoding: 'utf8',
+      })
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('not running')
     })
   })
 })

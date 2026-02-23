@@ -9,6 +9,7 @@ import { z } from 'zod'
 import type { Database } from 'better-sqlite3'
 import { updateTask } from '@slayzone/task/main'
 import { PROVIDER_DEFAULTS, TASK_STATUSES } from '@slayzone/task/shared'
+import { listAllProcesses } from './process-manager'
 
 let httpServer: Server | null = null
 let idleTimer: NodeJS.Timeout | null = null
@@ -309,6 +310,18 @@ export function startMcpServer(db: Database, port: number): void {
       console.error('[MCP] DELETE error:', err)
       if (!res.headersSent) res.status(500).json({ error: 'Internal error' })
     }
+  })
+
+  // REST API for CLI
+  app.get(`/api/processes`, (_req, res) => {
+    const procs = listAllProcesses().map(({ logBuffer: _, ...p }) => p)
+    res.json(procs)
+  })
+
+  app.get(`/api/processes/:id/logs`, (req, res) => {
+    const proc = listAllProcesses().find(p => p.id === req.params.id)
+    if (!proc) { res.status(404).json({ error: `Process not found` }); return }
+    res.json({ id: proc.id, label: proc.label, logs: proc.logBuffer })
   })
 
   httpServer = app.listen(port, '127.0.0.1', () => {

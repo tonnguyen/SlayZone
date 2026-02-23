@@ -753,6 +753,7 @@ app.whenReady().then(async () => {
   // Expose test helpers for e2e
   if (isPlaywright) {
     ;(globalThis as Record<string, unknown>).__db = db
+    ;(globalThis as Record<string, unknown>).__spawnProcess = spawnProcess
     ;(globalThis as Record<string, unknown>).__restorePtyHandlers = () => {
       for (const ch of [
         'pty:create', 'pty:write', 'pty:resize', 'pty:kill', 'pty:exists',
