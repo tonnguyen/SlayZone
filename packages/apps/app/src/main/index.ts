@@ -27,7 +27,7 @@ if (is.dev && !isPlaywright) {
 }
 import icon from '../../resources/icon.png?asset'
 import logoSolid from '../../resources/logo-solid.svg?asset'
-import { getDatabase, closeDatabase, watchDatabase } from './db'
+import { getDatabase, closeDatabase, watchDatabase, getDiagnosticsDatabase, closeDiagnosticsDatabase } from './db'
 // Domain handlers
 import { registerProjectHandlers } from '@slayzone/projects/main'
 import { registerTaskHandlers, registerAiHandlers, registerFilesHandlers } from '@slayzone/task/main'
@@ -621,8 +621,9 @@ app.whenReady().then(async () => {
   handleOAuthDeepLinkFromArgv(process.argv)
   startOAuthLoopbackServer()
 
-  // Initialize database
+  // Initialize databases
   const db = getDatabase()
+  const diagDb = getDiagnosticsDatabase()  // separate DB so diagnostic writes don't trigger watchDatabase
   registerProcessDiagnostics(app)
 
   // Load and apply persisted theme BEFORE creating window to prevent flash
@@ -738,7 +739,8 @@ app.whenReady().then(async () => {
   }
 
   // Register diagnostics first so IPC handlers below are instrumented.
-  registerDiagnosticsHandlers(ipcMain, db)
+  // diagDb is a separate file so diagnostic writes don't trigger watchDatabase.
+  registerDiagnosticsHandlers(ipcMain, db, diagDb)
 
   // Register domain handlers (inject ipcMain and db)
   registerProjectHandlers(ipcMain, db)
@@ -1479,6 +1481,7 @@ app.on('will-quit', () => {
   killAllProcesses()
   stopDbWatcher()
   closeDatabase()
+  closeDiagnosticsDatabase()
 })
 
 // In this file you can include the rest of your app's specific main process

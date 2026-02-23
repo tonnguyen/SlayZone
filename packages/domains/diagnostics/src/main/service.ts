@@ -43,7 +43,8 @@ const CRITICAL_SETTINGS_KEYS = new Set([
   CONFIG_KEYS.retentionDays
 ])
 
-let diagnosticsDb: Database | null = null
+let settingsDb: Database | null = null  // main DB — reads/writes diagnostics config from settings table
+let diagnosticsDb: Database | null = null  // separate diagnostics-only DB — writes events (never watched by watchDatabase)
 let retentionTimer: NodeJS.Timeout | null = null
 let isIpcInstrumented = false
 let cachedConfig: DiagnosticsConfig | null = null
@@ -85,17 +86,17 @@ function setSetting(db: Database, key: string, value: string): void {
 }
 
 export function getDiagnosticsConfig(): DiagnosticsConfig {
-  if (!diagnosticsDb) return DEFAULT_CONFIG
+  if (!settingsDb) return DEFAULT_CONFIG
   if (cachedConfig) return cachedConfig
   cachedConfig = {
-    enabled: boolFromSetting(getSetting(diagnosticsDb, CONFIG_KEYS.enabled), DEFAULT_CONFIG.enabled),
-    verbose: boolFromSetting(getSetting(diagnosticsDb, CONFIG_KEYS.verbose), DEFAULT_CONFIG.verbose),
+    enabled: boolFromSetting(getSetting(settingsDb, CONFIG_KEYS.enabled), DEFAULT_CONFIG.enabled),
+    verbose: boolFromSetting(getSetting(settingsDb, CONFIG_KEYS.verbose), DEFAULT_CONFIG.verbose),
     includePtyOutput: boolFromSetting(
-      getSetting(diagnosticsDb, CONFIG_KEYS.includePtyOutput),
+      getSetting(settingsDb, CONFIG_KEYS.includePtyOutput),
       DEFAULT_CONFIG.includePtyOutput
     ),
     retentionDays: intFromSetting(
-      getSetting(diagnosticsDb, CONFIG_KEYS.retentionDays),
+      getSetting(settingsDb, CONFIG_KEYS.retentionDays),
       DEFAULT_CONFIG.retentionDays
     )
   }
@@ -103,16 +104,16 @@ export function getDiagnosticsConfig(): DiagnosticsConfig {
 }
 
 function saveDiagnosticsConfig(partial: Partial<DiagnosticsConfig>): DiagnosticsConfig {
-  if (!diagnosticsDb) return DEFAULT_CONFIG
+  if (!settingsDb) return DEFAULT_CONFIG
   const next: DiagnosticsConfig = {
     ...getDiagnosticsConfig(),
     ...partial
   }
 
-  setSetting(diagnosticsDb, CONFIG_KEYS.enabled, next.enabled ? '1' : '0')
-  setSetting(diagnosticsDb, CONFIG_KEYS.verbose, next.verbose ? '1' : '0')
-  setSetting(diagnosticsDb, CONFIG_KEYS.includePtyOutput, next.includePtyOutput ? '1' : '0')
-  setSetting(diagnosticsDb, CONFIG_KEYS.retentionDays, String(Math.max(1, next.retentionDays)))
+  setSetting(settingsDb, CONFIG_KEYS.enabled, next.enabled ? '1' : '0')
+  setSetting(settingsDb, CONFIG_KEYS.verbose, next.verbose ? '1' : '0')
+  setSetting(settingsDb, CONFIG_KEYS.includePtyOutput, next.includePtyOutput ? '1' : '0')
+  setSetting(settingsDb, CONFIG_KEYS.retentionDays, String(Math.max(1, next.retentionDays)))
 
   cachedConfig = null
   return getDiagnosticsConfig()
@@ -559,8 +560,9 @@ async function runExport(request: DiagnosticsExportRequest): Promise<Diagnostics
   }
 }
 
-export function registerDiagnosticsHandlers(ipcMain: IpcMain, db: Database): void {
-  diagnosticsDb = db
+export function registerDiagnosticsHandlers(ipcMain: IpcMain, db: Database, eventsDb: Database): void {
+  settingsDb = db      // main DB — for config settings reads/writes
+  diagnosticsDb = eventsDb  // separate diagnostics DB — for event writes (not watched by watchDatabase)
   cachedConfig = null
 
   instrumentIpcMain(ipcMain)

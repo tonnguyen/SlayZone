@@ -15,6 +15,50 @@ const getDatabasePath = (): string => {
 }
 
 let db: Database.Database | null = null
+let diagDb: Database.Database | null = null
+
+const getDiagnosticsDatabasePath = (): string => {
+  const userDataPath = process.env.SLAYZONE_DB_DIR || app.getPath('userData')
+  const dbName = app.isPackaged ? 'slayzone.diagnostics.sqlite' : 'slayzone.dev.diagnostics.sqlite'
+  return path.join(userDataPath, dbName)
+}
+
+export function getDiagnosticsDatabase(): Database.Database {
+  if (!diagDb) {
+    const dbPath = getDiagnosticsDatabasePath()
+    diagDb = new Database(dbPath)
+    diagDb.pragma('journal_mode = WAL')
+    diagDb.exec(`
+      CREATE TABLE IF NOT EXISTS diagnostics_events (
+        id TEXT PRIMARY KEY,
+        ts_ms INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        source TEXT NOT NULL,
+        event TEXT NOT NULL,
+        trace_id TEXT,
+        task_id TEXT,
+        project_id TEXT,
+        session_id TEXT,
+        channel TEXT,
+        message TEXT,
+        payload_json TEXT,
+        redaction_version INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS idx_diag_ts ON diagnostics_events(ts_ms);
+      CREATE INDEX IF NOT EXISTS idx_diag_level_ts ON diagnostics_events(level, ts_ms);
+      CREATE INDEX IF NOT EXISTS idx_diag_trace ON diagnostics_events(trace_id);
+      CREATE INDEX IF NOT EXISTS idx_diag_source_event_ts ON diagnostics_events(source, event, ts_ms);
+    `)
+  }
+  return diagDb
+}
+
+export function closeDiagnosticsDatabase(): void {
+  if (diagDb) {
+    diagDb.close()
+    diagDb = null
+  }
+}
 
 export function migrateLegacyDatabaseIfNeeded(): void {
   const oldUserData = path.join(app.getPath('appData'), LEGACY_APP_NAME)

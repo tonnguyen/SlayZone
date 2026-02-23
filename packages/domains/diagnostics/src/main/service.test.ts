@@ -10,7 +10,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 
 const h = await createTestHarness()
-registerDiagnosticsHandlers(h.ipcMain as never, h.db)
+registerDiagnosticsHandlers(h.ipcMain as never, h.db, h.db)
 
 // instrumentIpcMain wraps handlers as async, so all invoke() calls return Promises.
 // Run tests sequentially via top-level await to avoid ordering issues.
