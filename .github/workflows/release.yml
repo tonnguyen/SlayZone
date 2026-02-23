@@ -30,7 +30,7 @@ jobs:
 
       - name: Deploy Convex to production
         run: |
-          npx convex deploy --prod --cmd 'echo skip'
+          npx convex deploy --cmd 'echo skip'
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
