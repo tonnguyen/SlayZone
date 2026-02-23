@@ -330,6 +330,11 @@ export function startMcpServer(db: Database, port: number): void {
     res.json({ ok: true })
   })
 
+  app.post('/api/notify', (_req, res) => {
+    notifyRenderer()
+    res.json({ ok: true })
+  })
+
   app.get(`/api/processes/:id/follow`, (req, res) => {
     const proc = listAllProcesses().find(p => p.id === req.params.id)
     if (!proc) { res.status(404).json({ error: `Process not found` }); return }
@@ -358,6 +363,8 @@ export function startMcpServer(db: Database, port: number): void {
     const addr = httpServer!.address()
     const actualPort = typeof addr === 'object' && addr ? addr.port : port
     ;(globalThis as Record<string, unknown>).__mcpPort = actualPort
+    // Persist actual port so CLI can discover it via settings DB (handles port 0 / dynamic binding)
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('mcp_server_port', ?)").run(String(actualPort))
     console.log(`[MCP] Server listening on http://127.0.0.1:${actualPort}/mcp`)
   })
 }

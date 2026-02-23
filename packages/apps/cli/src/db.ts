@@ -30,6 +30,27 @@ export interface SlayDb {
   close(): void
 }
 
+export function getMcpPort(): number {
+  if (process.env.SLAYZONE_MCP_PORT) return parseInt(process.env.SLAYZONE_MCP_PORT, 10) || 45678
+  try {
+    const db = openDb()
+    const row = db.query<{ value: string }>(`SELECT value FROM settings WHERE key = 'mcp_server_port' LIMIT 1`)
+    db.close()
+    return parseInt(row[0]?.value ?? '45678', 10) || 45678
+  } catch {
+    return 45678
+  }
+}
+
+export async function notifyApp(): Promise<void> {
+  const port = getMcpPort()
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/notify`, { method: 'POST' })
+  } catch {
+    // app not running — silent fail
+  }
+}
+
 export function openDb(): SlayDb {
   const dev = process.env.SLAYZONE_DEV === '1'
   const dbPath = getDbPath(dev)

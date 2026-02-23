@@ -44,7 +44,13 @@ export function useTasksData(): UseTasksDataReturn {
 
   // Load data on mount + allow external refresh (E2E tests)
   useEffect(() => {
-    const loadData = () =>
+    let inFlight = false
+    let pending = false
+
+    const loadData = () => {
+      if (inFlight) { pending = true; return }
+      inFlight = true
+      pending = false
       Promise.all([
         window.api.db.getTasks(),
         window.api.db.getProjects(),
@@ -55,7 +61,11 @@ export function useTasksData(): UseTasksDataReturn {
         setTags(tg as Tag[])
         loadTaskTags(t as Task[])
         loadBlockedTaskIds(t as Task[])
+      }).finally(() => {
+        inFlight = false
+        if (pending) loadData()
       })
+    }
     loadData()
     ;(window as any).__slayzone_refreshData = loadData
     const cleanup = window.api?.app?.onTasksChanged?.(loadData)

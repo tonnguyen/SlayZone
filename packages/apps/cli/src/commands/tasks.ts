@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { execSync } from 'child_process'
-import { openDb } from '../db'
+import { openDb, notifyApp } from '../db'
 
 interface TaskRow extends Record<string, unknown> {
   id: string
@@ -154,6 +154,8 @@ export function tasksCommand(): Command {
         }
       )
 
+      db.close()
+      await notifyApp()
       console.log(`Created: ${id.slice(0, 8)}  ${title}  [${opts.status}]  ${project.name}`)
     })
 
@@ -219,6 +221,8 @@ export function tasksCommand(): Command {
         ':id': task.id,
       })
 
+      db.close()
+      await notifyApp()
       console.log(`Done: ${task.id.slice(0, 8)}  ${task.title}`)
     })
 
@@ -268,6 +272,8 @@ export function tasksCommand(): Command {
       if (opts.priority) { sets.push('priority = :priority'); params[':priority'] = parseInt(opts.priority, 10) }
 
       db.run(`UPDATE tasks SET ${sets.join(', ')} WHERE id = :id`, params)
+      db.close()
+      await notifyApp()
       console.log(`Updated: ${task.id.slice(0, 8)}  ${opts.title ?? task.title}`)
     })
 
@@ -295,6 +301,8 @@ export function tasksCommand(): Command {
         ':id': task.id,
       })
 
+      db.close()
+      await notifyApp()
       console.log(`Archived: ${task.id.slice(0, 8)}  ${task.title}`)
     })
 
@@ -318,6 +326,8 @@ export function tasksCommand(): Command {
 
       const task = tasks[0]
       db.run(`DELETE FROM tasks WHERE id = :id`, { ':id': task.id })
+      db.close()
+      await notifyApp()
       console.log(`Deleted: ${task.id.slice(0, 8)}  ${task.title}`)
     })
 
@@ -450,6 +460,8 @@ export function tasksCommand(): Command {
         }
       )
 
+      db.close()
+      await notifyApp()
       console.log(`Created subtask: ${id.slice(0, 8)}  ${title}`)
     })
 

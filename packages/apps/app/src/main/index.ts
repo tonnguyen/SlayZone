@@ -27,7 +27,7 @@ if (is.dev && !isPlaywright) {
 }
 import icon from '../../resources/icon.png?asset'
 import logoSolid from '../../resources/logo-solid.svg?asset'
-import { getDatabase, closeDatabase, watchDatabase, getDiagnosticsDatabase, closeDiagnosticsDatabase } from './db'
+import { getDatabase, closeDatabase, getDiagnosticsDatabase, closeDiagnosticsDatabase } from './db'
 // Domain handlers
 import { registerProjectHandlers } from '@slayzone/projects/main'
 import { registerTaskHandlers, registerAiHandlers, registerFilesHandlers } from '@slayzone/task/main'
@@ -178,7 +178,6 @@ let inlineDevToolsViewAttached = false
 let inlineDeviceToolbarDisableTimers: NodeJS.Timeout[] = []
 let linearSyncPoller: NodeJS.Timeout | null = null
 let mcpCleanup: (() => void) | null = null
-let stopDbWatcher: (() => void) = () => {}
 let pendingOAuthCallback: { code?: string; error?: string } | null = null
 let oauthCallbackServer: HttpServer | null = null
 const OAUTH_LOOPBACK_HOST = '127.0.0.1'
@@ -623,7 +622,7 @@ app.whenReady().then(async () => {
 
   // Initialize databases
   const db = getDatabase()
-  const diagDb = getDiagnosticsDatabase()  // separate DB so diagnostic writes don't trigger watchDatabase
+  const diagDb = getDiagnosticsDatabase()
   registerProcessDiagnostics(app)
 
   // Load and apply persisted theme BEFORE creating window to prevent flash
@@ -739,7 +738,6 @@ app.whenReady().then(async () => {
   }
 
   // Register diagnostics first so IPC handlers below are instrumented.
-  // diagDb is a separate file so diagnostic writes don't trigger watchDatabase.
   registerDiagnosticsHandlers(ipcMain, db, diagDb)
 
   // Register domain handlers (inject ipcMain and db)
@@ -1386,11 +1384,6 @@ app.whenReady().then(async () => {
   createWindow()
   if (mainWindow) setProcessManagerWindow(mainWindow)
 
-  // Watch DB for external changes (e.g. slay CLI) and notify renderer
-  stopDbWatcher = watchDatabase(() => {
-    mainWindow?.webContents.send('tasks:changed')
-  })
-
   // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
   ipcMain.handle('processes:create', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
     return createProcess(taskId, label, command, cwd, autoRestart)
@@ -1479,7 +1472,6 @@ app.on('will-quit', () => {
   stopIdleChecker()
   killAllPtys()
   killAllProcesses()
-  stopDbWatcher()
   closeDatabase()
   closeDiagnosticsDatabase()
 })

@@ -49,7 +49,7 @@ test.describe('CLI: slay', () => {
 
   const runCli = (...args: string[]) =>
     spawnSync('node', [SLAY_JS, ...args], {
-      env: { ...process.env, SLAYZONE_DB_PATH: dbPath },
+      env: { ...process.env, SLAYZONE_DB_PATH: dbPath, SLAYZONE_MCP_PORT: String(mcpPort) },
       encoding: 'utf8',
     })
 
@@ -103,12 +103,12 @@ test.describe('CLI: slay', () => {
   // --- slay tasks create ---
 
   test.describe('slay tasks create', () => {
-    test('creates task and UI updates automatically via file watcher', async ({ mainWindow }) => {
+    test('creates task and UI updates automatically via REST notify', async ({ mainWindow }) => {
       const title = `CLI created ${Date.now()}`
       const r = runCli('tasks', 'create', title, '--project', 'cli test')
       expect(r.status).toBe(0)
 
-      // File watcher fires → refreshData → React re-renders — no manual refresh needed
+      // CLI POSTs /api/notify → tasks:changed → refreshData → React re-renders — no manual refresh needed
       await expect(mainWindow.getByText(title)).toBeVisible({ timeout: 5_000 })
     })
 
@@ -236,7 +236,7 @@ test.describe('CLI: slay', () => {
   // --- slay tasks done ---
 
   test.describe('slay tasks done', () => {
-    test('marks task done and UI updates automatically via file watcher', async ({ mainWindow }) => {
+    test('marks task done and UI updates automatically via REST notify', async ({ mainWindow }) => {
       const s = seed(mainWindow)
       const task = await s.createTask({ projectId, title: 'Task to complete via CLI', status: 'todo' })
       await s.refreshData()
@@ -247,7 +247,7 @@ test.describe('CLI: slay', () => {
       const r = runCli('tasks', 'done', task.id.slice(0, 8))
       expect(r.status).toBe(0)
 
-      // File watcher fires → refreshData → task moves from todo to done column
+      // CLI POSTs /api/notify → tasks:changed → refreshData → task moves from todo to done column
       await expect(todoCol.getByText('Task to complete via CLI')).not.toBeVisible({ timeout: 5_000 })
     })
 

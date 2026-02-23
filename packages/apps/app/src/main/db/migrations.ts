@@ -708,6 +708,14 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_processes_task ON processes(task_id);
       `)
     }
+  },
+  {
+    // diagnostics_events moved to slayzone.dev.diagnostics.sqlite (separate DB)
+    // to prevent watchDatabase feedback loop: IPC diagnostic writes → WAL change → tasks:changed → loop
+    version: 41,
+    up: (db) => {
+      db.exec(`DROP TABLE IF EXISTS diagnostics_events`)
+    }
   }
 ]
 
