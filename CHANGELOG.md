@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.1.60...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.60...main)
+
+### 🩹 Fixes
+
+- **ci:** Add @types/node to root and convex tsconfig for process.env ([2c3728f](https://github.com/debuglebowski/SlayZone/commit/2c3728f))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.59...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.59...main)
