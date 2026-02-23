@@ -3,7 +3,7 @@ const path = require('path')
 
 exports.default = async function (context) {
   if (context.electronPlatformName !== 'darwin') return
-  if (process.env.APPLE_ID) return // proper signing handled by electron-builder
+  if (process.env.CSC_LINK || process.env.APPLE_ID) return // proper signing handled by electron-builder
 
   const appPath = path.join(
     context.appOutDir,
