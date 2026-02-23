@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.1.57...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.57...main)
+
+### 🩹 Fixes
+
+- **ci:** Remove --prod flag from convex deploy ([84d2394](https://github.com/debuglebowski/SlayZone/commit/84d2394))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.56...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.56...main)
