@@ -236,7 +236,6 @@ export interface ElectronAPI {
       providerFlags?: string | null
     ) => Promise<{ success: boolean; error?: string }>
     write: (sessionId: string, data: string) => Promise<boolean>
-    writeTerminalResponse: (sessionId: string, data: string) => Promise<boolean>
     resize: (sessionId: string, cols: number, rows: number) => Promise<boolean>
     kill: (sessionId: string) => Promise<boolean>
     exists: (sessionId: string) => Promise<boolean>
@@ -259,6 +258,7 @@ export interface ElectronAPI {
     onDevServerDetected: (callback: (sessionId: string, url: string) => void) => () => void
     getState: (sessionId: string) => Promise<TerminalState | null>
     validate: (mode: TerminalMode) => Promise<ValidationResult[]>
+    setTheme: (theme: { foreground: string; background: string; cursor: string }) => Promise<void>
   }
   git: {
     isGitRepo: (path: string) => Promise<boolean>

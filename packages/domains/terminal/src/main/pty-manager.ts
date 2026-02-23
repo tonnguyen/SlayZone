@@ -109,6 +109,8 @@ interface PtySession {
   statusWatchTimeout?: NodeJS.Timeout
   // Dev server URL dedup
   detectedDevUrls: Set<string>
+  // Pending partial escape sequence from previous onData chunk
+  syncQueryPending: string
 }
 
 export type { PtyInfo }
@@ -144,14 +146,27 @@ function taskIdFromSessionId(sessionId: string): string {
   return sessionId.split(':')[0] || sessionId
 }
 
+// Theme colors used to respond to OSC 10/11/12 color queries synchronously.
+// Set by the renderer via pty:set-theme IPC whenever the theme changes.
+interface TerminalTheme { foreground: string; background: string; cursor: string }
+let currentTerminalTheme: TerminalTheme = { foreground: '#ffffff', background: '#000000', cursor: '#ffffff' }
+
+export function setTerminalTheme(theme: TerminalTheme): void {
+  currentTerminalTheme = theme
+}
+
+function hexToOscRgb(hex: string): string {
+  const r = hex.slice(1, 3)
+  const g = hex.slice(3, 5)
+  const b = hex.slice(5, 7)
+  return `rgb:${r}${r}/${g}${g}/${b}${b}`
+}
+
 // Filter out terminal escape sequences that cause issues
 function filterBufferData(data: string): string {
   return data
-    // Strip only title-setting (0,1,2) and clipboard (52) OSC sequences
-    // Allow through: OSC 10/11 (color query), OSC 4 (palette), OSC 7 (CWD) etc.
+    // Strip title-setting (0,1,2) and clipboard (52) OSC sequences
     .replace(/\x1b\](?:[012]|52)[;][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
-    // Filter DA responses (ESC [ ? ... c)
-    .replace(/\x1b\[\?[0-9;]*c/g, '')
     // Filter underline from ANY SGR sequence (handles combined codes like ESC[1;4m)
     // Claude Code outputs these and they persist incorrectly in xterm.js
     .replace(/\x1b\[([0-9;:]*)m/g, (_match, params) => {
@@ -162,6 +177,63 @@ function filterBufferData(data: string): string {
         .join(';')
       return filtered ? `\x1b[${filtered}m` : ''
     })
+}
+
+// Intercept timing-critical terminal queries synchronously in the PTY onData handler.
+// CPR/DA/DSR must be answered before the program proceeds to readline mode.
+// An async renderer round-trip would arrive too late — the response bytes would then
+// appear as garbage text in the user's prompt.
+// OSC color queries (10/11/12) are also handled here using the cached theme.
+//
+// Split sequences: OSC/CSI sequences can arrive split across two onData calls.
+// session.syncQueryPending carries any trailing incomplete sequence to the next call.
+function interceptSyncQueries(session: PtySession, data: string): string {
+  // Prepend any incomplete sequence carried from the previous chunk
+  let input = session.syncQueryPending + data
+  session.syncQueryPending = ''
+
+  let response = ''
+
+  // DA1 — Primary Device Attributes
+  input = input.replace(/\x1b\[0?c/g, () => { response += '\x1b[?62;4;22c'; return '' })
+  // DA2 — Secondary Device Attributes
+  input = input.replace(/\x1b\[>0?c/g, () => { response += '\x1b[>0;10;1c'; return '' })
+  // DSR — Device Status Report
+  input = input.replace(/\x1b\[5n/g, () => { response += '\x1b[0n'; return '' })
+  // CPR — Cursor Position. Respond with row=1 col=1. Programs (readline) use CPR mainly
+  // to check if the cursor is at col=1 before drawing a prompt. In practice the terminal
+  // is at col=1 at this point (startup output ends with a newline).
+  input = input.replace(/\x1b\[6n/g, () => { response += '\x1b[1;1R'; return '' })
+
+  // OSC 10/11/12 — Foreground / Background / Cursor color queries.
+  // Answered using the theme last set by the renderer via pty:set-theme.
+  input = input.replace(/\x1b\]10;\?(?:\x07|\x1b\\)/g, () => {
+    response += `\x1b]10;${hexToOscRgb(currentTerminalTheme.foreground)}\x07`
+    return ''
+  })
+  input = input.replace(/\x1b\]11;\?(?:\x07|\x1b\\)/g, () => {
+    response += `\x1b]11;${hexToOscRgb(currentTerminalTheme.background)}\x07`
+    return ''
+  })
+  input = input.replace(/\x1b\]12;\?(?:\x07|\x1b\\)/g, () => {
+    response += `\x1b]12;${hexToOscRgb(currentTerminalTheme.cursor)}\x07`
+    return ''
+  })
+
+  if (response) {
+    session.pty.write(response)
+  }
+
+  // Check for a trailing incomplete OSC or CSI sequence that may complete in the next chunk.
+  // OSC: ESC ] <body> — body ends with BEL or ST (ESC \). Trailing ESC alone could be ST start.
+  // CSI: ESC [ <params> — ends with a letter in range @–~.
+  const partial = input.match(/\x1b(?:\][^\x07\x1b]*\x1b?|\[[0-9;:>]*)?$/)
+  if (partial?.[0]) {
+    session.syncQueryPending = partial[0]
+    input = input.slice(0, -partial[0].length)
+  }
+
+  return input
 }
 
 function stripAnsiForSessionParse(data: string): string {
@@ -396,7 +468,8 @@ export async function createPty(
       watchingForSessionId: false,
       statusOutputBuffer: '',
       // Dev server URL dedup
-      detectedDevUrls: new Set()
+      detectedDevUrls: new Set(),
+      syncQueryPending: ''
     })
     stateMachine.register(sessionId, 'starting')
     let firstOutputTs: number | null = null
@@ -495,7 +568,7 @@ export async function createPty(
 
     const attachPtyHandlers = (target: pty.IPty): void => {
       // Forward data to renderer
-      target.onData((data) => {
+      target.onData((data0) => {
         if (firstOutputTs === null) {
           firstOutputTs = Date.now()
           clearStartupTimeout()
@@ -525,11 +598,16 @@ export async function createPty(
             sessionId,
             taskId: taskIdFromSessionId(sessionId),
             payload: {
-              length: data.length
+              length: data0.length
             }
           })
           return
         }
+
+        // Intercept all terminal queries synchronously before data reaches the renderer.
+        // An async renderer round-trip would arrive too late — once readline is active,
+        // late response bytes appear as garbage text in the user's prompt.
+        const data = interceptSyncQueries(session, data0)
 
         // Append to buffer for history restoration (filter problematic sequences)
         const seq = session.buffer.append(filterBufferData(data))
@@ -799,6 +877,7 @@ export async function createPty(
     return { success: false, error: err.message }
   }
 }
+
 
 export function writePty(sessionId: string, data: string): boolean {
   const session = sessions.get(sessionId)

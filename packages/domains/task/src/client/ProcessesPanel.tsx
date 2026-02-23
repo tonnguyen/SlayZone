@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Play, RotateCcw, Plus, Trash2, ArrowLeft, Cpu, Pencil, FileText, MoreHorizontal, CornerDownLeft } from 'lucide-react'
 import { cn, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Tooltip, TooltipTrigger, TooltipContent } from '@slayzone/ui'
 
+type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
+
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Tooltip>
@@ -10,8 +12,6 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
     </Tooltip>
   )
 }
-
-type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 
 interface ProcessEntry {
   id: string
@@ -195,11 +195,9 @@ function ProcessRow({
           </Tip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Tip label="More">
-                <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                  <MoreHorizontal className="size-3.5" />
-                </button>
-              </Tip>
+              <button title="More" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <MoreHorizontal className="size-3.5" />
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={onEdit}>
@@ -246,7 +244,7 @@ function SectionHeader({ label }: { label: string }) {
   )
 }
 
-export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string | null }) {
+export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: string; cwd?: string | null; terminalSessionId?: string }) {
   const [processes, setProcesses] = useState<ProcessEntry[]>([])
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [view, setView] = useState<'list' | 'new'>('list')
@@ -342,7 +340,7 @@ export function ProcessesPanel({ taskId, cwd }: { taskId: string; cwd?: string |
   }, [])
 
   const handleCreate = useCallback(async () => {
-if (!form.label.trim() || !form.command.trim()) return
+    if (!form.label.trim() || !form.command.trim()) return
     setSaving(true)
     setSaveError(null)
     try {
@@ -402,8 +400,8 @@ if (!form.label.trim() || !form.command.trim()) return
   const handleInject = useCallback((proc: ProcessEntry) => {
     if (proc.logBuffer.length === 0) return
     const output = `\r\n--- ${proc.label} output ---\r\n${proc.logBuffer.join('\r\n')}\r\n---\r\n`
-    void window.api.pty.writeTerminalResponse(taskId, output)
-  }, [taskId])
+    void window.api.pty.write(terminalSessionId ?? `${taskId}:${taskId}`, output)
+  }, [taskId, terminalSessionId])
 
   const applySuggestion = useCallback((item: SuggestionItem) => {
     setForm(f => ({ ...f, label: f.label || item.name, command: item.command }))
@@ -610,7 +608,7 @@ if (!form.label.trim() || !form.command.trim()) return
           </div>
 
           {/* Suggestions */}
-          <div className="border-t border-border px-4 pt-4 pb-6 flex flex-col gap-5">
+          {!editingId && <div className="border-t border-border px-4 pt-4 pb-6 flex flex-col gap-5">
             {allSuggestions.map(group => (
               <div key={group.category} className="flex flex-col gap-2">
                 <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
@@ -630,7 +628,7 @@ if (!form.label.trim() || !form.command.trim()) return
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       )}
 

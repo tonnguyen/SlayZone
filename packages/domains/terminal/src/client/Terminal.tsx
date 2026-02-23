@@ -530,6 +530,13 @@ export function Terminal({
       terminalRef.current.options.minimumContrastRatio = contrastRatio
     }
     updateAllThemes(xtermTheme, contrastRatio)
+    // Keep main process in sync so it can respond to OSC 10/11/12 color queries
+    // synchronously (async renderer response arrives too late once readline is active).
+    void window.api.pty.setTheme({
+      foreground: xtermTheme.foreground ?? '#ffffff',
+      background: xtermTheme.background ?? '#000000',
+      cursor: xtermTheme.cursor ?? '#ffffff',
+    })
   }, [theme])
 
   // Handle resize

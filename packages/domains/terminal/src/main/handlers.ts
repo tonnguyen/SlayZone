@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron'
 import type { IpcMain } from 'electron'
 import type { Database } from 'better-sqlite3'
-import { createPty, writePty, resizePty, killPty, hasPty, getBuffer, clearBuffer, getBufferSince, listPtys, getState, setDatabase, dismissAllNotifications } from './pty-manager'
+import { createPty, writePty, resizePty, killPty, hasPty, getBuffer, clearBuffer, getBufferSince, listPtys, getState, setDatabase, dismissAllNotifications, setTerminalTheme } from './pty-manager'
 import { getAdapter, type TerminalMode } from './adapters'
 import type { CodeMode } from '@slayzone/terminal/shared'
 import { parseShellArgs } from './adapters/flag-parser'
@@ -47,7 +47,7 @@ export function registerPtyHandlers(ipcMain: IpcMain, db: Database): void {
     return writePty(sessionId, data)
   })
 
-  ipcMain.handle('pty:resize', (_, sessionId: string, cols: number, rows: number) => {
+ipcMain.handle('pty:resize', (_, sessionId: string, cols: number, rows: number) => {
     return resizePty(sessionId, cols, rows)
   })
 
@@ -81,6 +81,10 @@ export function registerPtyHandlers(ipcMain: IpcMain, db: Database): void {
 
   ipcMain.handle('pty:dismissAllNotifications', () => {
     dismissAllNotifications()
+  })
+
+  ipcMain.handle('pty:set-theme', (_, theme: { foreground: string; background: string; cursor: string }) => {
+    setTerminalTheme(theme)
   })
 
   ipcMain.handle('pty:validate', async (_, mode: TerminalMode) => {

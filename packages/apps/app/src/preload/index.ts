@@ -167,7 +167,7 @@ const api: ElectronAPI = {
     create: (sessionId, cwd, conversationId, existingConversationId, mode, initialPrompt, codeMode, providerFlags) =>
       ipcRenderer.invoke('pty:create', sessionId, cwd, conversationId, existingConversationId, mode, initialPrompt, codeMode, providerFlags),
     write: (sessionId, data) => ipcRenderer.invoke('pty:write', sessionId, data),
-    writeTerminalResponse: (sessionId, data) => ipcRenderer.invoke('pty:write-terminal-response', sessionId, data),
+    setTheme: (theme) => ipcRenderer.invoke('pty:set-theme', theme),
     resize: (sessionId, cols, rows) => ipcRenderer.invoke('pty:resize', sessionId, cols, rows),
     kill: (sessionId) => ipcRenderer.invoke('pty:kill', sessionId),
     exists: (sessionId) => ipcRenderer.invoke('pty:exists', sessionId),
