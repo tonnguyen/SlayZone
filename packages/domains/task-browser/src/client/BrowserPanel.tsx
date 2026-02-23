@@ -843,6 +843,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
                 variant="ghost"
                 size="icon-sm"
                 disabled={multiDeviceMode || !webviewReady}
+                className={cn(inlineDevToolsOpen && 'text-blue-500 bg-blue-500/10')}
                 onClick={toggleDevTools}
               >
                 <Bug className="size-4" />
