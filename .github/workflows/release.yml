@@ -92,6 +92,10 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
+      - name: Build CLI
+        if: runner.os == 'macOS'
+        run: pnpm --filter @slayzone/cli build
+
       - name: Build
         run: pnpm build
         env:
