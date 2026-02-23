@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v0.1.59...main
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.59...main)
+
+### 🩹 Fixes
+
+- **ci:** Add @auth/core to root deps for convex deploy ([920eea1](https://github.com/debuglebowski/SlayZone/commit/920eea1))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+
+
+
 ## v0.1.58...main
 
 [compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.58...main)
