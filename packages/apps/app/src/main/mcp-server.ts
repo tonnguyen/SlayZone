@@ -364,7 +364,9 @@ export function startMcpServer(db: Database, port: number): void {
     const actualPort = typeof addr === 'object' && addr ? addr.port : port
     ;(globalThis as Record<string, unknown>).__mcpPort = actualPort
     // Persist actual port so CLI can discover it via settings DB (handles port 0 / dynamic binding)
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('mcp_server_port', ?)").run(String(actualPort))
+    try {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('mcp_server_port', ?)").run(String(actualPort))
+    } catch { /* non-fatal — CLI falls back to default port */ }
     console.log(`[MCP] Server listening on http://127.0.0.1:${actualPort}/mcp`)
   })
 }

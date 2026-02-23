@@ -21,9 +21,9 @@ protocol.registerSchemesAsPrivileged([
 app.name = 'slayzone'
 const isPlaywright = process.env.PLAYWRIGHT === '1'
 
-// Enable remote debugging for MCP server (dev only, skip when Playwright drives the app)
+// Enable remote debugging in dev (port 0 = OS-assigned, avoids conflicts with other dev instances)
 if (is.dev && !isPlaywright) {
-  app.commandLine.appendSwitch('remote-debugging-port', '9222')
+  app.commandLine.appendSwitch('remote-debugging-port', '0')
 }
 import icon from '../../resources/icon.png?asset'
 import logoSolid from '../../resources/logo-solid.svg?asset'

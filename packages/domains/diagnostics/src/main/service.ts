@@ -44,7 +44,7 @@ const CRITICAL_SETTINGS_KEYS = new Set([
 ])
 
 let settingsDb: Database | null = null  // main DB — reads/writes diagnostics config from settings table
-let diagnosticsDb: Database | null = null  // separate diagnostics-only DB — writes events (never watched by watchDatabase)
+let diagnosticsDb: Database | null = null  // separate diagnostics-only DB — writes events to slayzone.dev.diagnostics.sqlite
 let retentionTimer: NodeJS.Timeout | null = null
 let isIpcInstrumented = false
 let cachedConfig: DiagnosticsConfig | null = null
@@ -562,7 +562,7 @@ async function runExport(request: DiagnosticsExportRequest): Promise<Diagnostics
 
 export function registerDiagnosticsHandlers(ipcMain: IpcMain, db: Database, eventsDb: Database): void {
   settingsDb = db      // main DB — for config settings reads/writes
-  diagnosticsDb = eventsDb  // separate diagnostics DB — for event writes (not watched by watchDatabase)
+  diagnosticsDb = eventsDb  // separate diagnostics DB — writes to slayzone.dev.diagnostics.sqlite
   cachedConfig = null
 
   instrumentIpcMain(ipcMain)

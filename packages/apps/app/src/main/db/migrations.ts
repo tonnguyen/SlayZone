@@ -711,7 +711,7 @@ const migrations: Migration[] = [
   },
   {
     // diagnostics_events moved to slayzone.dev.diagnostics.sqlite (separate DB)
-    // to prevent watchDatabase feedback loop: IPC diagnostic writes → WAL change → tasks:changed → loop
+    // to prevent CLI REST notify → tasks:changed → IPC diagnostic write → REST notify → loop
     version: 41,
     up: (db) => {
       db.exec(`DROP TABLE IF EXISTS diagnostics_events`)
