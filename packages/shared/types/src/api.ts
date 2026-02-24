@@ -155,10 +155,12 @@ export interface ElectronAPI {
     deleteTag: (id: string) => Promise<boolean>
   }
   taskTags: {
+    getAll: () => Promise<Record<string, string[]>>
     getTagsForTask: (taskId: string) => Promise<Tag[]>
     setTagsForTask: (taskId: string, tagIds: string[]) => Promise<void>
   }
   taskDependencies: {
+    getAllBlockedTaskIds: () => Promise<string[]>
     getBlockers: (taskId: string) => Promise<Task[]>
     getBlocking: (taskId: string) => Promise<Task[]>
     addBlocker: (taskId: string, blockerTaskId: string) => Promise<void>
@@ -210,6 +212,7 @@ export interface ElectronAPI {
     onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
     onCloseCurrent: (callback: () => void) => () => void
     onCloseActiveTask: (callback: () => void) => () => void
+    dataReady: () => void
     restartForUpdate: () => Promise<void>
     checkForUpdates: () => Promise<void>
     cliStatus: () => Promise<{ installed: boolean }>

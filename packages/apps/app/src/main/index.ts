@@ -180,9 +180,26 @@ let linearSyncPoller: NodeJS.Timeout | null = null
 let mcpCleanup: (() => void) | null = null
 let pendingOAuthCallback: { code?: string; error?: string } | null = null
 let oauthCallbackServer: HttpServer | null = null
+let mainWindowReady = false
+let rendererDataReady = false
 const OAUTH_LOOPBACK_HOST = '127.0.0.1'
 const OAUTH_LOOPBACK_PORT = 3210
 const OAUTH_LOOPBACK_PATH = '/auth/callback'
+
+function tryShowMainWindow(): void {
+  if (!mainWindowReady || !rendererDataReady) return
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    const bounds = splashWindow.getBounds()
+    mainWindow?.setBounds(bounds)
+    mainWindow?.show()
+    closeSplash()
+  } else {
+    if (!isPlaywright) mainWindow?.show()
+  }
+  if (pendingOAuthCallback) {
+    mainWindow?.webContents.send('auth:oauth-callback', pendingOAuthCallback)
+  }
+}
 
 interface InlineDevToolsBounds {
   x: number
@@ -483,7 +500,6 @@ function createSplashWindow(): void {
     resizable: false,
     center: true,
     skipTaskbar: true,
-    alwaysOnTop: true,
     show: false,
     backgroundColor: '#0a0a0a',
     webPreferences: {
@@ -511,6 +527,13 @@ function createSplashWindow(): void {
 }
 
 function createMainWindow(): void {
+  mainWindowReady = false
+  rendererDataReady = false
+  setTimeout(() => {
+    if (rendererDataReady) return
+    rendererDataReady = true
+    tryShowMainWindow()
+  }, 5000)
   mainWindow = new BrowserWindow({
     width: DEFAULT_WINDOW_WIDTH,
     height: DEFAULT_WINDOW_HEIGHT,
@@ -532,22 +555,8 @@ function createMainWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     if (mainWindow) startIdleChecker(mainWindow)
-
-    // If splash is showing, wait for animation to finish before transitioning
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      // Position main window where splash is
-      const bounds = splashWindow.getBounds()
-      mainWindow?.setBounds(bounds)
-      mainWindow?.show()
-      closeSplash()
-    } else {
-      // No splash (Playwright mode) — show directly
-      if (!isPlaywright) mainWindow?.show()
-    }
-
-    if (pendingOAuthCallback) {
-      mainWindow?.webContents.send('auth:oauth-callback', pendingOAuthCallback)
-    }
+    mainWindowReady = true
+    tryShowMainWindow()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -983,7 +992,12 @@ app.whenReady().then(async () => {
     })
   })
 
-  // App version
+  ipcMain.on('app:data-ready', () => {
+    if (rendererDataReady) return
+    rendererDataReady = true
+    tryShowMainWindow()
+  })
+
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:restart-for-update', () => restartForUpdate())
   ipcMain.handle('app:check-for-updates', () => checkForUpdates())

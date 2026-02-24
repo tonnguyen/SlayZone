@@ -46,10 +46,12 @@ const api: ElectronAPI = {
     deleteTag: (id) => ipcRenderer.invoke('db:tags:delete', id)
   },
   taskTags: {
+    getAll: () => ipcRenderer.invoke('db:taskTags:getAll'),
     getTagsForTask: (taskId) => ipcRenderer.invoke('db:taskTags:getForTask', taskId),
     setTagsForTask: (taskId, tagIds) => ipcRenderer.invoke('db:taskTags:setForTask', taskId, tagIds)
   },
   taskDependencies: {
+    getAllBlockedTaskIds: () => ipcRenderer.invoke('db:taskDependencies:getAllBlockedTaskIds'),
     getBlockers: (taskId) => ipcRenderer.invoke('db:taskDependencies:getBlockers', taskId),
     getBlocking: (taskId) => ipcRenderer.invoke('db:taskDependencies:getBlocking', taskId),
     addBlocker: (taskId, blockerTaskId) =>
@@ -148,6 +150,7 @@ const api: ElectronAPI = {
       ipcRenderer.on('app:update-status', handler)
       return () => ipcRenderer.removeListener('app:update-status', handler)
     },
+    dataReady: () => ipcRenderer.send('app:data-ready'),
     restartForUpdate: () => ipcRenderer.invoke('app:restart-for-update'),
     checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
     cliStatus: () => ipcRenderer.invoke('app:cli-status'),

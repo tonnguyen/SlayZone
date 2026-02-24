@@ -46,6 +46,7 @@ export function useTasksData(): UseTasksDataReturn {
   useEffect(() => {
     let inFlight = false
     let pending = false
+    let firstLoad = true
 
     const loadData = () => {
       if (inFlight) { pending = true; return }
@@ -54,14 +55,20 @@ export function useTasksData(): UseTasksDataReturn {
       Promise.all([
         window.api.db.getTasks(),
         window.api.db.getProjects(),
-        window.api.tags.getTags()
-      ]).then(([t, p, tg]) => {
+        window.api.tags.getTags(),
+        window.api.taskTags.getAll(),
+        window.api.taskDependencies.getAllBlockedTaskIds()
+      ]).then(([t, p, tg, allTagMap, allBlockedIds]) => {
         setTasks(t as Task[])
         setProjects(p as Project[])
         setTags(tg as Tag[])
-        loadTaskTags(t as Task[])
-        loadBlockedTaskIds(t as Task[])
+        setTaskTags(new Map(Object.entries(allTagMap as Record<string, string[]>)))
+        setBlockedTaskIds(new Set(allBlockedIds as string[]))
       }).finally(() => {
+        if (firstLoad) {
+          firstLoad = false
+          window.api.app.dataReady()
+        }
         inFlight = false
         if (pending) loadData()
       })
@@ -74,32 +81,6 @@ export function useTasksData(): UseTasksDataReturn {
       cleanup?.()
     }
   }, [])
-
-  // Load task tags mapping
-  const loadTaskTags = async (taskList: Task[]): Promise<void> => {
-    const mapping = new Map<string, string[]>()
-    await Promise.all(
-      taskList.map(async (task) => {
-        const taskTagList = await window.api.taskTags.getTagsForTask(task.id)
-        mapping.set(task.id, taskTagList.map((t) => t.id))
-      })
-    )
-    setTaskTags(mapping)
-  }
-
-  // Load blocked task IDs
-  const loadBlockedTaskIds = async (taskList: Task[]): Promise<void> => {
-    const blocked = new Set<string>()
-    await Promise.all(
-      taskList.map(async (task) => {
-        const blockers = await window.api.taskDependencies.getBlockers(task.id)
-        if (blockers.length > 0) {
-          blocked.add(task.id)
-        }
-      })
-    )
-    setBlockedTaskIds(blocked)
-  }
 
   // Update a single task in state
   const updateTask = useCallback((task: Task | null | undefined) => {

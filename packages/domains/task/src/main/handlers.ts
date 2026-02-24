@@ -464,6 +464,13 @@ export function registerTaskHandlers(ipcMain: IpcMain, db: Database): void {
     return parseTasks(rows)
   })
 
+  ipcMain.handle('db:taskDependencies:getAllBlockedTaskIds', () => {
+    const rows = db
+      .prepare('SELECT DISTINCT blocks_task_id FROM task_dependencies')
+      .all() as { blocks_task_id: string }[]
+    return rows.map((r) => r.blocks_task_id)
+  })
+
   ipcMain.handle('db:taskDependencies:getBlocking', (_, taskId: string) => {
     const rows = db
       .prepare(

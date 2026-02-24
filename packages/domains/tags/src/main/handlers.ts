@@ -56,6 +56,16 @@ export function registerTagHandlers(ipcMain: IpcMain, db: Database): void {
       .all(taskId)
   })
 
+  ipcMain.handle('db:taskTags:getAll', () => {
+    const rows = db.prepare('SELECT task_id, tag_id FROM task_tags').all() as { task_id: string; tag_id: string }[]
+    const map: Record<string, string[]> = {}
+    for (const row of rows) {
+      if (!map[row.task_id]) map[row.task_id] = []
+      map[row.task_id].push(row.tag_id)
+    }
+    return map
+  })
+
   ipcMain.handle('db:taskTags:setForTask', (_, taskId: string, tagIds: string[]) => {
     const deleteStmt = db.prepare('DELETE FROM task_tags WHERE task_id = ?')
     const insertStmt = db.prepare('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)')
