@@ -9,6 +9,7 @@ interface PanelToggleItem {
   label: string
   active: boolean
   shortcut?: string
+  disabled?: boolean
 }
 
 interface PanelToggleProps {
@@ -25,11 +26,16 @@ export function PanelToggle({ panels, onChange, className }: PanelToggleProps) {
           <TooltipTrigger asChild>
             <button
               onClick={() => onChange(panel.id, !panel.active)}
+              disabled={panel.disabled}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                panel.active
-                  ? 'bg-muted text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                panel.disabled
+                  ? panel.active
+                    ? 'bg-muted text-foreground/40 shadow-sm cursor-not-allowed'
+                    : 'text-muted-foreground/40 cursor-not-allowed'
+                  : panel.active
+                    ? 'bg-muted text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <panel.icon className="size-3.5" />
@@ -45,7 +51,9 @@ export function PanelToggle({ panels, onChange, className }: PanelToggleProps) {
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {panel.active ? 'Hide' : 'Show'} {panel.label} panel{panel.shortcut ? ` (${panel.shortcut})` : ''}
+            {panel.disabled
+              ? `Select a project to use ${panel.label}`
+              : `${panel.active ? 'Hide' : 'Show'} ${panel.label} panel${panel.shortcut ? ` (${panel.shortcut})` : ''}`}
           </TooltipContent>
         </Tooltip>
       ))}
