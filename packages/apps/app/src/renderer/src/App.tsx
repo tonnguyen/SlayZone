@@ -14,7 +14,7 @@ import {
   type Column
 } from '@slayzone/tasks'
 import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle, usePanelSizes } from '@slayzone/task'
-import { UnifiedGitPanel } from '@slayzone/worktrees'
+import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
 import { FileEditorView } from '@slayzone/file-editor/client'
 import { CreateProjectDialog, ProjectSettingsDialog, DeleteProjectDialog } from '@slayzone/projects'
 import { UserSettingsDialog, useViewState } from '@slayzone/settings'
@@ -112,6 +112,8 @@ function App(): React.JSX.Element {
   const [explodeMode, setExplodeMode] = useState(false)
   const [panelSizes, updatePanelSizes, resetPanelSize] = usePanelSizes()
   const [homePanelVisibility, setHomePanelVisibility] = useState<Record<HomePanel, boolean>>({ kanban: true, git: false, editor: false, processes: false })
+  const [homeGitDefaultTab, setHomeGitDefaultTab] = useState<GitTabId>('general')
+  const homeGitPanelRef = useRef<UnifiedGitPanelHandle>(null)
   const [homeContainerWidth, setHomeContainerWidth] = useState(0)
   const homeRoRef = useRef<ResizeObserver | null>(null)
   const homeContainerRef = useCallback((el: HTMLDivElement | null) => {
@@ -687,6 +689,49 @@ function App(): React.JSX.Element {
     else if (zenMode) setZenMode(false)
   }, { enableOnFormTags: true })
 
+  // Home tab panel shortcuts: G=git, E=editor, O=processes (mirrors task shortcuts)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (tabs[activeTabIndex]?.type !== 'home') return
+      if (!selectedProjectId) return
+      if (!e.metaKey) return
+      if ((e.target as HTMLElement)?.closest?.('.cm-editor')) return
+      if (e.shiftKey) {
+        if (e.key.toLowerCase() === 'g') {
+          e.preventDefault()
+          if (!homePanelVisibility.git) {
+            setHomeGitDefaultTab('changes')
+            setHomePanelVisibility(prev => ({ ...prev, git: true }))
+          } else if (homeGitPanelRef.current?.getActiveTab() === 'changes') {
+            setHomePanelVisibility(prev => ({ ...prev, git: false }))
+          } else {
+            homeGitPanelRef.current?.switchToTab('changes')
+          }
+        }
+        return
+      }
+      if (e.key === 'g') {
+        e.preventDefault()
+        if (!homePanelVisibility.git) {
+          setHomeGitDefaultTab('general')
+          setHomePanelVisibility(prev => ({ ...prev, git: true }))
+        } else if (homeGitPanelRef.current?.getActiveTab() === 'general') {
+          setHomePanelVisibility(prev => ({ ...prev, git: false }))
+        } else {
+          homeGitPanelRef.current?.switchToTab('general')
+        }
+      } else if (e.key === 'e') {
+        e.preventDefault()
+        setHomePanelVisibility(prev => ({ ...prev, editor: !prev.editor }))
+      } else if (e.key === 'o' && import.meta.env.DEV) {
+        e.preventDefault()
+        setHomePanelVisibility(prev => ({ ...prev, processes: !prev.processes }))
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [tabs, activeTabIndex, selectedProjectId, homePanelVisibility])
+
   const handleCompleteTaskConfirm = async (): Promise<void> => {
     const activeTab = tabs[activeTabIndex]
     if (activeTab.type !== 'task') return
@@ -932,24 +977,32 @@ function App(): React.JSX.Element {
                             {explodeMode ? 'Exit explode mode' : 'Explode mode'} (⌘⇧E)
                           </TooltipContent>
                         </Tooltip>
-                        {selectedProjectId && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={handleCreateScratchTerminal}
-                                className="h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <TerminalSquare className="size-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="text-xs max-w-64">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={selectedProjectId ? handleCreateScratchTerminal : undefined}
+                              disabled={!selectedProjectId}
+                              className={cn(
+                                "h-7 w-7 flex items-center justify-center transition-colors",
+                                selectedProjectId
+                                  ? "text-muted-foreground hover:text-foreground"
+                                  : "text-muted-foreground/40 cursor-not-allowed"
+                              )}
+                            >
+                              <TerminalSquare className="size-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="text-xs max-w-64">
+                            {selectedProjectId ? (
                               <div className="space-y-1">
                                 <p>New temporary task (⌘⇧N)</p>
                                 <p className="text-muted-foreground">Temporary tasks auto-delete on close.</p>
                               </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                            ) : (
+                              <p>Select a project first</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
                         <DesktopNotificationToggle
                           enabled={notificationState.desktopEnabled}
                           onToggle={() => {
@@ -1001,20 +1054,21 @@ function App(): React.JSX.Element {
                           <header className="mb-4 window-no-drag space-y-2">
                             <div className="flex items-center gap-4">
                               <div className="flex-shrink-0">
-                                {selectedProjectId ? (
-                                  <textarea
-                                    ref={projectNameInputRef}
-                                    value={projectNameValue}
-                                    onChange={(e) => setProjectNameValue(e.target.value)}
-                                    onBlur={handleProjectNameSave}
-                                    onKeyDown={handleProjectNameKeyDown}
-                                    className="text-2xl font-bold bg-transparent border-none outline-none resize-none cursor-text"
-                                    style={{ caretColor: 'currentColor', fieldSizing: 'content' } as React.CSSProperties}
-                                    rows={1}
-                                  />
-                                ) : (
-                                  <h1 className="text-2xl font-bold">All Tasks</h1>
-                                )}
+                                <textarea
+                                  ref={selectedProjectId ? projectNameInputRef : undefined}
+                                  value={selectedProjectId ? projectNameValue : 'All Tasks'}
+                                  readOnly={!selectedProjectId}
+                                  tabIndex={selectedProjectId ? undefined : -1}
+                                  onChange={selectedProjectId ? (e) => setProjectNameValue(e.target.value) : undefined}
+                                  onBlur={selectedProjectId ? handleProjectNameSave : undefined}
+                                  onKeyDown={selectedProjectId ? handleProjectNameKeyDown : undefined}
+                                  className={cn(
+                                    'text-2xl font-bold bg-transparent border-none outline-none resize-none p-0',
+                                    selectedProjectId ? 'cursor-text' : 'cursor-default select-none'
+                                  )}
+                                  style={{ caretColor: 'currentColor', fieldSizing: 'content' } as React.CSSProperties}
+                                  rows={1}
+                                />
                               </div>
                               {projects.length > 0 && !(projectPathMissing && selectedProjectId) && (
                                 <FilterBar filter={filter} onChange={setFilter} tags={tags} />
@@ -1022,12 +1076,10 @@ function App(): React.JSX.Element {
                               {projects.length > 0 && (
                                 <PanelToggle
                                   panels={[
-                                    { id: 'kanban', icon: Kanban, label: 'Kanban', active: homePanelVisibility.kanban },
-                                    ...(selectedProjectId ? [
-                                      { id: 'git', icon: GitBranch, label: 'Git', active: homePanelVisibility.git },
-                                      { id: 'editor', icon: FileCode, label: 'Editor', active: homePanelVisibility.editor },
-                                      { id: 'processes', icon: Cpu, label: 'Processes', active: homePanelVisibility.processes },
-                                    ] : []),
+                                    { id: 'kanban', icon: Kanban, label: 'Kanban', active: homePanelVisibility.kanban, disabled: !selectedProjectId },
+                                    { id: 'git', icon: GitBranch, label: 'Git', shortcut: '⌘G', active: homePanelVisibility.git, disabled: !selectedProjectId },
+                                    { id: 'editor', icon: FileCode, label: 'Editor', shortcut: '⌘E', active: homePanelVisibility.editor, disabled: !selectedProjectId },
+                                    ...(import.meta.env.DEV ? [{ id: 'processes', icon: Cpu, label: 'Processes', shortcut: '⌘O', active: homePanelVisibility.processes, disabled: !selectedProjectId }] : [{ id: 'processes', icon: Cpu, label: 'Processes', active: homePanelVisibility.processes, disabled: !selectedProjectId }]),
                                   ]}
                                   onChange={(id, active) => setHomePanelVisibility(prev => ({ ...prev, [id]: active }))}
                                 />
@@ -1089,7 +1141,7 @@ function App(): React.JSX.Element {
                                           onArchiveAllTasks={archiveTasks}
                                         />
                                       )}
-                                      {id === 'git' && <UnifiedGitPanel projectPath={projectPath} visible={true} />}
+                                      {id === 'git' && <UnifiedGitPanel ref={homeGitPanelRef} projectPath={projectPath} visible={true} defaultTab={homeGitDefaultTab} />}
                                       {id === 'editor' && <FileEditorView projectPath={projectPath ?? ''} />}
                                       {id === 'processes' && <ProcessesPanel taskId={null} cwd={projectPath} />}
                                     </div>
