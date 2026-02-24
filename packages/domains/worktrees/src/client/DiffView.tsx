@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { FileImage, FileSlash } from 'lucide-react'
 import { cn } from '@slayzone/ui'
 import type { FileDiff, DiffLine as DiffLineType, InlineHighlight } from './parse-diff'
 
@@ -68,16 +69,28 @@ const DiffLineCmp = memo(function DiffLineCmp({ line }: { line: DiffLineType }) 
 export const DiffView = memo(function DiffView({ diff }: DiffViewProps) {
   if (diff.isBinary) {
     return (
-      <div className="px-3 py-6 text-xs text-muted-foreground text-center">
-        Binary file changed
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <FileImage className="size-10 opacity-30" />
+          <div className="text-center">
+            <p className="text-base font-medium text-foreground/60">Binary file</p>
+            <p className="text-sm mt-0.5 opacity-60">Diff not available for binary files</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   if (diff.hunks.length === 0) {
     return (
-      <div className="px-3 py-6 text-xs text-muted-foreground text-center">
-        No diff content
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <FileSlash className="size-10 opacity-30" />
+          <div className="text-center">
+            <p className="text-base font-medium text-foreground/60">No changes</p>
+            <p className="text-sm mt-0.5 opacity-60">Metadata or mode change only</p>
+          </div>
+        </div>
       </div>
     )
   }

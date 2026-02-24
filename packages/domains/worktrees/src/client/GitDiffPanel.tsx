@@ -1,9 +1,10 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Plus, Minus, Undo2, ChevronRight, GitMerge } from 'lucide-react'
+import { Plus, Minus, Undo2, ChevronRight, GitMerge, CheckCircle2, FileDiff } from 'lucide-react'
 import { Button, FileTree, buildFileTree, flattenFileTree, fileTreeIndent, cn } from '@slayzone/ui'
 import type { Task, MergeState } from '@slayzone/task/shared'
 import type { GitDiffSnapshot } from '../shared/types'
-import { parseUnifiedDiff, type FileDiff } from './parse-diff'
+import { parseUnifiedDiff } from './parse-diff'
+import type { FileDiff as FileDiffType } from './parse-diff'
 import { DiffView } from './DiffView'
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -41,7 +42,7 @@ interface FileEntry {
   source: 'unstaged' | 'staged'
 }
 
-function deriveStatus(path: string, diffs: FileDiff[]): 'M' | 'A' | 'D' {
+function deriveStatus(path: string, diffs: FileDiffType[]): 'M' | 'A' | 'D' {
   const diff = diffs.find((d) => d.path === path)
   if (diff?.isNew) return 'A'
   if (diff?.isDeleted) return 'D'
@@ -189,7 +190,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   const [error, setError] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<{ path: string; source: 'unstaged' | 'staged' } | null>(null)
   const [fileListWidth, setFileListWidth] = useState(320)
-  const [untrackedDiffs, setUntrackedDiffs] = useState<Map<string, FileDiff>>(new Map())
+  const [untrackedDiffs, setUntrackedDiffs] = useState<Map<string, FileDiffType>>(new Map())
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [commitMessage, setCommitMessage] = useState('')
   const [committing, setCommitting] = useState(false)
@@ -320,13 +321,13 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   }, [stagedTree, unstagedTree])
 
   const allDiffsMap = useMemo(() => {
-    const map = new Map<string, FileDiff>()
+    const map = new Map<string, FileDiffType>()
     for (const d of unstagedFileDiffs) map.set(`u:${d.path}`, d)
     for (const d of stagedFileDiffs) map.set(`s:${d.path}`, d)
     return map
   }, [unstagedFileDiffs, stagedFileDiffs])
 
-  const getDiffForEntry = useCallback((entry: FileEntry): FileDiff | undefined => {
+  const getDiffForEntry = useCallback((entry: FileEntry): FileDiffType | undefined => {
     const key = entry.source === 'staged' ? `s:${entry.path}` : `u:${entry.path}`
     return allDiffsMap.get(key) ?? (entry.status === '?' ? untrackedDiffs.get(entry.path) : undefined)
   }, [allDiffsMap, untrackedDiffs])
@@ -537,7 +538,13 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
 
       {targetPath && !error && !loading && snapshot && !hasAnyChanges && (
         <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-xs text-muted-foreground">No local changes.</p>
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <CheckCircle2 className="size-10 opacity-30" />
+            <div className="text-center">
+              <p className="text-base font-medium text-foreground/60">Working tree clean</p>
+              <p className="text-sm mt-0.5 opacity-60">No uncommitted changes</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -677,7 +684,13 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
           <div className="flex-1 min-w-0 min-h-0 overflow-auto">
             {!selectedFile && (
               <div className="h-full flex items-center justify-center p-6">
-                <p className="text-xs text-muted-foreground">Select a file to view diff</p>
+                <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                  <FileDiff className="size-10 opacity-30" />
+                  <div className="text-center">
+                    <p className="text-base font-medium text-foreground/60">No file selected</p>
+                    <p className="text-sm mt-0.5 opacity-60">Pick a file from the list to view its diff</p>
+                  </div>
+                </div>
               </div>
             )}
             {selectedFile && !selectedDiff && (
