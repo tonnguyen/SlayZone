@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { GitBranch, ChevronDown, Check, Loader2, Plus, GitCommitHorizontal, Copy } from 'lucide-react'
+import { GitBranch, ChevronDown, Check, Loader2, Plus, GitCommitHorizontal, Copy, FolderGit2 } from 'lucide-react'
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, cn, toast } from '@slayzone/ui'
 import type { CommitInfo, StatusSummary } from '../shared/types'
 
@@ -16,6 +16,8 @@ export function ProjectGeneralTab({ projectPath, visible, onSwitchToDiff }: Proj
   const [recentCommits, setRecentCommits] = useState<CommitInfo[]>([])
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const [initializing, setInitializing] = useState(false)
 
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false)
   const [branches, setBranches] = useState<string[]>([])
@@ -91,6 +93,18 @@ export function ProjectGeneralTab({ projectPath, visible, onSwitchToDiff }: Proj
     }
   }
 
+  const handleInitGit = async () => {
+    if (!projectPath) return
+    setInitializing(true)
+    try {
+      await window.api.git.init(projectPath)
+      setIsGitRepo(true)
+      const branch = await window.api.git.getCurrentBranch(projectPath)
+      setCurrentBranch(branch)
+    } catch { /* ignore */ }
+    finally { setInitializing(false) }
+  }
+
   const handleCopyHash = useCallback((hash: string) => {
     navigator.clipboard.writeText(hash)
     setCopiedHash(hash)
@@ -108,7 +122,17 @@ export function ProjectGeneralTab({ projectPath, visible, onSwitchToDiff }: Proj
   }
 
   if (isGitRepo === false) {
-    return <div className="p-4 text-xs text-muted-foreground">Not a git repository</div>
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <div className="rounded-full bg-muted p-4">
+          <FolderGit2 className="size-8 text-muted-foreground" />
+        </div>
+        <p className="text-sm font-medium">Not a git repository</p>
+        <Button variant="default" size="sm" onClick={handleInitGit} disabled={initializing} className="gap-2">
+          {initializing ? <><Loader2 className="size-3.5 animate-spin" />Initializing...</> : 'Initialize Git'}
+        </Button>
+      </div>
+    )
   }
 
   const totalChanges = statusSummary ? statusSummary.staged + statusSummary.unstaged + statusSummary.untracked : 0
