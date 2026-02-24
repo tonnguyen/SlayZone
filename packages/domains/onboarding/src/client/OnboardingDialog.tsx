@@ -4,9 +4,9 @@ import { Dialog, DialogContent } from '@slayzone/ui'
 import { Button } from '@slayzone/ui'
 import { cn } from '@slayzone/ui'
 import { useTelemetry } from '@slayzone/telemetry/client'
-import { Check, BarChart3, Sparkles, SquareTerminal, ChevronLeft } from 'lucide-react'
+import { Check, BarChart3, Sparkles, SquareTerminal, ChevronLeft, TriangleAlert } from 'lucide-react'
 
-const STEP_COUNT = 4
+const STEP_COUNT = 5
 
 const PROVIDERS = [
   { mode: 'claude-code', label: 'Claude Code' },
@@ -105,7 +105,7 @@ export function OnboardingDialog({
   }, [])
 
   const handleNext = (): void => {
-    if (step === 1) {
+    if (step === 2) {
       window.api.settings.set('default_terminal_mode', selectedProvider)
     }
     if (step < STEP_COUNT - 1) {
@@ -159,7 +159,7 @@ export function OnboardingDialog({
           onAnimationComplete={handleFadeOutComplete}
         >
           {/* Top bar: back + skip — hidden on success screen */}
-          {step < 3 && (
+          {step < 4 && (
             <div className="flex items-center justify-between px-4 pt-4">
               <div className="w-9">
                 {step > 0 && (
@@ -217,8 +217,29 @@ export function OnboardingDialog({
                   </div>
                 )}
 
-                {/* Step 1: Provider selection */}
+                {/* Step 1: Disclaimer */}
                 {step === 1 && (
+                  <div className="text-center">
+                    <motion.div
+                      className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-500/10"
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 20, delay: 0.1 }}
+                    >
+                      <TriangleAlert className="h-7 w-7 text-yellow-500" />
+                    </motion.div>
+                    <h2 className="text-2xl font-semibold tracking-tight mb-2">Your AI, your responsibility</h2>
+                    <p className="text-muted-foreground leading-relaxed mb-8">
+                      You decide when and how AI runs. We take no responsibility for anything it does or data it handles.
+                    </p>
+                    <Button onClick={handleNext} className="w-full">
+                      I understand
+                    </Button>
+                  </div>
+                )}
+
+                {/* Step 2: Provider selection */}
+                {step === 2 && (
                   <div>
                     <div className="text-center mb-6">
                       <motion.div
@@ -265,13 +286,13 @@ export function OnboardingDialog({
                   </div>
                 )}
 
-                {/* Step 3: Success */}
-                {step === 3 && (
+                {/* Step 4: Success */}
+                {step === 4 && (
                   <SuccessStep onComplete={startClosing} />
                 )}
 
-                {/* Step 2: Analytics */}
-                {step === 2 && (
+                {/* Step 3: Analytics */}
+                {step === 3 && (
                   <div>
                     <div className="text-center mb-6">
                       <motion.div
@@ -311,7 +332,7 @@ export function OnboardingDialog({
                       To understand how often people come back, we can store a <strong className="text-foreground">random anonymous ID</strong> locally on your device. No personal info, no IP recording.
                     </p>
                     <p className="text-sm text-muted-foreground text-left mb-6">
-                      Allow this?
+                      All good?
                     </p>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -322,10 +343,10 @@ export function OnboardingDialog({
                           setTier('anonymous')
                           window.api.settings.set('onboarding_completed', 'true')
                           setDirection(1)
-                          setStep(3)
+                          setStep(4)
                         }}
                       >
-                        No thanks
+                        No
                       </Button>
                       <Button
                         className="h-11"
@@ -333,10 +354,10 @@ export function OnboardingDialog({
                           setTier('opted_in')
                           window.api.settings.set('onboarding_completed', 'true')
                           setDirection(1)
-                          setStep(3)
+                          setStep(4)
                         }}
                       >
-                        Sure
+                        Yes
                       </Button>
                     </div>
                   </div>
@@ -345,11 +366,11 @@ export function OnboardingDialog({
             </AnimatePresence>
             </motion.div>
 
-            {/* Step indicators + actions — hidden on success screen */}
-            {step < 3 && (
+            {/* Step indicators + actions — hidden on success screen and disclaimer (has own button) */}
+            {step < 4 && (
               <div className="mt-8">
-                {/* Continue button — not on analytics step (has its own buttons) */}
-                {step < 2 && (
+                {/* Continue button — not on disclaimer step (has own button) or analytics step */}
+                {step !== 1 && step < 3 && (
                   <Button onClick={handleNext} className="w-full">
                     Continue
                   </Button>
