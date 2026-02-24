@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { FileImage, FileSlash } from 'lucide-react'
+import { FileImage, FileMinus } from 'lucide-react'
 import { cn } from '@slayzone/ui'
 import type { FileDiff, DiffLine as DiffLineType, InlineHighlight } from './parse-diff'
 
@@ -85,7 +85,7 @@ export const DiffView = memo(function DiffView({ diff }: DiffViewProps) {
     return (
       <div className="h-full flex items-center justify-center p-6">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <FileSlash className="size-10 opacity-30" />
+          <FileMinus className="size-10 opacity-30" />
           <div className="text-center">
             <p className="text-base font-medium text-foreground/60">No changes</p>
             <p className="text-sm mt-0.5 opacity-60">Metadata or mode change only</p>
