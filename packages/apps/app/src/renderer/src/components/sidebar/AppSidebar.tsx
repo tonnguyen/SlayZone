@@ -167,7 +167,7 @@ export function AppSidebar({
                   <HelpCircle className="size-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">Tutorial</TooltipContent>
+              <TooltipContent side="right">Onboarding</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
