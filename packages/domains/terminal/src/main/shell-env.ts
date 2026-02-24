@@ -87,12 +87,18 @@ export function getShellStartupArgs(shellPath: string): string[] {
 }
 
 export function quoteForShell(arg: string): string {
+  if (platform() === 'win32') {
+    if (arg.length === 0) return '""'
+    if (!/[\s"&|<>^%!]/.test(arg)) return arg
+    return `"${arg.replace(/"/g, '""')}"`
+  }
   if (arg.length === 0) return "''"
   return `'${arg.replace(/'/g, `'"'"'`)}'`
 }
 
 export function buildExecCommand(binary: string, args: string[] = []): string {
   const escaped = [binary, ...args].map(quoteForShell).join(' ')
+  if (platform() === 'win32') return escaped
   return `exec ${escaped}`
 }
 
