@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Home, Trophy, X } from 'lucide-react'
-import { cn, Tooltip, TooltipTrigger, TooltipContent, getTerminalStateStyle } from '@slayzone/ui'
+import { cn, Tooltip, TooltipTrigger, TooltipContent, getTerminalStateStyle, projectColorBg } from '@slayzone/ui'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import {
   DndContext,
@@ -28,6 +28,7 @@ interface TabBarProps {
   tabs: Tab[]
   activeIndex: number
   terminalStates?: Map<string, TerminalState>
+  projectColors?: Map<string, string>
   onTabClick: (index: number) => void
   onTabClose: (index: number) => void
   onTabReorder: (fromIndex: number, toIndex: number) => void
@@ -43,26 +44,29 @@ interface TabContentProps {
   terminalState?: TerminalState
   isSubTask?: boolean
   isTemporary?: boolean
+  projectColor?: string
 }
 
 function getStateInfo(state: TerminalState | undefined) {
   return getTerminalStateStyle(state)
 }
 
-function TabContent({ title, isActive, isDragging, onClose, terminalState, isSubTask, isTemporary }: TabContentProps): React.JSX.Element {
+function TabContent({ title, isActive, isDragging, onClose, terminalState, isSubTask, isTemporary, projectColor }: TabContentProps): React.JSX.Element {
   const stateInfo = getStateInfo(terminalState)
 
   return (
     <div
       className={cn(
-        'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
-        'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
-        isActive ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600' : 'text-neutral-500 dark:text-neutral-400',
+        'group relative flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
+        !projectColor && 'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
+        isActive ? 'border border-neutral-300 dark:border-neutral-600' : 'text-neutral-500 dark:text-neutral-400',
         isTemporary && 'border border-dashed border-neutral-400 dark:border-neutral-500',
         'max-w-[300px]',
         isDragging && 'shadow-lg'
       )}
+      style={{ backgroundColor: projectColorBg(projectColor, isActive ? 'tabActive' : 'tab') }}
     >
+      {projectColor && <div className="pointer-events-none absolute inset-0 rounded-md opacity-0 transition-opacity group-hover:opacity-100 bg-black/10 dark:bg-white/10" />}
       {stateInfo && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -97,6 +101,7 @@ interface SortableTabProps {
   onTabClick: (index: number) => void
   onTabClose: (index: number) => void
   terminalState?: TerminalState
+  projectColor?: string
 }
 
 function SortableTab({
@@ -105,7 +110,8 @@ function SortableTab({
   isActive,
   onTabClick,
   onTabClose,
-  terminalState
+  terminalState,
+  projectColor
 }: SortableTabProps): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.taskId
@@ -139,6 +145,7 @@ function SortableTab({
         terminalState={terminalState}
         isSubTask={tab.isSubTask}
         isTemporary={tab.isTemporary}
+        projectColor={projectColor}
       />
     </div>
   )
@@ -148,6 +155,7 @@ export function TabBar({
   tabs,
   activeIndex,
   terminalStates,
+  projectColors,
   onTabClick,
   onTabClose,
   onTabReorder,
@@ -245,6 +253,7 @@ export function TabBar({
                   onTabClick={onTabClick}
                   onTabClose={onTabClose}
                   terminalState={terminalStates?.get(tab.taskId)}
+                  projectColor={projectColors?.get(tab.taskId)}
                 />
               )
             })}
@@ -257,6 +266,7 @@ export function TabBar({
                 isDragging
                 terminalState={terminalStates?.get(activeTab.taskId)}
                 isTemporary={activeTab.isTemporary}
+                projectColor={projectColors?.get(activeTab.taskId)}
               />
             )}
           </DragOverlay>

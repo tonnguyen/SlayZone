@@ -57,7 +57,7 @@ import { RichTextEditor } from '@slayzone/editor'
 import { markSkipCache, usePty } from '@slayzone/terminal'
 import { TerminalContainer, type TerminalContainerHandle } from '@slayzone/task-terminals'
 import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
-import { cn, getTaskStatusStyle } from '@slayzone/ui'
+import { cn, getTaskStatusStyle, projectColorBg } from '@slayzone/ui'
 import { BrowserPanel, type BrowserPanelHandle } from '@slayzone/task-browser'
 import { FileEditorView, QuickOpenDialog, type FileEditorViewHandle } from '@slayzone/file-editor/client'
 import type { EditorOpenFilesState } from '@slayzone/file-editor/shared'
@@ -1336,7 +1336,7 @@ export function TaskDetailPage({
   const multipleVisiblePanels = visiblePanelCount > 1
 
   return (
-    <div id="task-detail" className={cn("h-full flex flex-col", compact ? "p-0" : "px-6 py-4 gap-4")}>
+    <div id="task-detail" className={cn("h-full flex flex-col", compact ? "p-0" : "px-6 py-4 gap-4")} style={{ backgroundColor: projectColorBg(project?.color) }}>
       {compact && (
         <div className="shrink-0 flex items-center gap-2 px-2 h-10 bg-surface-1 border-b border-border min-w-0">
           <span className="text-xs font-medium truncate flex-1">

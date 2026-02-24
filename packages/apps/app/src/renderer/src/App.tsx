@@ -40,7 +40,7 @@ import {
   toast,
   UpdateToast
 } from '@slayzone/ui'
-import { SidebarProvider, cn, PanelToggle } from '@slayzone/ui'
+import { SidebarProvider, cn, PanelToggle, projectColorBg } from '@slayzone/ui'
 import { AppSidebar } from '@/components/sidebar/AppSidebar'
 import { TabBar } from '@/components/tabs/TabBar'
 import { LeaderboardPage } from '@/components/leaderboard/LeaderboardPage'
@@ -203,6 +203,24 @@ function App(): React.JSX.Element {
     () => tabs.filter((t): t is { type: 'task'; taskId: string; title: string } => t.type === 'task').map((t) => t.taskId),
     [tabs]
   )
+
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  )
+
+  // Map of taskId → project color for tab tinting
+  const taskProjectColors = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const tab of tabs) {
+      if (tab.type !== 'task') continue
+      const task = tasks.find((t) => t.id === tab.taskId)
+      if (!task?.project_id) continue
+      const project = projects.find((p) => p.id === task.project_id)
+      if (project?.color) map.set(tab.taskId, project.color)
+    }
+    return map
+  }, [tabs, tasks, projects])
   const tabCycleOrder = useMemo(() => {
     const homeIndex = tabs.findIndex((tab) => tab.type === 'home')
     const taskIndexes = tabs
@@ -950,6 +968,7 @@ function App(): React.JSX.Element {
                     tabs={tabs}
                     activeIndex={activeTabIndex}
                     terminalStates={terminalStates}
+                    projectColors={taskProjectColors}
                     onTabClick={handleTabClick}
                     onTabClose={closeTab}
                     onTabReorder={reorderTabs}
@@ -1050,7 +1069,7 @@ function App(): React.JSX.Element {
                       }
                     >
                         {tab.type === 'home' ? (
-                        <div className="flex flex-col flex-1 p-6 pt-4 h-full">
+                        <div className="flex flex-col flex-1 p-6 pt-4 h-full" style={{ backgroundColor: projectColorBg(selectedProject?.color) }}>
                           <header className="mb-4 window-no-drag space-y-2">
                             <div className="flex items-center gap-4">
                               <div className="flex-shrink-0">
@@ -1117,7 +1136,7 @@ function App(): React.JSX.Element {
                                         onReset={() => resetPanelSize(HOME_PANEL_SIZE_KEY[id])}
                                       />
                                     )}
-                                    <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : id === 'kanban' ? 'p-3' : '')} style={{ width: w }}>
+                                    <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : cn('bg-background', id === 'kanban' ? 'p-3' : ''))} style={{ width: w }}>
                                       {id === 'kanban' && (
                                         <KanbanBoard
                                           tasks={displayTasks}
