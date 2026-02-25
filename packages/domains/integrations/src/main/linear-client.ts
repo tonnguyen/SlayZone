@@ -25,10 +25,12 @@ interface TeamsQuery {
   }
 }
 
-interface ProjectsQuery {
-  projects: {
-    nodes: Array<{ id: string; name: string; teams: { nodes: Array<{ id: string }> } | null }>
-  }
+interface TeamProjectsQuery {
+  team: {
+    projects: {
+      nodes: Array<{ id: string; name: string }>
+    }
+  } | null
 }
 
 interface WorkflowStatesQuery {
@@ -166,18 +168,19 @@ export async function listTeams(apiKey: string): Promise<LinearTeam[]> {
 }
 
 export async function listProjects(apiKey: string, teamId: string): Promise<LinearProject[]> {
-  const data = await requestLinear<ProjectsQuery>(
+  const data = await requestLinear<TeamProjectsQuery>(
     apiKey,
-    `query Projects($teamId: String!) {
-      projects(filter: { teams: { id: { eq: $teamId } } }) {
-        nodes { id name teams { nodes { id } } }
+    `query TeamProjects($teamId: String!) {
+      team(id: $teamId) {
+        projects {
+          nodes { id name }
+        }
       }
     }`,
     { teamId }
   )
-  return data.projects.nodes
-    .filter((p) => p.teams?.nodes?.some((t) => t.id === teamId))
-    .map((p) => ({ id: p.id, name: p.name, teamId }))
+  if (!data.team) return []
+  return data.team.projects.nodes.map((p) => ({ id: p.id, name: p.name, teamId }))
 }
 
 export async function listWorkflowStates(
