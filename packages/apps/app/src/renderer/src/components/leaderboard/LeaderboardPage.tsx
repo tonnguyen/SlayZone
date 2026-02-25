@@ -72,13 +72,24 @@ function hasResolvedGithubIdentity(viewer: ViewerProfile | null): boolean {
 }
 
 export function LeaderboardPage(): React.JSX.Element {
+  const auth = useLeaderboardAuth()
+  if (!auth.configured) {
+    return (
+      <div className="h-full overflow-hidden flex items-center justify-center text-sm text-muted-foreground">
+        Leaderboard unavailable (Convex not configured)
+      </div>
+    )
+  }
+  return <LeaderboardPageInner auth={auth} />
+}
+
+function LeaderboardPageInner({ auth }: { auth: ReturnType<typeof useLeaderboardAuth> }): React.JSX.Element {
   const [period, setPeriod] = useState<Period>('all-time')
   const [authBusy, setAuthBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [resolvedGithubLogin, setResolvedGithubLogin] = useState<string | null>(null)
   const [resolvedGithubAvatar, setResolvedGithubAvatar] = useState<string | null>(null)
   const [resolvedGithubUrl, setResolvedGithubUrl] = useState<string | null>(null)
-  const auth = useLeaderboardAuth()
   const syncViewerProfile = useMutation(api.leaderboard.syncViewerProfile)
   const syncDailyStats = useMutation(api.leaderboard.syncDailyStats)
   const forgetMeMutation = useMutation(api.leaderboard.forgetMe)

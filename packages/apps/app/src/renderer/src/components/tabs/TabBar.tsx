@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { Home, Trophy, X } from 'lucide-react'
 import { cn, Tooltip, TooltipTrigger, TooltipContent, getTerminalStateStyle, projectColorBg } from '@slayzone/ui'
 import type { TerminalState } from '@slayzone/terminal/shared'
+import { useQuery } from 'convex/react'
+import { api } from 'convex/_generated/api'
+import { useLeaderboardAuth } from '@/lib/convexAuth'
 import {
   DndContext,
   DragOverlay,
@@ -33,7 +36,6 @@ interface TabBarProps {
   onTabClose: (index: number) => void
   onTabReorder: (fromIndex: number, toIndex: number) => void
   rightContent?: React.ReactNode
-  leaderboardBestRank?: number | null
 }
 
 interface TabContentProps {
@@ -151,6 +153,35 @@ function SortableTab({
   )
 }
 
+/** Self-contained leaderboard tab button. Guards Convex hooks behind auth.configured check. */
+function LeaderboardTab({ isActive, onClick }: { isActive: boolean; onClick: () => void }): React.JSX.Element {
+  const auth = useLeaderboardAuth()
+  const bestRank = useQuery(
+    api.leaderboard.getMyBestRank,
+    auth.configured && auth.isAuthenticated ? {} : 'skip'
+  ) ?? null
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
+        'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
+        isActive
+          ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
+          : 'text-neutral-500 dark:text-neutral-400'
+      )}
+      onClick={onClick}
+    >
+      <Trophy className="h-4 w-4" />
+      {bestRank != null && (
+        <span className="text-[10px] font-semibold tabular-nums leading-none">
+          #{bestRank}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function TabBar({
   tabs,
   activeIndex,
@@ -159,8 +190,7 @@ export function TabBar({
   onTabClick,
   onTabClose,
   onTabReorder,
-  rightContent,
-  leaderboardBestRank
+  rightContent
 }: TabBarProps): React.JSX.Element {
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -199,25 +229,12 @@ export function TabBar({
     <div className="flex items-center h-11 pl-4 pr-2 gap-1 bg-surface-1">
       {/* Scrollable tabs area */}
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1 min-w-0">
-        {/* Leaderboard tab-like button */}
+        {/* Leaderboard tab — self-contained, guards its own Convex hooks */}
         {leaderboardIndex >= 0 && (
-          <div
-            className={cn(
-              'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
-              'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
-              activeIndex === leaderboardIndex
-                ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
-                : 'text-neutral-500 dark:text-neutral-400'
-            )}
+          <LeaderboardTab
+            isActive={activeIndex === leaderboardIndex}
             onClick={() => onTabClick(leaderboardIndex)}
-          >
-            <Trophy className="h-4 w-4" />
-            {leaderboardBestRank != null && (
-              <span className="text-[10px] font-semibold tabular-nums leading-none">
-                #{leaderboardBestRank}
-              </span>
-            )}
-          </div>
+          />
         )}
 
         {/* Home tab - not draggable */}
