@@ -973,8 +973,7 @@ function App(): React.JSX.Element {
         />
 
         <div id="right-column" className={`flex-1 flex flex-col min-w-0 bg-surface-1 pb-2 pr-2 ${zenMode ? 'pl-2' : ''}`}>
-              <div className={zenMode ? "window-drag-region bg-surface-1 pl-16" : "window-drag-region bg-surface-1"}>
-                <div className="window-no-drag">
+              <div className={zenMode ? "pl-16" : ""}>
                   <TabBar
                     tabs={tabs}
                     activeIndex={activeTabIndex}
@@ -1048,7 +1047,6 @@ function App(): React.JSX.Element {
                       </div>
                     }
                   />
-                </div>
               </div>
 
               <div id="content-wrapper" className="flex-1 min-h-0 flex">

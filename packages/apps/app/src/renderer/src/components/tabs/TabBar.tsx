@@ -130,6 +130,7 @@ function SortableTab({
     <div
       ref={setNodeRef}
       style={style}
+      className="window-no-drag"
       onClick={() => onTabClick(index)}
       onAuxClick={(e) => {
         if (e.button === 1) {
@@ -164,7 +165,7 @@ function LeaderboardTab({ isActive, onClick }: { isActive: boolean; onClick: () 
   return (
     <div
       className={cn(
-        'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
+        'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0 window-no-drag',
         'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
         isActive
           ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
@@ -226,7 +227,8 @@ export function TabBar({
   }
 
   return (
-    <div className="flex items-center h-11 pl-4 pr-2 gap-1 bg-surface-1">
+    {/* window-drag-region: all interactive children MUST have window-no-drag */}
+    <div className="flex items-center h-11 pl-4 pr-2 gap-1 bg-surface-1 window-drag-region">
       {/* Scrollable tabs area */}
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1 min-w-0">
         {/* Leaderboard tab — self-contained, guards its own Convex hooks */}
@@ -240,7 +242,7 @@ export function TabBar({
         {/* Home tab - not draggable */}
         <div
           className={cn(
-            'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0',
+            'flex items-center gap-1.5 h-7 px-3 rounded-md cursor-pointer transition-colors select-none flex-shrink-0 window-no-drag',
             'bg-neutral-100 dark:bg-neutral-800/50 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/50',
             activeIndex === homeIndex
               ? 'bg-neutral-200 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600'
@@ -292,7 +294,7 @@ export function TabBar({
 
       {/* Fixed right content */}
       {rightContent && (
-        <div className="flex items-center flex-shrink-0 self-center">{rightContent}</div>
+        <div className="flex items-center flex-shrink-0 self-center window-no-drag">{rightContent}</div>
       )}
     </div>
   )
