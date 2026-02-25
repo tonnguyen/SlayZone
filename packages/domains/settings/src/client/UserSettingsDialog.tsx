@@ -47,6 +47,10 @@ export function UserSettingsDialog({
   const [dbPath, setDbPath] = useState<string>('')
   const [worktreeBasePath, setWorktreeBasePath] = useState('')
   const [autoCreateWorktreeOnTaskCreate, setAutoCreateWorktreeOnTaskCreate] = useState(false)
+  const [projectColorTints, setProjectColorTints] = useState(true)
+  const [terminalFontSize, setTerminalFontSize] = useState('13')
+  const [editorFontSize, setEditorFontSize] = useState('13')
+  const [reduceMotion, setReduceMotion] = useState(false)
   const [devServerToastEnabled, setDevServerToastEnabled] = useState(true)
   const [devServerAutoOpenBrowser, setDevServerAutoOpenBrowser] = useState(false)
   const [mcpPort, setMcpPort] = useState('45678')
@@ -121,11 +125,15 @@ export function UserSettingsDialog({
         window.api.settings.get('default_terminal_mode'),
         ...providerFlagKeys.map(k => window.api.settings.get(k)),
       ])
-      const [devToast, devAutoOpen, mcpPortSetting, cliStatus] = await Promise.allSettled([
+      const [devToast, devAutoOpen, mcpPortSetting, cliStatus, colorTints, termFontSize, editorFontSizeVal, reduceMotionVal] = await Promise.allSettled([
         window.api.settings.get('dev_server_toast_enabled'),
         window.api.settings.get('dev_server_auto_open_browser'),
         window.api.settings.get('mcp_server_port'),
-        window.api.app.cliStatus()
+        window.api.app.cliStatus(),
+        window.api.settings.get('project_color_tints_enabled'),
+        window.api.settings.get('terminal_font_size'),
+        window.api.settings.get('editor_font_size'),
+        window.api.settings.get('reduce_motion'),
       ])
       if (isStale()) return
 
@@ -138,6 +146,10 @@ export function UserSettingsDialog({
       setAutoCreateWorktreeOnTaskCreate(
         autoCreateWorktree.status === 'fulfilled' ? autoCreateWorktree.value === '1' : false
       )
+      setProjectColorTints(colorTints.status === 'fulfilled' ? colorTints.value !== '0' : true)
+      setTerminalFontSize(termFontSize.status === 'fulfilled' && termFontSize.value ? termFontSize.value : '13')
+      setEditorFontSize(editorFontSizeVal.status === 'fulfilled' && editorFontSizeVal.value ? editorFontSizeVal.value : '13')
+      setReduceMotion(reduceMotionVal.status === 'fulfilled' ? reduceMotionVal.value === '1' : false)
       setDevServerToastEnabled(
         devToast.status === 'fulfilled' ? devToast.value !== '0' : true
       )
@@ -418,6 +430,7 @@ export function UserSettingsDialog({
 
   const navItems: Array<{ key: string; label: string }> = [
     { key: 'general', label: 'General' },
+    { key: 'appearance', label: 'Appearance' },
     { key: 'panels', label: 'Panels' },
     { key: 'integrations', label: 'Integrations' },
     { key: 'diagnostics', label: 'Diagnostics' },
@@ -458,6 +471,60 @@ export function UserSettingsDialog({
           }}
         >
           <div className="mx-auto w-full max-w-4xl space-y-8">
+            {activeTab === 'appearance' && (
+              <>
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Colors</Label>
+                  <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
+                    <span className="text-sm">Project color tints</span>
+                    <Switch
+                      checked={projectColorTints}
+                      onCheckedChange={(checked) => {
+                        setProjectColorTints(checked)
+                        window.api.settings.set('project_color_tints_enabled', checked ? '1' : '0')
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Fonts</Label>
+                  {([
+                    { label: 'Terminal font size', value: terminalFontSize, set: setTerminalFontSize, key: 'terminal_font_size' },
+                    { label: 'Editor font size', value: editorFontSize, set: setEditorFontSize, key: 'editor_font_size' },
+                  ] as const).map(({ label, value, set, key }) => (
+                    <div key={key} className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
+                      <span className="text-sm">{label}</span>
+                      <Select value={value} onValueChange={(v) => { set(v); window.api.settings.set(key, v) }}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[10, 11, 12, 13, 14, 15, 16, 18, 20].map((s) => (
+                            <SelectItem key={s} value={String(s)}>{s}px</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Motion</Label>
+                  <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
+                    <span className="text-sm">Reduce motion</span>
+                    <Switch
+                      checked={reduceMotion}
+                      onCheckedChange={(checked) => {
+                        setReduceMotion(checked)
+                        window.api.settings.set('reduce_motion', checked ? '1' : '0')
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             {activeTab === 'general' && (
               <>
                 <div className="space-y-3">

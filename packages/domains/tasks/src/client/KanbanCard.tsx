@@ -4,6 +4,7 @@ import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import { Card, CardContent, Tooltip, TooltipContent, TooltipTrigger, cn, getTerminalStateStyle } from '@slayzone/ui'
+import { useAppearance } from '@slayzone/settings/client'
 import { todayISO, PRIORITY_LABELS } from './kanban'
 import { AlertCircle, Check, GitMerge, Link2 } from 'lucide-react'
 import { usePty } from '@slayzone/terminal'
@@ -37,6 +38,7 @@ export function KanbanCard({
   isBlocked,
   subTaskCount
 }: KanbanCardProps): React.JSX.Element {
+  const { reduceMotion } = useAppearance()
   const today = todayISO()
   const isOverdue = task.due_date && task.due_date < today && task.status !== 'done'
   const prevStatusRef = useRef(task.status)
@@ -62,9 +64,9 @@ export function KanbanCard({
 
   return (
     <motion.div
-      whileTap={!isDragging ? { scale: 0.98 } : undefined}
+      whileTap={!isDragging && !reduceMotion ? { scale: 0.98 } : undefined}
       animate={
-        justCompleted
+        justCompleted && !reduceMotion
           ? {
               scale: [1, 1.1, 1],
               rotate: [0, 5, -5, 0],

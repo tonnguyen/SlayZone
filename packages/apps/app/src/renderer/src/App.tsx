@@ -17,7 +17,7 @@ import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, Pro
 import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
 import { FileEditorView } from '@slayzone/file-editor/client'
 import { CreateProjectDialog, ProjectSettingsDialog, DeleteProjectDialog } from '@slayzone/projects'
-import { UserSettingsDialog, useViewState } from '@slayzone/settings'
+import { UserSettingsDialog, useViewState, AppearanceProvider } from '@slayzone/settings'
 import { OnboardingDialog } from '@slayzone/onboarding'
 import { usePty } from '@slayzone/terminal/client'
 import type { TerminalState } from '@slayzone/terminal/shared'
@@ -57,6 +57,7 @@ import { useUsage } from '@/components/usage/useUsage'
 import { useQuery } from 'convex/react'
 import { api } from 'convex/_generated/api'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
+import { useTutorial } from '@/components/tutorial/useTutorial'
 
 type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
 const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
@@ -104,6 +105,8 @@ function App(): React.JSX.Element {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [deletingProject, setDeletingProject] = useState<Project | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsRevision, setSettingsRevision] = useState(0)
+  const [colorTintsEnabled, setColorTintsEnabled] = useState(true)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('general')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -167,6 +170,8 @@ function App(): React.JSX.Element {
     import.meta.env.DEV && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
   ) ?? null
 
+  const { startTutorial } = useTutorial()
+
   // Usage & notification state
   const { data: usageData, refresh: refreshUsage } = useUsage()
   const [notificationState, setNotificationState] = useNotificationState()
@@ -212,6 +217,7 @@ function App(): React.JSX.Element {
   // Map of taskId → project color for tab tinting
   const taskProjectColors = useMemo(() => {
     const map = new Map<string, string>()
+    if (!colorTintsEnabled) return map
     for (const tab of tabs) {
       if (tab.type !== 'task') continue
       const task = tasks.find((t) => t.id === tab.taskId)
@@ -220,7 +226,7 @@ function App(): React.JSX.Element {
       if (project?.color) map.set(tab.taskId, project.color)
     }
     return map
-  }, [tabs, tasks, projects])
+  }, [tabs, tasks, projects, colorTintsEnabled])
   const tabCycleOrder = useMemo(() => {
     const homeIndex = tabs.findIndex((tab) => tab.type === 'home')
     const taskIndexes = tabs
@@ -439,6 +445,11 @@ function App(): React.JSX.Element {
       }
     }
   }, [tasks, tabs, setTasks])
+
+  // Read color tints setting on mount and whenever settings change (same trigger as AppearanceProvider)
+  useEffect(() => {
+    window.api.settings.get('project_color_tints_enabled').then((v) => setColorTintsEnabled(v !== '0'))
+  }, [settingsRevision])
 
   // Sync project name value
   useEffect(() => {
@@ -946,6 +957,7 @@ function App(): React.JSX.Element {
   }
 
   return (
+    <AppearanceProvider settingsRevision={settingsRevision}>
     <SidebarProvider defaultOpen={true}>
       <div id="app-shell" className="h-full w-full flex">
         <AppSidebar
@@ -957,13 +969,14 @@ function App(): React.JSX.Element {
           onProjectSettings={setEditingProject}
           onProjectDelete={setDeletingProject}
           onSettings={handleOpenSettings}
-          onTutorial={() => setOnboardingOpen(true)}
+          onOnboarding={() => setOnboardingOpen(true)}
+          onTutorial={startTutorial}
           zenMode={zenMode}
         />
 
         <div id="right-column" className={`flex-1 flex flex-col min-w-0 bg-surface-1 pb-2 pr-2 ${zenMode ? 'pl-2' : ''}`}>
               <div className={zenMode ? "window-drag-region bg-surface-1 pl-16" : "window-drag-region bg-surface-1"}>
-                <div className="window-no-drag">
+                <div className="window-no-drag" data-driver="tab-bar">
                   <TabBar
                     tabs={tabs}
                     activeIndex={activeTabIndex}
@@ -1069,7 +1082,7 @@ function App(): React.JSX.Element {
                       }
                     >
                         {tab.type === 'home' ? (
-                        <div className="flex flex-col flex-1 p-6 pt-4 h-full" style={{ backgroundColor: projectColorBg(selectedProject?.color) }}>
+                        <div className="flex flex-col flex-1 p-6 pt-4 h-full" style={{ backgroundColor: colorTintsEnabled ? projectColorBg(selectedProject?.color) : undefined }}>
                           <header className="mb-4 window-no-drag space-y-2">
                             <div className="flex items-center gap-4">
                               <div className="flex-shrink-0">
@@ -1093,6 +1106,7 @@ function App(): React.JSX.Element {
                                 <FilterBar filter={filter} onChange={setFilter} tags={tags} />
                               )}
                               {projects.length > 0 && (
+                                <div data-driver="home-panels">
                                 <PanelToggle
                                   panels={[
                                     { id: 'kanban', icon: Kanban, label: 'Kanban', active: homePanelVisibility.kanban, disabled: !selectedProjectId },
@@ -1102,6 +1116,7 @@ function App(): React.JSX.Element {
                                   ]}
                                   onChange={(id, active) => setHomePanelVisibility(prev => ({ ...prev, [id]: active }))}
                                 />
+                                </div>
                               )}
                             </div>
                           </header>
@@ -1261,7 +1276,7 @@ function App(): React.JSX.Element {
         />
         <UserSettingsDialog
           open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          onOpenChange={(open) => { setSettingsOpen(open); if (!open) setSettingsRevision((r) => r + 1) }}
           initialTab={settingsInitialTab}
           onTabChange={setSettingsInitialTab}
         />
@@ -1275,7 +1290,17 @@ function App(): React.JSX.Element {
         />
         <OnboardingDialog
           externalOpen={onboardingOpen}
-          onExternalClose={() => setOnboardingOpen(false)}
+          onExternalClose={async () => {
+            setOnboardingOpen(false)
+            const prompted = await window.api.settings.get('tutorial_prompted')
+            if (!prompted) {
+              void window.api.settings.set('tutorial_prompted', 'true')
+              toast('Want a quick tour?', {
+                duration: 8000,
+                action: { label: 'Take the tour', onClick: startTutorial }
+              })
+            }
+          }}
         />
         <AlertDialog open={completeTaskDialogOpen} onOpenChange={setCompleteTaskDialogOpen}>
           <AlertDialogContent>
@@ -1297,6 +1322,7 @@ function App(): React.JSX.Element {
         <Toaster position="bottom-right" theme="dark" />
       </div>
     </SidebarProvider>
+    </AppearanceProvider>
   )
 }
 

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles, Check, ArrowLeft, ArrowRight, Info, Layers } from 'lucide-react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger, cn } from '@slayzone/ui'
+import { useAppearance } from '@slayzone/settings/client'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { javascript } from '@codemirror/lang-javascript'
@@ -35,13 +36,13 @@ function resolveLabels(ctx: MergeContext): { oursLabel: string; oursDesc: string
   }
 }
 
-const editorTheme = EditorView.theme({
-  '&': { height: '100%', fontSize: '13px' },
-  '.cm-scroller': { overflow: 'auto' },
-  '.cm-content': { fontFamily: 'ui-monospace, monospace' }
-})
-
 export function ConflictFileView({ repoPath, filePath, terminalMode, onResolved, branchContext }: ConflictFileViewProps) {
+  const { editorFontSize } = useAppearance()
+  const editorTheme = useMemo(() => EditorView.theme({
+    '&': { height: '100%', fontSize: `${editorFontSize}px` },
+    '.cm-scroller': { overflow: 'auto' },
+    '.cm-content': { fontFamily: 'ui-monospace, monospace' }
+  }), [editorFontSize])
   const [content, setContent] = useState<ConflictFileContent | null>(null)
   const [analysis, setAnalysis] = useState<ConflictAnalysis | null>(null)
   const [analyzing, setAnalyzing] = useState(false)

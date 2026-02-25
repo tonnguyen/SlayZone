@@ -22,6 +22,7 @@ import { KanbanColumn } from './KanbanColumn'
 import { KanbanCard } from './KanbanCard'
 import { KanbanPicker } from './KanbanPicker'
 import { useKanbanKeyboard } from './useKanbanKeyboard'
+import { useAppearance } from '@slayzone/settings/client'
 
 interface KanbanBoardProps {
   tasks: Task[]
@@ -67,6 +68,7 @@ export function KanbanBoard({
   onDeleteTask,
   onArchiveAllTasks
 }: KanbanBoardProps): React.JSX.Element {
+  const { reduceMotion } = useAppearance()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<string | null>(null)
@@ -205,7 +207,7 @@ export function KanbanBoard({
       onDragEnd={handleDragEnd}
     >
       <div className="relative h-full min-h-0">
-      <div className="flex gap-4 overflow-x-auto pr-16 h-full [&::-webkit-scrollbar]:hidden">
+      <div data-driver="kanban-board" className="flex gap-4 overflow-x-auto pr-16 h-full [&::-webkit-scrollbar]:hidden">
         {columns.map((column) => (
           <KanbanColumn
             key={column.id}
@@ -234,16 +236,13 @@ export function KanbanBoard({
       </div>
       </div>
       <DragOverlay
-        dropAnimation={{
-          duration: 33,
-          easing: 'ease-out'
-        }}
+        dropAnimation={reduceMotion ? null : { duration: 33, easing: 'ease-out' }}
       >
         {activeTask ? (
           <motion.div
-            initial={{ scale: 0.95, opacity: 0.8 }}
-            animate={{ scale: 1.05, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 1800, damping: 60 }}
+            initial={reduceMotion ? false : { scale: 0.95, opacity: 0.8 }}
+            animate={reduceMotion ? {} : { scale: 1.05, opacity: 1 }}
+            transition={reduceMotion ? {} : { type: 'spring', stiffness: 1800, damping: 60 }}
           >
             <KanbanCard
               task={activeTask}

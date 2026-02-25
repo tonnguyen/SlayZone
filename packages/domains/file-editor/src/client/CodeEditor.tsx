@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useAppearance } from '@slayzone/settings/client'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
@@ -38,12 +39,6 @@ function getLanguage(filePath: string) {
   }
 }
 
-const editorTheme = EditorView.theme({
-  '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
-  '.cm-scroller': { overflow: 'auto' },
-  '.cm-content': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
-  '.cm-gutters': { backgroundColor: 'transparent', border: 'none' }
-})
 
 interface CodeEditorProps {
   filePath: string
@@ -55,6 +50,13 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({ filePath, content, onChange, onSave, version }: CodeEditorProps) {
+  const { editorFontSize } = useAppearance()
+  const editorTheme = useMemo(() => EditorView.theme({
+    '&': { height: '100%', fontSize: `${editorFontSize}px`, backgroundColor: 'transparent' },
+    '.cm-scroller': { overflow: 'auto' },
+    '.cm-content': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+    '.cm-gutters': { backgroundColor: 'transparent', border: 'none' }
+  }), [editorFontSize])
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -99,9 +101,8 @@ export function CodeEditor({ filePath, content, onChange, onSave, version }: Cod
       view.destroy()
       viewRef.current = null
     }
-    // Intentionally only re-create on filePath change, not content
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath])
+  }, [filePath, editorTheme])
 
   // Replace editor content when version bumps (external disk reload)
   useEffect(() => {

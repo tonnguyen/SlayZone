@@ -1,3 +1,5 @@
 export { UserSettingsDialog } from './UserSettingsDialog'
 export { ThemeProvider, useTheme } from './ThemeContext'
 export { useViewState } from './useViewState'
+export { AppearanceProvider } from './AppearanceContext'
+export { useAppearance, type AppearanceSettings } from '@slayzone/ui'

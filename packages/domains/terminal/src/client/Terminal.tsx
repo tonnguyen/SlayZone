@@ -21,7 +21,7 @@ document.head.appendChild(underlineOverride)
 
 import { getTerminal, setTerminal, disposeTerminal, updateAllThemes } from './terminal-cache'
 import { usePty } from './PtyContext'
-import { useTheme } from '@slayzone/settings/client'
+import { useTheme, useAppearance } from '@slayzone/settings/client'
 import { getTerminalTheme } from './terminal-themes'
 import { TerminalSearchBar } from './TerminalSearchBar'
 import type { TerminalMode, TerminalState, CodeMode } from '@slayzone/terminal/shared'
@@ -158,6 +158,7 @@ export function Terminal({
 
   const { subscribe, subscribeExit, subscribeSessionInvalid, subscribeAttention, subscribeState, getState, getCrashOutput, resetTaskState, cleanupTask } = usePty()
   const { theme } = useTheme()
+  const { terminalFontSize } = useAppearance()
 
   const [ptyState, setPtyState] = useState<TerminalState>(() => getState(sessionId))
 
@@ -285,7 +286,7 @@ export function Terminal({
       const terminal = new XTerm({
         allowProposedApi: true,
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: terminalFontSize,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: getTerminalTheme(theme),
         minimumContrastRatio: theme === 'light' ? 4.5 : 1
@@ -571,6 +572,14 @@ export function Terminal({
       observer.disconnect()
     }
   }, [initTerminal])
+
+  // Update font size at runtime when setting changes
+  useEffect(() => {
+    const t = terminalRef.current
+    if (!t) return
+    t.options.fontSize = terminalFontSize
+    fitAddonRef.current?.fit()
+  }, [terminalFontSize])
 
   // Handle paste and drag-drop for files/images
   useEffect(() => {
