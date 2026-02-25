@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, HelpCircle, Keyboard, ChevronDown } from 'lucide-react'
+import { Settings, HelpCircle, Keyboard, ChevronDown, Map, Sparkles } from 'lucide-react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import {
   Sidebar,
@@ -34,7 +34,9 @@ interface AppSidebarProps {
   onProjectSettings: (project: Project) => void
   onProjectDelete: (project: Project) => void
   onSettings: () => void
+  onOnboarding: () => void
   onTutorial: () => void
+  onChangelog: () => void
   zenMode?: boolean
 }
 
@@ -90,13 +92,15 @@ export function AppSidebar({
   onProjectSettings,
   onProjectDelete,
   onSettings,
+  onOnboarding,
   onTutorial,
+  onChangelog,
   zenMode,
 }: AppSidebarProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   return (
-    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-16 min-h-svh"}>
+    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-16 min-h-svh"} data-driver="sidebar">
       {/* Draggable region for window movement - clears traffic lights */}
       <div className="h-10 window-drag-region" />
       <SidebarContent className="py-4 pt-0">
@@ -137,6 +141,7 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <button
                   onClick={onAddProject}
+                  data-driver="add-project"
                   className={cn(
                     'w-10 h-10 rounded-lg flex items-center justify-center',
                     'text-lg text-muted-foreground border-2 border-dashed',
@@ -162,6 +167,33 @@ export function AppSidebar({
                   variant="ghost"
                   size="icon-lg"
                   onClick={onTutorial}
+                  data-driver="tutorial-button"
+                  className="rounded-lg text-muted-foreground"
+                >
+                  <Map className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Take a Tour</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  onClick={onChangelog}
+                  className="rounded-lg text-muted-foreground"
+                >
+                  <Sparkles className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">What's New</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  onClick={onOnboarding}
                   className="rounded-lg text-muted-foreground"
                 >
                   <HelpCircle className="size-5" />

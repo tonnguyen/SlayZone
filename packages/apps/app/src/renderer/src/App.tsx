@@ -42,6 +42,8 @@ import {
 } from '@slayzone/ui'
 import { SidebarProvider, cn, PanelToggle, projectColorBg } from '@slayzone/ui'
 import { AppSidebar } from '@/components/sidebar/AppSidebar'
+import { ChangelogDialog } from '@/components/changelog/ChangelogDialog'
+import { useChangelogAutoOpen } from '@/components/changelog/useChangelogAutoOpen'
 import { TabBar } from '@/components/tabs/TabBar'
 import { LeaderboardPage } from '@/components/leaderboard/LeaderboardPage'
 import { recordDiagnosticsTimeline, updateDiagnosticsContext } from '@/lib/diagnosticsClient'
@@ -57,7 +59,7 @@ import { useUsage } from '@/components/usage/useUsage'
 import { useQuery } from 'convex/react'
 import { api } from 'convex/_generated/api'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
-import { useTutorial } from '@/components/tutorial/useTutorial'
+import { TutorialAnimationModal } from '@/components/tutorial/TutorialAnimationModal'
 
 type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
 const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
@@ -110,6 +112,8 @@ function App(): React.JSX.Element {
   const [colorTintsEnabled, setColorTintsEnabled] = useState(true)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('general')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const [changelogOpen, setChangelogOpen] = useState(false)
+  const [autoChangelogOpen, dismissAutoChangelog] = useChangelogAutoOpen()
   const [searchOpen, setSearchOpen] = useState(false)
   const [completeTaskDialogOpen, setCompleteTaskDialogOpen] = useState(false)
   const [zenMode, setZenMode] = useState(false)
@@ -171,7 +175,8 @@ function App(): React.JSX.Element {
     leaderboardEnabled === true && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
   ) ?? null
 
-  const { startTutorial } = useTutorial()
+  const [showAnimatedTour, setShowAnimatedTour] = useState(false)
+  const startTutorial = (): void => setShowAnimatedTour(true)
 
   // Usage & notification state
   const { data: usageData, refresh: refreshUsage } = useUsage()
@@ -972,6 +977,7 @@ function App(): React.JSX.Element {
           onSettings={handleOpenSettings}
           onOnboarding={() => setOnboardingOpen(true)}
           onTutorial={startTutorial}
+          onChangelog={() => setChangelogOpen(true)}
           zenMode={zenMode}
         />
 
@@ -1300,6 +1306,16 @@ function App(): React.JSX.Element {
                 duration: 8000,
                 action: { label: 'Take the tour', onClick: startTutorial }
               })
+            }
+          }}
+        />
+        <TutorialAnimationModal open={showAnimatedTour} onClose={() => setShowAnimatedTour(false)} />
+        <ChangelogDialog
+          open={changelogOpen || autoChangelogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setChangelogOpen(false)
+              dismissAutoChangelog()
             }
           }}
         />
