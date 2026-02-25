@@ -20,11 +20,14 @@ export interface DeviceSlotConfig {
 
 export type MultiDeviceConfig = Record<DeviceSlot, DeviceSlotConfig>
 
+export type BrowserTabTheme = 'system' | 'light' | 'dark'
+
 export interface BrowserTab {
   id: string
   url: string
   title: string
   favicon?: string
+  themeMode?: BrowserTabTheme
   multiDeviceMode?: boolean
   multiDeviceConfig?: MultiDeviceConfig
   multiDeviceLayout?: GridLayout

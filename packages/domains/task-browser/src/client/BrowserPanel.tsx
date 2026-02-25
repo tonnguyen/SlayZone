@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, Bug } from 'lucide-react'
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Import, Smartphone, Monitor, Tablet, LayoutGrid, ChevronDown, Crosshair, Bug, Sun, Moon, PaintbrushVertical } from 'lucide-react'
+import type { BrowserTabTheme } from '../shared'
 import {
   Button,
   Input,
@@ -46,7 +47,19 @@ interface WebviewElement extends HTMLElement {
   openDevTools?(): void
   closeDevTools?(): void
   executeJavaScript<T = unknown>(code: string, userGesture?: boolean): Promise<T>
+  insertCSS(css: string): Promise<string>
+  removeInsertedCSS(key: string): Promise<void>
 }
+
+const THEME_CSS: Record<'light' | 'dark', string> = {
+  dark: [
+    'html{filter:invert(90%) hue-rotate(180deg)!important}',
+    'img,video,canvas,svg,iframe{filter:invert(90%) hue-rotate(180deg)!important}',
+  ].join(''),
+  light: ':root{color-scheme:light!important}',
+}
+
+const THEME_CYCLE: BrowserTabTheme[] = ['system', 'dark', 'light']
 
 interface BrowserPanelProps {
   className?: string
@@ -98,6 +111,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const inlineDevToolsPanelRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inlineAttachAttemptRef = useRef(0)
+  const darkModeCSSKeyRef = useRef<string | null>(null)
 
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
@@ -144,6 +158,28 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       ...(entering && !activeTab.multiDeviceLayout ? { multiDeviceLayout: 'horizontal' as GridLayout } : {}),
     })
   }, [activeTab, multiDeviceMode, updateActiveTab])
+
+  const applyThemeCss = useCallback((mode: BrowserTabTheme) => {
+    const wv = webviewRef.current
+    if (!wv) return
+    const removeOld = async () => {
+      const key = darkModeCSSKeyRef.current
+      if (key) { darkModeCSSKeyRef.current = null; await wv.removeInsertedCSS(key).catch(() => {}) }
+    }
+    void (async () => {
+      await removeOld()
+      const css = mode === 'system' ? null : THEME_CSS[mode]
+      if (css) darkModeCSSKeyRef.current = await wv.insertCSS(css).catch(() => null)
+    })()
+  }, [])
+
+  const cycleTheme = useCallback(() => {
+    if (!activeTab) return
+    const current = activeTab.themeMode ?? 'system'
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length]
+    updateActiveTab({ themeMode: next })
+    applyThemeCss(next)
+  }, [activeTab, updateActiveTab, applyThemeCss])
 
   const setMultiDeviceLayout = useCallback((layout: GridLayout) => {
     updateActiveTab({ multiDeviceLayout: layout })
@@ -291,12 +327,19 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
 
     const handleDomReady = () => {
       setWebviewReady(true)
+      darkModeCSSKeyRef.current = null
       try {
         const id = wv.getWebContentsId()
         setWebviewId(id)
         void window.api.webview.registerShortcuts(id)
       } catch {
         setWebviewId(null)
+      }
+      const t = tabsRef.current
+      const activeTabData = t.tabs.find(tab => tab.id === t.activeTabId)
+      const mode = activeTabData?.themeMode ?? 'system'
+      if (mode !== 'system') {
+        void wv.insertCSS(THEME_CSS[mode]).then(key => { darkModeCSSKeyRef.current = key }).catch(() => {})
       }
     }
 
@@ -857,6 +900,36 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
             {multiDeviceMode ? 'DevTools unavailable in responsive preview' : 'Toggle Chromium DevTools'}
           </TooltipContent>
         </Tooltip>
+
+        {(() => {
+          const themeMode = activeTab?.themeMode ?? 'system'
+          const ThemeIcon = themeMode === 'dark' ? Moon : themeMode === 'light' ? Sun : PaintbrushVertical
+          const themeLabel = themeMode === 'dark' ? 'Dark (forced)' : themeMode === 'light' ? 'Light (forced)' : 'System theme'
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    data-testid="browser-theme-mode"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={multiDeviceMode || !webviewReady}
+                    className={cn(
+                      themeMode === 'dark' && 'text-blue-400 bg-blue-500/10',
+                      themeMode === 'light' && 'text-amber-400 bg-amber-500/10',
+                    )}
+                    onClick={cycleTheme}
+                  >
+                    <ThemeIcon className="size-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {multiDeviceMode ? 'Theme unavailable in responsive preview' : `${themeLabel} — click to cycle`}
+              </TooltipContent>
+            </Tooltip>
+          )
+        })()}
       </div>
 
       {pickError && !multiDeviceMode && (
