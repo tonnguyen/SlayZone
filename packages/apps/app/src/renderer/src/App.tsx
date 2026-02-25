@@ -106,6 +106,7 @@ function App(): React.JSX.Element {
   const [deletingProject, setDeletingProject] = useState<Project | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsRevision, setSettingsRevision] = useState(0)
+  const [leaderboardEnabled, setLeaderboardEnabled] = useState<boolean | null>(null)
   const [colorTintsEnabled, setColorTintsEnabled] = useState(true)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('general')
   const [onboardingOpen, setOnboardingOpen] = useState(false)
@@ -167,7 +168,7 @@ function App(): React.JSX.Element {
   const leaderboardAuth = useLeaderboardAuth()
   const leaderboardBestRank = useQuery(
     api.leaderboard.getMyBestRank,
-    import.meta.env.DEV && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
+    leaderboardEnabled === true && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
   ) ?? null
 
   const { startTutorial } = useTutorial()
@@ -186,22 +187,21 @@ function App(): React.JSX.Element {
   const previousNotificationProjectFilterRef = useRef(notificationState.filterCurrentProject)
 
   useEffect(() => {
-    const hasLeaderboard = tabs.some((tab) => tab.type === 'leaderboard')
-    if (import.meta.env.DEV) {
-      if (hasLeaderboard) return
-      setTabs((prev) => {
-        if (prev.some((tab) => tab.type === 'leaderboard')) return prev
+    if (leaderboardEnabled === null) return
+    setTabs((prev) => {
+      const hasLeaderboard = prev.some((tab) => tab.type === 'leaderboard')
+      if (leaderboardEnabled) {
+        if (hasLeaderboard) return prev
         const homeIndex = prev.findIndex((tab) => tab.type === 'home')
         const insertAt = homeIndex >= 0 ? homeIndex + 1 : 0
         const next = [...prev]
         next.splice(insertAt, 0, { type: 'leaderboard', title: 'Leaderboard' })
         return next
-      })
-      return
-    }
-    if (!hasLeaderboard) return
-    setTabs((prev) => prev.filter((tab) => tab.type !== 'leaderboard'))
-  }, [tabs, setTabs])
+      }
+      if (!hasLeaderboard) return prev
+      return prev.filter((tab) => tab.type !== 'leaderboard')
+    })
+  }, [leaderboardEnabled, setTabs])
 
   // Get task IDs from open tabs
   const openTaskIds = useMemo(
@@ -449,6 +449,7 @@ function App(): React.JSX.Element {
   // Read color tints setting on mount and whenever settings change (same trigger as AppearanceProvider)
   useEffect(() => {
     window.api.settings.get('project_color_tints_enabled').then((v) => setColorTintsEnabled(v !== '0'))
+    window.api.settings.get('leaderboard_enabled').then((v) => setLeaderboardEnabled(v === '1'))
   }, [settingsRevision])
 
   // Sync project name value

@@ -87,6 +87,7 @@ export function UserSettingsDialog({
   const [cliInstalled, setCliInstalled] = useState(false)
   const [cliInstalling, setCliInstalling] = useState(false)
   const [cliMessage, setCliMessage] = useState('')
+  const [leaderboardEnabled, setLeaderboardEnabled] = useState(false)
   const loadRequestIdRef = useRef(0)
 
   useEffect(() => {
@@ -125,7 +126,7 @@ export function UserSettingsDialog({
         window.api.settings.get('default_terminal_mode'),
         ...providerFlagKeys.map(k => window.api.settings.get(k)),
       ])
-      const [devToast, devAutoOpen, mcpPortSetting, cliStatus, colorTints, termFontSize, editorFontSizeVal, reduceMotionVal] = await Promise.allSettled([
+      const [devToast, devAutoOpen, mcpPortSetting, cliStatus, colorTints, termFontSize, editorFontSizeVal, reduceMotionVal, leaderboardVal] = await Promise.allSettled([
         window.api.settings.get('dev_server_toast_enabled'),
         window.api.settings.get('dev_server_auto_open_browser'),
         window.api.settings.get('mcp_server_port'),
@@ -134,10 +135,12 @@ export function UserSettingsDialog({
         window.api.settings.get('terminal_font_size'),
         window.api.settings.get('editor_font_size'),
         window.api.settings.get('reduce_motion'),
+        window.api.settings.get('leaderboard_enabled'),
       ])
       if (isStale()) return
 
       setCliInstalled(cliStatus.status === 'fulfilled' ? cliStatus.value.installed : false)
+      setLeaderboardEnabled(leaderboardVal.status === 'fulfilled' ? leaderboardVal.value === '1' : false)
 
       setTags(loadedTags.status === 'fulfilled' ? loadedTags.value : [])
       setProjects(loadedProjects.status === 'fulfilled' ? loadedProjects.value : [])
@@ -438,6 +441,7 @@ export function UserSettingsDialog({
     { key: 'tags', label: 'Tags' },
     { key: 'telemetry', label: 'Telemetry' },
     { key: 'data', label: 'Import & Export' },
+    { key: 'labs', label: 'Labs' },
     { key: 'about', label: 'About' }
   ]
 
@@ -1249,6 +1253,31 @@ export function UserSettingsDialog({
                     </div>
                   </div>
                 )}
+              </>
+            )}
+
+            {activeTab === 'labs' && (
+              <>
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Experimental Features</Label>
+                  <p className="text-sm text-muted-foreground">These features are in development and may change.</p>
+                </div>
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="leaderboard-toggle">Leaderboard</Label>
+                      <p className="text-xs text-muted-foreground">Show leaderboard tab with token usage stats</p>
+                    </div>
+                    <Switch
+                      id="leaderboard-toggle"
+                      checked={leaderboardEnabled}
+                      onCheckedChange={async (checked) => {
+                        setLeaderboardEnabled(checked)
+                        await window.api.settings.set('leaderboard_enabled', checked ? '1' : '0')
+                      }}
+                    />
+                  </div>
+                </div>
               </>
             )}
 
