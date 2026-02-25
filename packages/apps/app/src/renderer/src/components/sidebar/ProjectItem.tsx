@@ -25,7 +25,8 @@ export function ProjectItem({
   onSettings,
   onDelete
 }: ProjectItemProps) {
-  const abbrev = project.name.slice(0, 2).toUpperCase()
+  const capitals = project.name.match(/[A-Z]/g) ?? []
+  const abbrev = capitals.length >= 2 ? capitals.slice(0, 2).join('') : project.name.slice(0, 2).toUpperCase()
 
   return (
     <Tooltip>
