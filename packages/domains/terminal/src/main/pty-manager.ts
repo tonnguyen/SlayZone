@@ -410,7 +410,7 @@ export async function createPty(
         ...process.env,
         ...spawnConfig.env,
         ...mcpEnv,
-        USER: process.env.USER || userInfo().username,
+        USER: process.env.USER || process.env.USERNAME || userInfo().username,
         HOME: process.env.HOME || homedir(),
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',

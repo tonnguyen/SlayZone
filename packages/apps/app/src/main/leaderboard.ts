@@ -1,7 +1,9 @@
 import { execFile } from 'child_process'
+import { platform } from 'os'
 import type { IpcMain } from 'electron'
 import type { Database } from 'better-sqlite3'
 import type { LocalLeaderboardStats } from '@slayzone/types'
+import { resolveUserShell } from '@slayzone/terminal/main'
 
 interface CcusageDailyEntry {
   date: string
@@ -10,9 +12,15 @@ interface CcusageDailyEntry {
 
 function runCcusage(): Promise<CcusageDailyEntry[]> {
   return new Promise((resolve) => {
-    const shell = process.env.SHELL || '/bin/bash'
-    const isFish = shell.includes('fish')
-    const shellArgs = isFish ? ['-i', '-c', 'npx ccusage --json'] : ['-lc', 'npx ccusage --json']
+    const shell = resolveUserShell()
+    let shellArgs: string[]
+    if (platform() === 'win32') {
+      shellArgs = ['/c', 'npx ccusage --json']
+    } else if (shell.includes('fish')) {
+      shellArgs = ['-i', '-c', 'npx ccusage --json']
+    } else {
+      shellArgs = ['-lc', 'npx ccusage --json']
+    }
 
     execFile(shell, shellArgs, { timeout: 20_000 }, (_err, stdout) => {
       if (!stdout?.trim()) return resolve([])

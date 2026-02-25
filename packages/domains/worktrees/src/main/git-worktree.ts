@@ -1,4 +1,5 @@
 import { execSync, spawnSync } from 'child_process'
+import { platform } from 'os'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { recordDiagnosticEvent } from '@slayzone/diagnostics/main'
@@ -370,7 +371,8 @@ export function unstageAll(path: string): void {
 
 export function getUntrackedFileDiff(repoPath: string, filePath: string): string {
   try {
-    return spawnGit(['diff', '--no-index', '--no-ext-diff', '--', '/dev/null', filePath], { cwd: repoPath })
+    const devNull = platform() === 'win32' ? 'NUL' : '/dev/null'
+    return spawnGit(['diff', '--no-index', '--no-ext-diff', '--', devNull, filePath], { cwd: repoPath })
   } catch (err: unknown) {
     // git diff --no-index exits with code 1 when files differ — expected
     const e = err as { stdout?: string }

@@ -25,7 +25,7 @@ function getConfiguredShellOverride(): string | null {
 }
 
 function shellExists(shellPath: string): boolean {
-  if (platform() === 'win32') return true
+  if (platform() === 'win32') return fs.existsSync(shellPath)
   try {
     fs.accessSync(shellPath, fs.constants.X_OK)
     return true
