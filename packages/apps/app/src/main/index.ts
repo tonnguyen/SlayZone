@@ -427,6 +427,7 @@ if (!gotSingleInstanceLock) {
 // On macOS, protocol launches are delivered via open-url.
 // Register before app ready so early callback events are not missed.
 app.on('open-url', (event, url) => {
+  console.log('[open-url]', url.slice(0, 120))
   event.preventDefault()
   handleOAuthDeepLink(url)
 })
@@ -805,6 +806,14 @@ app.whenReady().then(async () => {
   // Configure webview session for WebAuthn/passkey support
   const browserSession = session.fromPartition('persist:browser-tabs')
 
+  // Strip Electron/app name from user-agent so sites (Figma, etc.) don't detect
+  // Electron and redirect to their desktop app instead of serving the web version.
+  const chromeUa = browserSession.getUserAgent()
+    .replace(/\s*Electron\/\S+/i, '')
+    .replace(/\s*slayzone\/\S+/i, '')
+  browserSession.setUserAgent(chromeUa)
+  console.log('[ua]', chromeUa)
+
   // Serve local files via slz-file:// (Chromium blocks file:// in webviews and cross-origin renderers)
   const userHome = homedir()
   const slzFileHandler = async (request: Request) => {
@@ -834,6 +843,7 @@ app.whenReady().then(async () => {
     }
   }
   const webPanelSession = session.fromPartition('persist:web-panels')
+  webPanelSession.setUserAgent(chromeUa)
 
   // Block external protocol navigation from inside webview pages (e.g. window.location = 'figma://...')
   // session.protocol.handle only intercepts loadURL from the main process — page-initiated
@@ -1457,10 +1467,12 @@ app.on('web-contents-created', (_, wc) => {
   // will-navigate: same-frame main navigation (link clicks, window.location, etc.)
   // Covers both webview type AND 'window' type (popup windows spawned by allowpopups webviews).
   wc.on('will-navigate', (event, url) => {
+    console.log('[will-navigate]', wc.getType(), url.slice(0, 120))
     if (isBlockedScheme(url)) event.preventDefault()
   })
   // will-redirect: server-side HTTP redirects to external app protocols
   wc.on('will-redirect', (event, url) => {
+    console.log('[will-redirect]', wc.getType(), url.slice(0, 120))
     if (isBlockedScheme(url)) event.preventDefault()
   })
 })

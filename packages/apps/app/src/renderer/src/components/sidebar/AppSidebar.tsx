@@ -100,7 +100,7 @@ export function AppSidebar({
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   return (
-    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-16 min-h-svh"} data-driver="sidebar">
+    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-16 min-h-svh"}>
       {/* Draggable region for window movement - clears traffic lights */}
       <div className="h-10 window-drag-region" />
       <SidebarContent className="py-4 pt-0">
@@ -141,7 +141,6 @@ export function AppSidebar({
               <SidebarMenuItem>
                 <button
                   onClick={onAddProject}
-                  data-driver="add-project"
                   className={cn(
                     'w-10 h-10 rounded-lg flex items-center justify-center',
                     'text-lg text-muted-foreground border-2 border-dashed',
@@ -167,7 +166,6 @@ export function AppSidebar({
                   variant="ghost"
                   size="icon-lg"
                   onClick={onTutorial}
-                  data-driver="tutorial-button"
                   className="rounded-lg text-muted-foreground"
                 >
                   <Map className="size-5" />
