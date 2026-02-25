@@ -70,7 +70,6 @@ function makeTask(id: string, projectId: string, title: string): Task {
     browser_url: null,
     browser_tabs: null,
     web_panel_urls: null,
-    web_panel_resolutions: null,
     editor_open_files: null,
     merge_state: null,
     merge_context: null,

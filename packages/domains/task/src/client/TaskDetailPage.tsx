@@ -3,7 +3,7 @@ import { MoreHorizontal, Archive, Trash2, AlertTriangle, Sparkles, Loader2, Term
 import { DndContext, PointerSensor, useSensors, useSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Task, PanelVisibility, WebPanelResolution } from '@slayzone/task/shared'
+import type { Task, PanelVisibility } from '@slayzone/task/shared'
 import { BUILTIN_PANEL_IDS, getProviderConversationId, getProviderFlags, setProviderConversationId, setProviderFlags, clearAllConversationIds, PROVIDER_DEFAULTS } from '@slayzone/task/shared'
 import type { BrowserTabsState } from '@slayzone/task-browser/shared'
 import type { Tag } from '@slayzone/tags/shared'
@@ -230,7 +230,7 @@ export function TaskDetailPage({
   const [browserTabs, setBrowserTabs] = useState<BrowserTabsState>(defaultBrowserTabs)
 
   // Global panel configuration (which panels are enabled, custom web panels)
-  const { enabledWebPanels, isBuiltinEnabled, resolutionDefaults } = usePanelConfig()
+  const { enabledWebPanels, isBuiltinEnabled } = usePanelConfig()
 
   // Panel sizes for resizable panels
   const [panelSizes, updatePanelSizes, resetPanelSize, resetAllPanels] = usePanelSizes()
@@ -1146,10 +1146,6 @@ export function TaskDetailPage({
   const webPanelUrlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const taskIdRef = useRef<string | null>(null)
 
-  // Web panel resolution persistence — same debounced ref pattern
-  const webPanelResolutionsRef = useRef<Record<string, WebPanelResolution>>({})
-  const webPanelResTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   // Flush any pending URL save (fire-and-forget)
   const flushPendingUrlSave = useCallback(() => {
     if (webPanelUrlTimerRef.current) {
@@ -1159,19 +1155,6 @@ export function TaskDetailPage({
         window.api.db.updateTask({
           id: taskIdRef.current,
           webPanelUrls: { ...webPanelUrlsRef.current }
-        })
-      }
-    }
-  }, [])
-
-  const flushPendingResSave = useCallback(() => {
-    if (webPanelResTimerRef.current) {
-      clearTimeout(webPanelResTimerRef.current)
-      webPanelResTimerRef.current = null
-      if (taskIdRef.current && Object.keys(webPanelResolutionsRef.current).length > 0) {
-        window.api.db.updateTask({
-          id: taskIdRef.current,
-          webPanelResolutions: { ...webPanelResolutionsRef.current }
         })
       }
     }
@@ -1198,18 +1181,15 @@ export function TaskDetailPage({
   useEffect(() => {
     flushPendingUrlSave()
     flushPendingEditorSave()
-    flushPendingResSave()
     taskIdRef.current = task?.id ?? null
     if (task?.web_panel_urls) webPanelUrlsRef.current = { ...task.web_panel_urls }
     else webPanelUrlsRef.current = {}
-    if (task?.web_panel_resolutions) webPanelResolutionsRef.current = { ...task.web_panel_resolutions }
-    else webPanelResolutionsRef.current = {}
-  }, [task?.id, flushPendingUrlSave, flushPendingEditorSave, flushPendingResSave])
+  }, [task?.id, flushPendingUrlSave, flushPendingEditorSave])
 
   // Flush pending saves on unmount
   useEffect(() => {
-    return () => { flushPendingUrlSave(); flushPendingEditorSave(); flushPendingResSave() }
-  }, [flushPendingUrlSave, flushPendingEditorSave, flushPendingResSave])
+    return () => { flushPendingUrlSave(); flushPendingEditorSave() }
+  }, [flushPendingUrlSave, flushPendingEditorSave])
 
   const handleWebPanelUrlChange = useCallback((panelId: string, url: string) => {
     if (!taskIdRef.current) return
@@ -1221,26 +1201,6 @@ export function TaskDetailPage({
       const updated = await window.api.db.updateTask({
         id,
         webPanelUrls: urlSnapshot
-      })
-      setTask(updated)
-    }, 500)
-  }, [])
-
-  const handleWebPanelResolutionChange = useCallback((panelId: string, resolution: WebPanelResolution | null) => {
-    if (!taskIdRef.current) return
-    if (resolution) {
-      webPanelResolutionsRef.current = { ...webPanelResolutionsRef.current, [panelId]: resolution }
-    } else {
-      const { [panelId]: _, ...rest } = webPanelResolutionsRef.current
-      webPanelResolutionsRef.current = rest
-    }
-    if (webPanelResTimerRef.current) clearTimeout(webPanelResTimerRef.current)
-    const id = taskIdRef.current
-    const snapshot = { ...webPanelResolutionsRef.current }
-    webPanelResTimerRef.current = setTimeout(async () => {
-      const updated = await window.api.db.updateTask({
-        id,
-        webPanelResolutions: Object.keys(snapshot).length > 0 ? snapshot : null
       })
       setTask(updated)
     }, 500)
@@ -1834,9 +1794,6 @@ export function TaskDetailPage({
                   onUrlChange={handleWebPanelUrlChange}
                   onFaviconChange={handleWebPanelFaviconChange}
                   isResizing={isResizing}
-                  resolution={task.web_panel_resolutions?.[wp.id] ?? null}
-                  resolutionDefaults={resolutionDefaults}
-                  onResolutionChange={handleWebPanelResolutionChange}
                 />
               </div>
             </div>
