@@ -29,10 +29,6 @@ function barColor(pct: number) {
   return 'bg-green-500'
 }
 
-function peakUtilization(p: ProviderUsage): number {
-  return Math.max(p.fiveHour?.utilization ?? 0, p.sevenDay?.utilization ?? 0)
-}
-
 function formatDuration(ms: number): string {
   if (ms <= 0) return 'now'
   const mins = Math.floor(ms / 60_000)
@@ -86,7 +82,7 @@ function WindowRow({
             onTogglePin()
           }}
           className={cn(
-            'shrink-0 transition-colors',
+            'shrink-0 transition-colors outline-none',
             pinned ? 'text-foreground' : 'text-muted-foreground/30 hover:text-muted-foreground/60',
           )}
         >
@@ -151,6 +147,22 @@ function ProviderSection({
   )
 }
 
+const WINDOW_KEYS: UsageWindowKey[] = ['fiveHour', 'sevenDay', 'sevenDayOpus', 'sevenDaySonnet']
+
+function defaultPins(data: ProviderUsage[]): PinnedBars {
+  const pins: PinnedBars = {}
+  for (const p of data) {
+    if (p.error) continue
+    const first = WINDOW_KEYS.find((k) => p[k])
+    if (first) pins[p.provider] = [first]
+  }
+  return pins
+}
+
+function totalPinCount(pins: PinnedBars): number {
+  return Object.values(pins).reduce((sum, arr) => sum + arr.length, 0)
+}
+
 export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(null)
@@ -168,23 +180,31 @@ export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
     })
   }, [])
 
-  const togglePin = useCallback((provider: string, windowKey: UsageWindowKey) => {
-    setPinned((prev) => {
-      const next = { ...prev }
-      const arr = [...(next[provider] ?? [])]
-      const idx = arr.indexOf(windowKey)
-      if (idx >= 0) {
-        arr.splice(idx, 1)
-        if (arr.length === 0) delete next[provider]
-        else next[provider] = arr
-      } else {
-        next[provider] = [...arr, windowKey]
-      }
-      const hasAny = Object.keys(next).length > 0
-      window.api.settings.set('usage_pinned_bars', hasAny ? JSON.stringify(next) : '')
-      return hasAny ? next : null
-    })
-  }, [])
+  // Resolve effective pins: saved or default (first window per provider)
+  const effectivePinned = pinned ?? defaultPins(data)
+
+  const togglePin = useCallback(
+    (provider: string, windowKey: UsageWindowKey) => {
+      setPinned((prev) => {
+        const base = prev ?? defaultPins(data)
+        const next = { ...base }
+        const arr = [...(next[provider] ?? [])]
+        const idx = arr.indexOf(windowKey)
+        if (idx >= 0) {
+          // Prevent unpinning the very last one across all providers
+          if (totalPinCount(next) <= 1) return base
+          arr.splice(idx, 1)
+          if (arr.length === 0) delete next[provider]
+          else next[provider] = arr
+        } else {
+          next[provider] = [...arr, windowKey]
+        }
+        window.api.settings.set('usage_pinned_bars', JSON.stringify(next))
+        return next
+      })
+    },
+    [data],
+  )
 
   const handleEnter = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
@@ -194,24 +214,16 @@ export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
     closeTimer.current = setTimeout(() => setOpen(false), 200)
   }
 
-  const withData = data.filter((p) => !p.error && (p.fiveHour || p.sevenDay))
-
-  const inlineBars: { label: string; pct: number }[] =
-    pinned && Object.keys(pinned).length > 0
-      ? data.flatMap((p) => {
-          const keys = pinned[p.provider]
-          if (!keys) return []
-          return keys
-            .map((k) => {
-              const w = p[k]
-              return w ? { label: `${p.label} ${WINDOW_LABELS[k]}`, pct: w.utilization } : null
-            })
-            .filter(Boolean) as { label: string; pct: number }[]
-        })
-      : withData
-          .map((p) => ({ label: p.label, pct: peakUtilization(p) }))
-          .sort((a, b) => b.pct - a.pct)
-          .slice(0, 2)
+  const inlineBars: { label: string; pct: number }[] = data.flatMap((p) => {
+    const keys = effectivePinned[p.provider]
+    if (!keys) return []
+    return keys
+      .map((k) => {
+        const w = p[k]
+        return w ? { label: `${p.label} ${WINDOW_LABELS[k]}`, pct: w.utilization } : null
+      })
+      .filter(Boolean) as { label: string; pct: number }[]
+  })
 
   if (data.length === 0) return null
 
@@ -241,7 +253,7 @@ export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
           <ProviderSection
             key={p.provider}
             usage={p}
-            pinned={pinned?.[p.provider] ?? []}
+            pinned={effectivePinned[p.provider] ?? []}
             onTogglePin={(key) => togglePin(p.provider, key)}
           />
         ))}
