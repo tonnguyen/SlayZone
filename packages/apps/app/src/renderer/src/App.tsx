@@ -169,6 +169,22 @@ function App(): React.JSX.Element {
   const [showAnimatedTour, setShowAnimatedTour] = useState(false)
   const startTutorial = (): void => setShowAnimatedTour(true)
 
+  // Prompt existing users who completed onboarding but never saw the tour toast
+  useEffect(() => {
+    Promise.all([
+      window.api.settings.get('onboarding_completed'),
+      window.api.settings.get('tutorial_prompted')
+    ]).then(([onboarded, prompted]) => {
+      if (onboarded === 'true' && !prompted) {
+        void window.api.settings.set('tutorial_prompted', 'true')
+        toast('Want a quick tour?', {
+          duration: 8000,
+          action: { label: 'Take the tour', onClick: startTutorial }
+        })
+      }
+    })
+  }, [])
+
   // Usage & notification state
   const { data: usageData, refresh: refreshUsage } = useUsage()
   const [notificationState, setNotificationState] = useNotificationState()
