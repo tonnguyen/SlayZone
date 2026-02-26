@@ -1042,6 +1042,7 @@ function App(): React.JSX.Element {
                         />
                         <NotificationButton
                           active={notificationState.isLocked}
+                          count={attentionTasks.length}
                           onClick={() => setNotificationState({ isLocked: !notificationState.isLocked })}
                         />
                       </div>
