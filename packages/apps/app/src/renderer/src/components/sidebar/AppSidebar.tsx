@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Settings, HelpCircle, Keyboard, ChevronDown, Map, Sparkles } from 'lucide-react'
+import { Settings, Keyboard, ChevronDown, Megaphone } from 'lucide-react'
+import { IoCompassSharp } from 'react-icons/io5'
+import { FaRegHandshake } from 'react-icons/fa'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import {
   Sidebar,
@@ -170,7 +172,7 @@ export function AppSidebar({
                   onClick={onTutorial}
                   className="rounded-lg text-muted-foreground"
                 >
-                  <Map className="size-5" />
+                  <IoCompassSharp className="size-6" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">Take a Tour</TooltipContent>
@@ -183,7 +185,7 @@ export function AppSidebar({
                   onClick={onChangelog}
                   className="rounded-lg text-muted-foreground"
                 >
-                  <Sparkles className="size-5" />
+                  <Megaphone className="size-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">What's New</TooltipContent>
@@ -196,7 +198,7 @@ export function AppSidebar({
                   onClick={onOnboarding}
                   className="rounded-lg text-muted-foreground"
                 >
-                  <HelpCircle className="size-5" />
+                  <FaRegHandshake className="size-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">Onboarding</TooltipContent>
