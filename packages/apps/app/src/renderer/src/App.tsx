@@ -1002,6 +1002,7 @@ function App(): React.JSX.Element {
                     rightContent={
                       <div className="flex items-center gap-1">
                         <UsagePopover data={usageData} onRefresh={refreshUsage} />
+                        <div className="w-6" />
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
