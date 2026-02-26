@@ -1009,10 +1009,11 @@ export function TaskDetailPage({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isActive, panelVisibility, handlePanelToggle, isBuiltinEnabled, enabledWebPanels])
 
-  // Focus title input when editing
+  // Focus and select title input when editing
   useEffect(() => {
     if (editingTitle && titleInputRef.current) {
       titleInputRef.current.focus()
+      titleInputRef.current.select()
     }
   }, [editingTitle])
 
@@ -1341,7 +1342,10 @@ export function TaskDetailPage({
                       className="h-7 px-2.5 shrink-0"
                       onClick={async () => {
                         const converted = await onConvertTask?.(task)
-                        if (converted) handleTaskUpdate(converted)
+                        if (converted) {
+                          handleTaskUpdate(converted)
+                          setEditingTitle(true)
+                        }
                       }}
                     >
                       Turn into task
