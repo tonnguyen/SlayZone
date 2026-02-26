@@ -468,13 +468,13 @@ export function UserSettingsDialog({
     { key: 'general', label: 'General' },
     { key: 'appearance', label: 'Appearance' },
     { key: 'panels', label: 'Panels' },
-    { key: 'integrations', label: 'Integrations' },
-    { key: 'diagnostics', label: 'Diagnostics' },
-    // { key: 'ai-config', label: 'Context Manager' },
+    { key: 'ai-config', label: 'Context Manager' },
     { key: 'tags', label: 'Tags' },
-    { key: 'telemetry', label: 'Telemetry' },
+    { key: 'integrations', label: 'Integrations' },
     { key: 'data', label: 'Import & Export' },
     { key: 'labs', label: 'Labs' },
+    { key: 'diagnostics', label: 'Diagnostics' },
+    { key: 'telemetry', label: 'Telemetry' },
     { key: 'about', label: 'About' }
   ]
 
