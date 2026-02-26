@@ -5,19 +5,6 @@ import { SceneShell, TaskHeader, panelButtons } from './SceneShell'
 import { AnimatedCursor } from './AnimatedCursor'
 import { TerminalBanner } from './TerminalBanner'
 
-interface DiffFile {
-  name: string
-  added: number
-  removed: number
-  isNew?: boolean
-}
-
-const FILES: DiffFile[] = [
-  { name: 'src/middleware/auth.ts', added: 42, removed: 0, isNew: true },
-  { name: 'src/index.ts', added: 3, removed: 1 },
-  { name: 'package.json', added: 1, removed: 0 },
-]
-
 const FILE_TREE = [
   { name: 'src/middleware', indent: 0, folder: true },
   { name: 'auth.ts', indent: 1, status: '?', added: 42 },
@@ -122,10 +109,10 @@ function DiffTab(): React.JSX.Element {
           {FILE_TREE.map((f, i) => (
             <div
               key={i}
-              className={`flex items-center gap-2 px-3 py-1 text-[12px] ${f.folder ? 'text-muted-foreground/60' : ''}`}
+              className={`flex items-center gap-2 px-3 py-1 text-[12px] ${'folder' in f ? 'text-muted-foreground/60' : ''}`}
               style={{ paddingLeft: 12 + f.indent * 16 }}
             >
-              {f.folder ? (
+              {'folder' in f ? (
                 <>
                   <span className="text-muted-foreground/40">{'>'}</span>
                   <span className="truncate">{f.name}</span>
@@ -135,7 +122,7 @@ function DiffTab(): React.JSX.Element {
                   <span className={`font-bold w-3 shrink-0 ${f.status === '?' ? 'text-green-500' : 'text-yellow-500'}`}>{f.status}</span>
                   <span className="truncate flex-1">{f.name}</span>
                   <span className="text-green-500 shrink-0">+{f.added}</span>
-                  {(f.removed ?? 0) > 0 && <span className="text-red-400 shrink-0">-{f.removed}</span>}
+                  {'removed' in f && f.removed > 0 && <span className="text-red-400 shrink-0">-{f.removed}</span>}
                 </>
               )}
             </div>
