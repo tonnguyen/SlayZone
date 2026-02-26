@@ -37,6 +37,7 @@ interface AppSidebarProps {
   onOnboarding: () => void
   onTutorial: () => void
   onChangelog: () => void
+  onTaskClick?: (taskId: string) => void
   zenMode?: boolean
 }
 
@@ -95,6 +96,7 @@ export function AppSidebar({
   onOnboarding,
   onTutorial,
   onChangelog,
+  onTaskClick,
   zenMode,
 }: AppSidebarProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -159,7 +161,7 @@ export function AppSidebar({
       <SidebarFooter className="py-4">
         <SidebarMenu>
           <SidebarMenuItem className="flex flex-col items-center gap-2">
-            <TerminalStatusPopover tasks={tasks} />
+            <TerminalStatusPopover tasks={tasks} onTaskClick={onTaskClick} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

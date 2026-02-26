@@ -969,6 +969,7 @@ function App(): React.JSX.Element {
           onOnboarding={() => setOnboardingOpen(true)}
           onTutorial={startTutorial}
           onChangelog={() => setChangelogOpen(true)}
+          onTaskClick={openTask}
           zenMode={zenMode}
         />
 
