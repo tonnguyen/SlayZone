@@ -1,5 +1,5 @@
 import type { Project, CreateProjectInput, UpdateProjectInput } from '@slayzone/projects/shared'
-import type { Task, CreateTaskInput, UpdateTaskInput, GenerateDescriptionResult } from '@slayzone/task/shared'
+import type { Task, CreateTaskInput, UpdateTaskInput, GenerateDescriptionResult, DesktopHandoffPolicy } from '@slayzone/task/shared'
 import type { Tag, CreateTagInput, UpdateTagInput } from '@slayzone/tags/shared'
 import type { TerminalMode, TerminalState, CodeMode, PtyInfo, PromptInfo, BufferSinceResult, ProviderUsage, ValidationResult } from '@slayzone/terminal/shared'
 import type { TerminalTab, CreateTerminalTabInput, UpdateTerminalTabInput } from '@slayzone/task-terminals/shared'
@@ -179,7 +179,14 @@ export interface ElectronAPI {
     onChange: (callback: (theme: Theme) => void) => () => void
   }
   shell: {
-    openExternal: (url: string) => Promise<void>
+    openExternal: (
+      url: string,
+      options?: {
+        // Legacy compatibility. Prefer desktopHandoff.
+        blockDesktopHandoff?: boolean
+        desktopHandoff?: DesktopHandoffPolicy
+      }
+    ) => Promise<void>
   }
   auth: {
     githubPopupSignIn: (signInUrl: string, callbackUrl: string) => Promise<{
@@ -384,6 +391,7 @@ export interface ElectronAPI {
   }
   webview: {
     registerShortcuts: (webviewId: number) => Promise<void>
+    setDesktopHandoffPolicy: (webviewId: number, policy: DesktopHandoffPolicy | null) => Promise<boolean>
     onShortcut: (callback: (payload: { key: string; shift?: boolean; webviewId?: number }) => void) => () => void
     openDevToolsBottom: (webviewId: number) => Promise<boolean>
     openDevToolsInline: (targetWebviewId: number, bounds: { x: number; y: number; width: number; height: number }) => Promise<{

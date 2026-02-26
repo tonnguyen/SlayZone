@@ -1811,7 +1811,11 @@ export function TaskDetailPage({
                 <WebPanelView
                   panelId={wp.id}
                   url={task.web_panel_urls?.[wp.id] || wp.baseUrl}
+                  baseUrl={wp.baseUrl}
                   name={wp.name}
+                  blockDesktopHandoff={wp.blockDesktopHandoff === true}
+                  handoffProtocol={wp.handoffProtocol}
+                  handoffHostScope={wp.handoffHostScope}
                   onUrlChange={handleWebPanelUrlChange}
                   onFaviconChange={handleWebPanelFaviconChange}
                   isResizing={isResizing}
