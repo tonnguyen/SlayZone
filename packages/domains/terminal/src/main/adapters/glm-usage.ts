@@ -125,11 +125,30 @@ async function fetchGlmUsage(): Promise<ProviderUsage> {
     const timeLimit = data.data.limits.find((l) => l.type === 'TIME_LIMIT')
     const tokensLimit = data.data.limits.find((l) => l.type === 'TOKENS_LIMIT')
 
+    // Build usage windows, swapping reset times (API has them backwards)
+    const fiveHourWindow = timeLimit && tokensLimit
+      ? {
+          utilization: timeLimit.percentage,
+          resetsAt: new Date(tokensLimit.nextResetTime).toISOString()
+        }
+      : timeLimit
+        ? mapWindow(timeLimit)
+        : null
+
+    const sevenDayWindow = tokensLimit && timeLimit
+      ? {
+          utilization: tokensLimit.percentage,
+          resetsAt: new Date(timeLimit.nextResetTime).toISOString()
+        }
+      : tokensLimit
+        ? mapWindow(tokensLimit)
+        : null
+
     return {
       provider: 'glm',
       label: 'GLM (Z.AI)',
-      fiveHour: timeLimit ? mapWindow(timeLimit) : null,
-      sevenDay: tokensLimit ? mapWindow(tokensLimit) : null,
+      fiveHour: fiveHourWindow,
+      sevenDay: sevenDayWindow,
       sevenDayOpus: null,
       sevenDaySonnet: null,
       error: null,
