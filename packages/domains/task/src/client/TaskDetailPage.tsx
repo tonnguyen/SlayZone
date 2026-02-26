@@ -299,11 +299,16 @@ export function TaskDetailPage({
   const terminalContainerRef = useRef<TerminalContainerHandle>(null)
   const browserPanelRef = useRef<BrowserPanelHandle>(null)
   const pendingEditorFileRef = useRef<string | null>(null)
+  const pendingSearchToggleRef = useRef(false)
   const fileEditorRefCallback = useCallback((handle: FileEditorViewHandle | null) => {
     fileEditorRef.current = handle
     if (handle && pendingEditorFileRef.current) {
       handle.openFile(pendingEditorFileRef.current)
       pendingEditorFileRef.current = null
+    }
+    if (handle && pendingSearchToggleRef.current) {
+      handle.toggleSearch()
+      pendingSearchToggleRef.current = false
     }
   }, [])
   useEffect(() => { browserOpenRef.current = panelVisibility.browser }, [panelVisibility.browser])
@@ -913,11 +918,16 @@ export function TaskDetailPage({
       if (!isActive) return
       // Cmd+Shift+G: git diff tab toggle
       if (e.metaKey && e.shiftKey) {
-        // Cmd+Shift+F: toggle global search in editor sidebar
+        // Cmd+Shift+F: open editor panel + search sidebar
         if (e.key.toLowerCase() === 'f' && isBuiltinEnabled('editor')) {
           e.preventDefault()
-          if (!panelVisibility.editor) handlePanelToggle('editor', true)
-          fileEditorRef.current?.toggleSearch()
+          if (fileEditorRef.current) {
+            if (!panelVisibility.editor) handlePanelToggle('editor', true)
+            fileEditorRef.current.toggleSearch()
+          } else {
+            pendingSearchToggleRef.current = true
+            handlePanelToggle('editor', true)
+          }
           return
         }
         if (e.key.toLowerCase() === 'l' && isBuiltinEnabled('browser') && panelVisibility.browser) {
