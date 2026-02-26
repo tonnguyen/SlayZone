@@ -10,7 +10,7 @@
     ]
   },
   "scripts": {
-    "postinstall": "node -e \"if(!process.env.CI_SKIP_POSTINSTALL)require('child_process').execSync('electron-rebuild -f -w better-sqlite3,node-pty',{stdio:'inherit'})\"",
+    "postinstall": "node -e \"if(!process.env.CI_SKIP_POSTINSTALL)require('child_process').execSync('pnpm --filter @slayzone/app exec electron-rebuild -f -w better-sqlite3,node-pty',{stdio:'inherit'})\"",
     "dev": "pnpm --filter @slayzone/app dev",
     "generate-icons": "node scripts/generate-icons.js",
     "patch-electron-name": "node scripts/patch-electron-name.js",
