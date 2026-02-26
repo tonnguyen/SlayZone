@@ -121,7 +121,7 @@ async function fetchGlmUsage(): Promise<ProviderUsage> {
       }
     }
 
-    // Find TIME_LIMIT (5-hour window) and TOKENS_LIMIT (monthly quota)
+    // Find TIME_LIMIT (30-day window) and TOKENS_LIMIT (5-hour quota)
     const timeLimit = data.data.limits.find((l) => l.type === 'TIME_LIMIT')
     const tokensLimit = data.data.limits.find((l) => l.type === 'TOKENS_LIMIT')
 
