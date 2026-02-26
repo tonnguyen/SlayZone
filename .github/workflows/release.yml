@@ -35,17 +35,24 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
   release:
+    name: Release (${{ matrix.name }})
     needs: deploy-convex
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - name: macos-arm64
+            os: macos-latest
             build_args: --mac --arm64
-          - os: ubuntu-latest
+          - name: linux
+            os: ubuntu-latest
             build_args: --linux
-          - os: windows-latest
-            build_args: --win
+          - name: windows-x64
+            os: windows-latest
+            build_args: --win --x64
+          - name: windows-arm64
+            os: windows-latest
+            build_args: --win --arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -97,7 +104,6 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Build CLI
-        if: runner.os == 'macOS'
         run: pnpm --filter @slayzone/cli build
 
       - name: Build
