@@ -126,12 +126,12 @@ async function fetchGlmUsage(): Promise<ProviderUsage> {
     const tokensLimit = data.data.limits.find((l) => l.type === 'TOKENS_LIMIT')
 
     // Build usage windows
-    // 5h: uses TOKENS_LIMIT percentage with TIME_LIMIT reset time
-    // 30d: uses TIME_LIMIT percentage with TOKENS_LIMIT reset time
+    // 5h: uses TOKENS_LIMIT percentage with TOKENS_LIMIT reset time
+    // 30d: uses TIME_LIMIT percentage with TIME_LIMIT reset time
     const fiveHourWindow = tokensLimit && timeLimit
       ? {
           utilization: tokensLimit.percentage,
-          resetsAt: new Date(timeLimit.nextResetTime).toISOString()
+          resetsAt: new Date(tokensLimit.nextResetTime).toISOString()
         }
       : tokensLimit
         ? mapWindow(tokensLimit)
@@ -142,7 +142,7 @@ async function fetchGlmUsage(): Promise<ProviderUsage> {
     const sevenDayWindow = timeLimit && tokensLimit
       ? {
           utilization: timeLimit.percentage,
-          resetsAt: new Date(tokensLimit.nextResetTime).toISOString()
+          resetsAt: new Date(timeLimit.nextResetTime).toISOString()
         }
       : timeLimit
         ? mapWindow(timeLimit)
