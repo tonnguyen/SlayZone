@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Circle, RefreshCw } from 'lucide-react'
 import {
   cn,
   Popover,
@@ -7,6 +7,16 @@ import {
   PopoverTrigger,
 } from '@slayzone/ui'
 import type { ProviderUsage, UsageWindow } from '@slayzone/terminal/shared'
+
+type UsageWindowKey = 'fiveHour' | 'sevenDay' | 'sevenDayOpus' | 'sevenDaySonnet'
+type PinnedBars = Record<string, UsageWindowKey[]>
+
+const WINDOW_LABELS: Record<UsageWindowKey, string> = {
+  fiveHour: '5h',
+  sevenDay: '7d',
+  sevenDayOpus: 'Opus',
+  sevenDaySonnet: 'Son.',
+}
 
 interface UsagePopoverProps {
   data: ProviderUsage[]
@@ -55,10 +65,34 @@ function InlineBar({ pct, label }: { pct: number; label: string }) {
   )
 }
 
-function WindowRow({ label, w }: { label: string; w: UsageWindow }) {
+function WindowRow({
+  label,
+  w,
+  pinned,
+  onTogglePin,
+}: {
+  label: string
+  w: UsageWindow
+  pinned?: boolean
+  onTogglePin?: () => void
+}) {
   const reset = formatReset(w.resetsAt)
   return (
     <div className="flex items-center gap-2">
+      {onTogglePin && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin()
+          }}
+          className={cn(
+            'shrink-0 transition-colors',
+            pinned ? 'text-foreground' : 'text-muted-foreground/30 hover:text-muted-foreground/60',
+          )}
+        >
+          <Circle className={cn('size-2.5', pinned && 'fill-current')} />
+        </button>
+      )}
       <span className="text-xs text-muted-foreground w-8 shrink-0">{label}</span>
       <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
         <div
@@ -74,7 +108,15 @@ function WindowRow({ label, w }: { label: string; w: UsageWindow }) {
   )
 }
 
-function ProviderSection({ usage }: { usage: ProviderUsage }) {
+function ProviderSection({
+  usage,
+  pinned,
+  onTogglePin,
+}: {
+  usage: ProviderUsage
+  pinned: UsageWindowKey[]
+  onTogglePin: (key: UsageWindowKey) => void
+}) {
   if (usage.error) {
     return (
       <div className="space-y-1">
@@ -84,16 +126,27 @@ function ProviderSection({ usage }: { usage: ProviderUsage }) {
     )
   }
 
+  const rows: { key: UsageWindowKey; label: string; w: UsageWindow }[] = []
+  if (usage.fiveHour) rows.push({ key: 'fiveHour', label: '5h', w: usage.fiveHour })
+  if (usage.sevenDay) rows.push({ key: 'sevenDay', label: '7d', w: usage.sevenDay })
+  if (usage.sevenDayOpus) rows.push({ key: 'sevenDayOpus', label: 'Opus', w: usage.sevenDayOpus })
+  if (usage.sevenDaySonnet) rows.push({ key: 'sevenDaySonnet', label: 'Son.', w: usage.sevenDaySonnet })
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium flex-1">{usage.label}</span>
         <span className="text-[10px] text-muted-foreground w-16 shrink-0 text-right">Resets in</span>
       </div>
-      {usage.fiveHour && <WindowRow label="5h" w={usage.fiveHour} />}
-      {usage.sevenDay && <WindowRow label="7d" w={usage.sevenDay} />}
-      {usage.sevenDayOpus && <WindowRow label="Opus" w={usage.sevenDayOpus} />}
-      {usage.sevenDaySonnet && <WindowRow label="Son." w={usage.sevenDaySonnet} />}
+      {rows.map((r) => (
+        <WindowRow
+          key={r.key}
+          label={r.label}
+          w={r.w}
+          pinned={pinned.includes(r.key)}
+          onTogglePin={() => onTogglePin(r.key)}
+        />
+      ))}
     </div>
   )
 }
@@ -101,6 +154,37 @@ function ProviderSection({ usage }: { usage: ProviderUsage }) {
 export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const [pinned, setPinned] = useState<PinnedBars | null>(null)
+
+  useEffect(() => {
+    window.api.settings.get('usage_pinned_bars').then((raw) => {
+      if (raw) {
+        try {
+          setPinned(JSON.parse(raw))
+        } catch {
+          /* ignore corrupt */
+        }
+      }
+    })
+  }, [])
+
+  const togglePin = useCallback((provider: string, windowKey: UsageWindowKey) => {
+    setPinned((prev) => {
+      const next = { ...prev }
+      const arr = [...(next[provider] ?? [])]
+      const idx = arr.indexOf(windowKey)
+      if (idx >= 0) {
+        arr.splice(idx, 1)
+        if (arr.length === 0) delete next[provider]
+        else next[provider] = arr
+      } else {
+        next[provider] = [...arr, windowKey]
+      }
+      const hasAny = Object.keys(next).length > 0
+      window.api.settings.set('usage_pinned_bars', hasAny ? JSON.stringify(next) : '')
+      return hasAny ? next : null
+    })
+  }, [])
 
   const handleEnter = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
@@ -111,10 +195,23 @@ export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
   }
 
   const withData = data.filter((p) => !p.error && (p.fiveHour || p.sevenDay))
-  const inlineBars = withData
-    .map((p) => ({ label: p.label, pct: peakUtilization(p) }))
-    .sort((a, b) => b.pct - a.pct)
-    .slice(0, 2)
+
+  const inlineBars: { label: string; pct: number }[] =
+    pinned && Object.keys(pinned).length > 0
+      ? data.flatMap((p) => {
+          const keys = pinned[p.provider]
+          if (!keys) return []
+          return keys
+            .map((k) => {
+              const w = p[k]
+              return w ? { label: `${p.label} ${WINDOW_LABELS[k]}`, pct: w.utilization } : null
+            })
+            .filter(Boolean) as { label: string; pct: number }[]
+        })
+      : withData
+          .map((p) => ({ label: p.label, pct: peakUtilization(p) }))
+          .sort((a, b) => b.pct - a.pct)
+          .slice(0, 2)
 
   if (data.length === 0) return null
 
@@ -141,7 +238,12 @@ export function UsagePopover({ data, onRefresh }: UsagePopoverProps) {
         onMouseLeave={handleLeave}
       >
         {data.map((p) => (
-          <ProviderSection key={p.provider} usage={p} />
+          <ProviderSection
+            key={p.provider}
+            usage={p}
+            pinned={pinned?.[p.provider] ?? []}
+            onTogglePin={(key) => togglePin(p.provider, key)}
+          />
         ))}
         <div className="flex items-center justify-between pt-1 border-t">
           <span className="text-[10px] text-muted-foreground">
