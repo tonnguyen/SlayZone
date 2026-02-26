@@ -913,6 +913,13 @@ export function TaskDetailPage({
       if (!isActive) return
       // Cmd+Shift+G: git diff tab toggle
       if (e.metaKey && e.shiftKey) {
+        // Cmd+Shift+F: toggle global search in editor sidebar
+        if (e.key.toLowerCase() === 'f' && isBuiltinEnabled('editor')) {
+          e.preventDefault()
+          if (!panelVisibility.editor) handlePanelToggle('editor', true)
+          fileEditorRef.current?.toggleSearch()
+          return
+        }
         if (e.key.toLowerCase() === 'l' && isBuiltinEnabled('browser') && panelVisibility.browser) {
           e.preventDefault()
           browserPanelRef.current?.pickElement()

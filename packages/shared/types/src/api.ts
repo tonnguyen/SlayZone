@@ -28,7 +28,7 @@ import type {
   RemoveMcpServerInput,
   GlobalFileEntry
 } from '@slayzone/ai-config/shared'
-import type { DirEntry, ReadFileResult } from '@slayzone/file-editor/shared'
+import type { DirEntry, ReadFileResult, FileSearchResult, SearchFilesOptions } from '@slayzone/file-editor/shared'
 import type {
   ConnectLinearInput,
   ExternalLink,
@@ -363,6 +363,7 @@ export interface ElectronAPI {
     delete: (rootPath: string, targetPath: string) => Promise<void>
     copyIn: (rootPath: string, absoluteSrc: string) => Promise<string>
     listAllFiles: (rootPath: string) => Promise<string[]>
+    searchFiles: (rootPath: string, query: string, options?: SearchFilesOptions) => Promise<FileSearchResult[]>
     watch: (rootPath: string) => Promise<void>
     unwatch: (rootPath: string) => Promise<void>
     onFileChanged: (callback: (rootPath: string, relPath: string) => void) => () => void

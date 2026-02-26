@@ -359,6 +359,7 @@ const api: ElectronAPI = {
     delete: (rootPath, targetPath) => ipcRenderer.invoke('fs:delete', rootPath, targetPath),
     copyIn: (rootPath, absoluteSrc) => ipcRenderer.invoke('fs:copyIn', rootPath, absoluteSrc),
     listAllFiles: (rootPath) => ipcRenderer.invoke('fs:listAllFiles', rootPath),
+    searchFiles: (rootPath, query, opts) => ipcRenderer.invoke('fs:searchFiles', rootPath, query, opts),
     watch: (rootPath) => ipcRenderer.invoke('fs:watch', rootPath),
     unwatch: (rootPath) => ipcRenderer.invoke('fs:unwatch', rootPath),
     onFileChanged: (callback) => {
