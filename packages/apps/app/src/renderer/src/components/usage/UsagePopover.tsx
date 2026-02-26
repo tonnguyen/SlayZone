@@ -71,7 +71,7 @@ function WindowRow({
   w: UsageWindow
   pinned?: boolean
   onTogglePin?: () => void
-})
+}): React.JSX.Element {
   const reset = formatReset(w.resetsAt)
   return (
     <div className="flex items-center gap-2">
