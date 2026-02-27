@@ -62,14 +62,14 @@ function SettingsTabIntro({ title, description }: { title: string; description: 
 
 const CATEGORY_META: Record<
   WorkflowCategory,
-  { label: string; hint: string; icon: LucideIcon }
+  { label: string; icon: LucideIcon }
 > = {
-  triage: { label: 'Triage', hint: 'Incoming work that needs classification.', icon: Inbox },
-  backlog: { label: 'Backlog', hint: 'Queued work waiting to be pulled.', icon: CircleDashed },
-  unstarted: { label: 'Unstarted', hint: 'Ready to start.', icon: Circle },
-  started: { label: 'Started', hint: 'Work currently in progress.', icon: CircleDot },
-  completed: { label: 'Completed', hint: 'Finished and counted as done.', icon: CircleCheck },
-  canceled: { label: 'Canceled', hint: 'Stopped, declined, or duplicate.', icon: CircleX }
+  triage: { label: 'Triage', icon: Inbox },
+  backlog: { label: 'Backlog', icon: CircleDashed },
+  unstarted: { label: 'Unstarted', icon: Circle },
+  started: { label: 'Started', icon: CircleDot },
+  completed: { label: 'Completed', icon: CircleCheck },
+  canceled: { label: 'Canceled', icon: CircleX }
 }
 
 const STATUS_COLOR_BADGE: Record<string, string> = {
@@ -480,27 +480,16 @@ export function ProjectSettingsDialog({
                 title="Task statuses"
                 description="Define the workflow statuses your tasks move through. Group statuses by stage and customize each status name, color, and behavior."
               />
-              <p className="text-xs text-muted-foreground">
-                Status IDs are immutable and stored on tasks. Labels, color, and order can be changed.
-              </p>
-              <div className="overflow-hidden rounded-xl border border-border/60 bg-card/30">
+              <div className="space-y-2 rounded-xl border border-border/60 bg-card/30 p-4">
                 {WORKFLOW_CATEGORIES.map((category) => {
                   const meta = CATEGORY_META[category]
                   const Icon = meta.icon
                   const rows = sortedColumns.filter((column) => column.category === category)
 
                   return (
-                    <div key={category} className="border-b border-border/60 last:border-b-0">
-                      <div className="flex items-center justify-between bg-muted/50 px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-foreground/90">
-                              {meta.label}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">{meta.hint}</p>
-                          </div>
-                        </div>
+                    <div key={category} className="space-y-1">
+                      <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/60 py-2 pl-3 pr-2">
+                        <p className="text-sm font-medium text-foreground/90">{meta.label}</p>
                         <Button
                           type="button"
                           variant="ghost"
@@ -514,7 +503,7 @@ export function ProjectSettingsDialog({
                       </div>
 
                       {rows.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                        <div className="py-2 pr-3 text-xs text-muted-foreground">
                           No statuses in this group.
                         </div>
                       ) : (
@@ -522,7 +511,7 @@ export function ProjectSettingsDialog({
                           {rows.map((column, index) => (
                             <div
                               key={column.id}
-                              className="space-y-2 px-3 py-3"
+                              className="group py-2 pr-2"
                               data-testid={`project-column-${column.id}`}
                             >
                               <div className="flex items-center gap-2">
@@ -533,7 +522,7 @@ export function ProjectSettingsDialog({
                                       variant="ghost"
                                       size="icon"
                                       className={cn(
-                                        'h-8 w-8 rounded-md border border-border/60 p-0',
+                                        'h-9 w-9 rounded-md border border-border/50 p-0',
                                         STATUS_COLOR_BADGE[column.color] ?? STATUS_COLOR_BADGE.gray
                                       )}
                                       title="Select status color"
@@ -562,14 +551,14 @@ export function ProjectSettingsDialog({
                                   value={column.label}
                                   onChange={(event) => updateColumn(column.id, { label: event.target.value })}
                                   placeholder="Status label"
-                                  className="h-8"
+                                  className="h-8 border-0 !bg-transparent dark:!bg-transparent px-0 text-sm font-medium shadow-none focus:bg-transparent focus-visible:!bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
                                 />
-                                <div className="flex items-center gap-1">
+                                <div className="ml-1 flex items-center gap-0.5">
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                     data-testid={`move-up-project-column-${column.id}`}
                                     aria-label={`Move ${column.label} status up`}
                                     disabled={index === 0}
@@ -579,9 +568,9 @@ export function ProjectSettingsDialog({
                                   </Button>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                     data-testid={`move-down-project-column-${column.id}`}
                                     aria-label={`Move ${column.label} status down`}
                                     disabled={index === rows.length - 1}
@@ -591,9 +580,9 @@ export function ProjectSettingsDialog({
                                   </Button>
                                   <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-destructive"
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                     data-testid={`delete-project-column-${column.id}`}
                                     aria-label={`Delete ${column.label} column`}
                                     onClick={() => deleteColumn(column.id)}
@@ -601,12 +590,6 @@ export function ProjectSettingsDialog({
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 pl-10">
-                                <span className="text-xs text-muted-foreground">
-                                  ID: <code>{column.id}</code>
-                                </span>
                               </div>
                             </div>
                           ))}
@@ -616,19 +599,13 @@ export function ProjectSettingsDialog({
                   )
                 })}
               </div>
-              <div className="flex items-center justify-between">
-                <Button type="button" variant="outline" onClick={() => addColumn()}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add status
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="outline" onClick={handleResetColumns}>
+                  Reset defaults
                 </Button>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={handleResetColumns}>
-                    Reset defaults
-                  </Button>
-                  <Button type="button" onClick={handleSaveColumns} data-testid="save-project-columns">
-                    Save statuses
-                  </Button>
-                </div>
+                <Button type="button" onClick={handleSaveColumns} data-testid="save-project-columns">
+                  Save statuses
+                </Button>
               </div>
             </div>
           )}
