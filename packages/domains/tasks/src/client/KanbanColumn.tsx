@@ -7,6 +7,7 @@ import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { Column } from './kanban'
+import type { CardProperties } from './FilterState'
 import { KanbanCard } from './KanbanCard'
 import { TaskContextMenu } from './TaskContextMenu'
 import { Button } from '@slayzone/ui'
@@ -24,6 +25,7 @@ interface SortableKanbanCardProps {
   project?: Project
   showProject?: boolean
   disableDrag?: boolean
+  cardProperties?: CardProperties
   isBlocked?: boolean
   isFocused?: boolean
   onMouseEnter?: () => void
@@ -42,6 +44,7 @@ function SortableKanbanCard({
   project,
   showProject,
   disableDrag,
+  cardProperties,
   isBlocked,
   isFocused,
   onMouseEnter,
@@ -87,6 +90,7 @@ function SortableKanbanCard({
         showProject={showProject}
         isBlocked={isBlocked}
         subTaskCount={subTaskCount}
+        cardProperties={cardProperties}
       />
     </div>
   )
@@ -118,6 +122,7 @@ interface KanbanColumnProps {
   projectsMap?: Map<string, Project>
   showProjectDot?: boolean
   disableDrag?: boolean
+  cardProperties?: CardProperties
   taskTags?: Map<string, string[]>
   tags?: Tag[]
   blockedTaskIds?: Set<string>
@@ -142,6 +147,7 @@ export function KanbanColumn({
   projectsMap,
   showProjectDot,
   disableDrag,
+  cardProperties,
   blockedTaskIds,
   subTaskCounts,
   focusedTaskId,
@@ -218,6 +224,7 @@ export function KanbanColumn({
                 project={showProjectDot ? projectsMap?.get(task.project_id) : undefined}
                 showProject={showProjectDot}
                 disableDrag={disableDrag}
+                cardProperties={cardProperties}
                 isBlocked={blockedTaskIds?.has(task.id)}
                 isFocused={focusedTaskId === task.id}
                 onMouseEnter={() => onCardMouseEnter?.(task.id)}

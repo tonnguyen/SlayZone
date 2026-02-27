@@ -1,8 +1,8 @@
 import type { Task, TaskStatus } from '@slayzone/task/shared'
 import { TASK_STATUS_ORDER, getTaskStatusStyle } from '@slayzone/ui'
-import type { FilterState, DueDateRange, SortKey } from './FilterState'
+import { type FilterState, type DueDateRange, type SortKey, type GroupKey, getViewConfig } from './FilterState'
 
-export type GroupKey = 'status' | 'priority' | 'due_date'
+export type { GroupKey }
 
 export interface Column {
   id: string
@@ -110,12 +110,18 @@ function groupByDueDate(tasks: Task[], sortBy: SortKey): Column[] {
 
 export function groupTasksBy(tasks: Task[], groupBy: GroupKey, sortBy: SortKey = 'manual'): Column[] {
   switch (groupBy) {
+    case 'none':
+    case 'active':
+      return [{ id: 'all', title: 'All Tasks', tasks: sortTasks(tasks, sortBy) }]
     case 'status':
       return groupByStatus(tasks, sortBy)
     case 'priority':
       return groupByPriority(tasks, sortBy)
     case 'due_date':
       return groupByDueDate(tasks, sortBy)
+    default:
+      // Runtime guard for unexpected persisted values.
+      return groupByStatus(tasks, sortBy)
   }
 }
 
@@ -155,6 +161,7 @@ export function applyFilters(
   filter: FilterState,
   taskTags: Map<string, string[]>
 ): Task[] {
+  const vc = getViewConfig(filter)
   return tasks.filter((task) => {
     // Priority filter
     if (filter.priority !== null && task.priority !== filter.priority) {
@@ -175,18 +182,16 @@ export function applyFilters(
       }
     }
 
-    // Show done filter
-    if (!filter.showDone && task.status === 'done') {
-      return false
-    }
+    // Completed filter
+    if (task.status === 'done' && vc.completedFilter === 'none') return false
 
     // Show archived filter
-    if (!filter.showArchived && task.archived_at !== null) {
+    if (!vc.showArchived && task.archived_at !== null) {
       return false
     }
 
     // Hide sub-tasks unless toggle is on
-    if (!filter.showSubTasks && task.parent_id) {
+    if (!vc.showSubTasks && task.parent_id) {
       return false
     }
 

@@ -16,8 +16,8 @@ import { motion } from 'framer-motion'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
-import { groupTasksBy, type GroupKey, type Column } from './kanban'
-import type { SortKey } from './FilterState'
+import { groupTasksBy, type Column } from './kanban'
+import type { ViewConfig, CardProperties } from './FilterState'
 import { KanbanColumn } from './KanbanColumn'
 import { KanbanCard } from './KanbanCard'
 import { KanbanPicker } from './KanbanPicker'
@@ -26,8 +26,7 @@ import { useAppearance } from '@slayzone/settings/client'
 
 interface KanbanBoardProps {
   tasks: Task[]
-  groupBy: GroupKey
-  sortBy?: SortKey
+  viewConfig: ViewConfig
   isActive?: boolean
   onTaskMove: (taskId: string, newColumnId: string, targetIndex: number) => void
   onTaskReorder: (taskIds: string[]) => void
@@ -35,7 +34,7 @@ interface KanbanBoardProps {
   onCreateTask?: (column: Column) => void
   projectsMap?: Map<string, Project>
   showProjectDot?: boolean
-  disableDrag?: boolean
+  cardProperties?: CardProperties
   taskTags?: Map<string, string[]>
   tags?: Tag[]
   blockedTaskIds?: Set<string>
@@ -49,8 +48,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   tasks,
-  groupBy,
-  sortBy = 'manual',
+  viewConfig,
   isActive = true,
   onTaskMove,
   onTaskReorder,
@@ -58,7 +56,7 @@ export function KanbanBoard({
   onCreateTask,
   projectsMap,
   showProjectDot,
-  disableDrag,
+  cardProperties,
   taskTags,
   tags,
   blockedTaskIds,
@@ -68,6 +66,8 @@ export function KanbanBoard({
   onDeleteTask,
   onArchiveAllTasks
 }: KanbanBoardProps): React.JSX.Element {
+  const { groupBy, sortBy, showEmptyColumns } = viewConfig
+  const disableDrag = groupBy === 'due_date'
   const { reduceMotion } = useAppearance()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null)
@@ -81,7 +81,8 @@ export function KanbanBoard({
     useSensor(KeyboardSensor)
   )
 
-  const columns = groupTasksBy(tasks, groupBy, sortBy)
+  const allColumns = groupTasksBy(tasks, groupBy, sortBy)
+  const columns = showEmptyColumns ? allColumns : allColumns.filter((c) => c.tasks.length > 0)
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null
 
   const subTaskCounts = useMemo(() => {
@@ -219,6 +220,7 @@ export function KanbanBoard({
             projectsMap={projectsMap}
             showProjectDot={showProjectDot}
             disableDrag={disableDrag}
+            cardProperties={cardProperties}
             taskTags={taskTags}
             tags={tags}
             blockedTaskIds={blockedTaskIds}

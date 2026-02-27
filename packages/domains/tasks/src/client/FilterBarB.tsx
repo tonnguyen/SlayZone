@@ -1,10 +1,12 @@
 import type { Tag } from '@slayzone/tags/shared'
-import type { FilterState, GroupKey, DueDateRange, SortKey } from './FilterState'
+import type { FilterState, GroupKey, DueDateRange, SortKey, ViewMode, ViewConfig } from './FilterState'
+import { getViewConfig } from './FilterState'
 import { Popover, PopoverContent, PopoverTrigger } from '@slayzone/ui'
 import { Button } from '@slayzone/ui'
 import { Switch } from '@slayzone/ui'
 import { Label } from '@slayzone/ui'
-import { ListFilter, Layers, ArrowUpDown, Eye } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@slayzone/ui'
+import { ListFilter, SlidersHorizontal, X, LayoutList, Kanban } from 'lucide-react'
 
 interface FilterBarBProps {
   filter: FilterState
@@ -12,10 +14,31 @@ interface FilterBarBProps {
   tags: Tag[]
 }
 
+const PRIORITY_OPTIONS = [
+  { value: '1', label: 'Urgent' },
+  { value: '2', label: 'High' },
+  { value: '3', label: 'Medium' },
+  { value: '4', label: 'Low' },
+  { value: '5', label: 'None' }
+]
+
+const DUE_DATE_OPTIONS: { value: DueDateRange; label: string }[] = [
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'later', label: 'Later' }
+]
+
 const GROUP_OPTIONS: { value: GroupKey; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'priority', label: 'Priority' },
   { value: 'due_date', label: 'Due Date' }
+]
+
+const LIST_GROUP_OPTIONS: { value: GroupKey; label: string }[] = [
+  { value: 'none', label: 'No groups' },
+  { value: 'active', label: 'Activity' },
+  ...GROUP_OPTIONS
 ]
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -26,22 +49,52 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'created', label: 'Newest first' }
 ]
 
-const PRIORITY_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: '1', label: 'Urgent' },
-  { value: '2', label: 'High' },
-  { value: '3', label: 'Medium' },
-  { value: '4', label: 'Low' },
-  { value: '5', label: 'None' }
-]
 
-const DUE_DATE_OPTIONS: { value: DueDateRange; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'today', label: 'Today' },
-  { value: 'week', label: 'This Week' },
-  { value: 'later', label: 'Later' }
-]
+/** Active filter pills shown below toolbar */
+function FilterPills({ filter, onChange, tags }: FilterBarBProps): React.JSX.Element | null {
+  const pills: { label: string; onRemove: () => void }[] = []
+
+  if (filter.priority !== null) {
+    const label = PRIORITY_OPTIONS.find((o) => o.value === String(filter.priority))?.label ?? 'Priority'
+    pills.push({ label: `Priority: ${label}`, onRemove: () => onChange({ ...filter, priority: null }) })
+  }
+
+  if (filter.dueDateRange !== 'all') {
+    const label = DUE_DATE_OPTIONS.find((o) => o.value === filter.dueDateRange)?.label ?? filter.dueDateRange
+    pills.push({ label: `Due: ${label}`, onRemove: () => onChange({ ...filter, dueDateRange: 'all' }) })
+  }
+
+  if (filter.tagIds.length > 0) {
+    const tagNames = filter.tagIds
+      .map((id) => tags.find((t) => t.id === id)?.name)
+      .filter(Boolean)
+      .join(', ')
+    pills.push({ label: `Tags: ${tagNames}`, onRemove: () => onChange({ ...filter, tagIds: [] }) })
+  }
+
+  if (pills.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {pills.map((pill) => (
+        <button
+          key={pill.label}
+          className="flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-accent/80 transition-colors"
+          onClick={pill.onRemove}
+        >
+          {pill.label}
+          <X className="size-3 text-muted-foreground" />
+        </button>
+      ))}
+      <button
+        className="text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1"
+        onClick={() => onChange({ ...filter, priority: null, dueDateRange: 'all', tagIds: [] })}
+      >
+        Clear all
+      </button>
+    </div>
+  )
+}
 
 export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.JSX.Element {
   const activeFilterCount =
@@ -49,204 +102,225 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
     (filter.dueDateRange !== 'all' ? 1 : 0) +
     (filter.tagIds.length > 0 ? 1 : 0)
 
+  const isList = filter.viewMode === 'list'
+  const vc = getViewConfig(filter)
+  const groupOptions = isList ? LIST_GROUP_OPTIONS : GROUP_OPTIONS
+
+  /** Update the active view's config */
+  const setVc = (updates: Partial<ViewConfig>) => {
+    onChange({ ...filter, [filter.viewMode]: { ...vc, ...updates } })
+  }
+
   return (
-    <div className="ml-auto flex items-center gap-1">
-      {/* Filter */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`h-7 gap-1.5 px-2 text-xs font-medium ${activeFilterCount > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
-          >
-            <ListFilter className="size-3.5" />
-            Filter
-            {activeFilterCount > 0 && (
-              <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-3" align="end">
-          <div className="space-y-3">
-            {/* Priority — segmented control */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Priority</span>
-              <div className="flex items-center rounded-md border border-border/50 p-0.5 gap-px">
-                {PRIORITY_OPTIONS.map((opt) => {
-                  const isActive = (filter.priority === null ? 'all' : String(filter.priority)) === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      className={`min-w-12 px-2.5 py-1 text-xs font-medium rounded transition-colors text-center ${
-                        isActive
-                          ? 'bg-foreground text-background'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                      }`}
-                      onClick={() => onChange({ ...filter, priority: opt.value === 'all' ? null : parseInt(opt.value, 10) })}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Due date — segmented control */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Due date</span>
-              <div className="flex items-center rounded-md border border-border/50 p-0.5 gap-px">
-                {DUE_DATE_OPTIONS.map((opt) => {
-                  const isActive = filter.dueDateRange === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      className={`min-w-12 px-2.5 py-1 text-xs font-medium rounded transition-colors text-center ${
-                        isActive
-                          ? 'bg-foreground text-background'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                      }`}
-                      onClick={() => onChange({ ...filter, dueDateRange: opt.value })}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Tags — toggle pills */}
-            {tags.length > 0 && (
+    <div className="ml-auto flex flex-col gap-1.5">
+      <div className="flex items-center gap-1">
+        {/* ──────── Filter Popover ──────── */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-7 gap-1.5 px-2 text-xs font-medium ${activeFilterCount > 0 ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              <ListFilter className="size-3.5" />
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-3" align="end">
+            <div className="space-y-3">
+              {/* Priority — multi-select pills */}
               <div className="space-y-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Priority</span>
                 <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => {
-                    const isActive = filter.tagIds.includes(tag.id)
+                  {PRIORITY_OPTIONS.map((opt) => {
+                    const isActive = filter.priority === parseInt(opt.value, 10)
                     return (
                       <button
-                        key={tag.id}
-                        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                        key={opt.value}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                           isActive
                             ? 'bg-foreground text-background'
                             : 'border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent'
                         }`}
-                        onClick={() => {
-                          const tagIds = isActive
-                            ? filter.tagIds.filter((id) => id !== tag.id)
-                            : [...filter.tagIds, tag.id]
-                          onChange({ ...filter, tagIds })
-                        }}
+                        onClick={() => onChange({ ...filter, priority: isActive ? null : parseInt(opt.value, 10) })}
                       >
-                        <span
-                          className="size-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        {tag.name}
+                        {opt.label}
                       </button>
                     )
                   })}
                 </div>
               </div>
-            )}
 
-            {/* Reset */}
-            {activeFilterCount > 0 && (
-              <>
-                <div className="h-px bg-border" />
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => onChange({ ...filter, priority: null, dueDateRange: 'all', tagIds: [] })}
-                >
-                  Reset filters
-                </button>
-              </>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+              {/* Due date — pills */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Due date</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {DUE_DATE_OPTIONS.map((opt) => {
+                    const isActive = filter.dueDateRange === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                          isActive
+                            ? 'bg-foreground text-background'
+                            : 'border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent'
+                        }`}
+                        onClick={() => onChange({ ...filter, dueDateRange: isActive ? 'all' : opt.value })}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-      <div className="h-4 w-px bg-border" />
+              {/* Tags — toggle pills */}
+              {tags.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((tag) => {
+                      const isActive = filter.tagIds.includes(tag.id)
+                      return (
+                        <button
+                          key={tag.id}
+                          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                            isActive
+                              ? 'bg-foreground text-background'
+                              : 'border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent'
+                          }`}
+                          onClick={() => {
+                            const tagIds = isActive
+                              ? filter.tagIds.filter((id) => id !== tag.id)
+                              : [...filter.tagIds, tag.id]
+                            onChange({ ...filter, tagIds })
+                          }}
+                        >
+                          <span
+                            className="size-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          {tag.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
-      {/* Group By */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs font-medium text-muted-foreground">
-            <Layers className="size-3.5" />
-            Group by
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-40 p-1" align="end">
-          {GROUP_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${
-                filter.groupBy === opt.value ? 'bg-accent font-medium' : ''
-              }`}
-              onClick={() => onChange({ ...filter, groupBy: opt.value })}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </PopoverContent>
-      </Popover>
-
-      <div className="h-4 w-px bg-border" />
-
-      {/* Sort */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`h-7 gap-1.5 px-2 text-xs font-medium ${filter.sortBy !== 'manual' ? 'text-foreground' : 'text-muted-foreground'}`}
-          >
-            <ArrowUpDown className="size-3.5" />
-            Sort
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-40 p-1" align="end">
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              className={`w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors ${
-                filter.sortBy === opt.value ? 'bg-accent font-medium' : ''
-              }`}
-              onClick={() => onChange({ ...filter, sortBy: opt.value })}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </PopoverContent>
-      </Popover>
-
-      <div className="h-4 w-px bg-border" />
-
-      {/* View Options */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs font-medium text-muted-foreground">
-            <Eye className="size-3.5" />
-            View
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="end">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="b-done" className="text-sm cursor-pointer">Show completed tasks</Label>
-              <Switch id="b-done" checked={filter.showDone} onCheckedChange={(v) => onChange({ ...filter, showDone: v })} />
+              {/* Reset */}
+              {activeFilterCount > 0 && (
+                <>
+                  <div className="h-px bg-border" />
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => onChange({ ...filter, priority: null, dueDateRange: 'all', tagIds: [] })}
+                  >
+                    Reset filters
+                  </button>
+                </>
+              )}
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="b-archived" className="text-sm cursor-pointer">Show archived tasks</Label>
-              <Switch id="b-archived" checked={filter.showArchived} onCheckedChange={(v) => onChange({ ...filter, showArchived: v })} />
+          </PopoverContent>
+        </Popover>
+
+        <div className="h-4 w-px bg-border" />
+
+        {/* ──────── Display Popover ──────── */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs font-medium text-muted-foreground">
+              <SlidersHorizontal className="size-3.5" />
+              Display
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-3" align="end">
+            <div className="space-y-3">
+              {/* View mode toggle */}
+              <div className="grid grid-cols-2 rounded-md border border-border/50 p-0.5 gap-0.5">
+                {([
+                  { value: 'list' as ViewMode, icon: LayoutList, label: 'List' },
+                  { value: 'board' as ViewMode, icon: Kanban, label: 'Board' }
+                ]).map(({ value, icon: Icon, label }) => {
+                  const isActive = filter.viewMode === value
+                  return (
+                    <button
+                      key={value}
+                      className={`flex flex-col items-center justify-center gap-1 py-3 text-[10px] font-medium rounded transition-colors ${
+                        isActive
+                          ? 'bg-foreground text-background'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      }`}
+                      onClick={() => onChange({ ...filter, viewMode: value })}
+                    >
+                      <Icon className="size-5" />
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Grouping */}
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Grouping</Label>
+                <Select value={vc.groupBy} onValueChange={(v) => setVc({ groupBy: v as GroupKey })}>
+                  <SelectTrigger size="sm" className="h-7 w-30 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Ordering */}
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Ordering</Label>
+                <Select value={vc.sortBy} onValueChange={(v) => setVc({ sortBy: v as SortKey })}>
+                  <SelectTrigger size="sm" className="h-7 w-30 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="h-px bg-border" />
+
+              {/* Toggle switches */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="display-completed" className="text-sm cursor-pointer">Show completed tasks</Label>
+                <Switch id="display-completed" checked={vc.completedFilter === 'all'} onCheckedChange={(v) => setVc({ completedFilter: v ? 'all' : 'none' })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="display-archived" className="text-sm cursor-pointer">Show archived tasks</Label>
+                <Switch id="display-archived" checked={vc.showArchived} onCheckedChange={(v) => setVc({ showArchived: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="display-subtasks" className="text-sm cursor-pointer">Show sub-tasks</Label>
+                <Switch id="display-subtasks" checked={vc.showSubTasks} onCheckedChange={(v) => setVc({ showSubTasks: v })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="display-empty-cols" className="text-sm cursor-pointer">{isList ? 'Show empty groups' : 'Show empty columns'}</Label>
+                <Switch id="display-empty-cols" checked={vc.showEmptyColumns} onCheckedChange={(v) => setVc({ showEmptyColumns: v })} />
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="b-subtasks" className="text-sm cursor-pointer">Show sub-tasks</Label>
-              <Switch id="b-subtasks" checked={filter.showSubTasks} onCheckedChange={(v) => onChange({ ...filter, showSubTasks: v })} />
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Active filter pills */}
+      <FilterPills filter={filter} onChange={onChange} tags={tags} />
     </div>
   )
 }

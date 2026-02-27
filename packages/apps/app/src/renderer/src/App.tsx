@@ -7,10 +7,12 @@ import type { Tag } from '@slayzone/tags/shared'
 // Domains
 import {
   KanbanBoard,
+  KanbanListView,
   FilterBar,
   useTasksData,
   useFilterState,
   applyFilters,
+  getViewConfig,
   type Column
 } from '@slayzone/tasks'
 import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle, usePanelSizes } from '@slayzone/task'
@@ -858,12 +860,13 @@ function App(): React.JSX.Element {
 
   const handleCreateTaskFromColumn = (column: Column): void => {
     const defaults: typeof createTaskDefaults = {}
-    if (filter.groupBy === 'status') {
+    const vc = getViewConfig(filter)
+    if (vc.groupBy === 'status') {
       defaults.status = column.id as Task['status']
-    } else if (filter.groupBy === 'priority') {
+    } else if (vc.groupBy === 'priority') {
       const priority = parseInt(column.id.slice(1), 10)
       if (!isNaN(priority)) defaults.priority = priority
-    } else if (filter.groupBy === 'due_date') {
+    } else if (vc.groupBy === 'due_date') {
       const today = new Date().toISOString().split('T')[0]
       if (column.id === 'today') {
         defaults.dueDate = today
@@ -913,7 +916,7 @@ function App(): React.JSX.Element {
   }
 
   const handleTaskMove = (taskId: string, newColumnId: string, targetIndex: number): void => {
-    moveTask(taskId, newColumnId, targetIndex, filter.groupBy)
+    moveTask(taskId, newColumnId, targetIndex, getViewConfig(filter).groupBy)
   }
 
   // Project handlers
@@ -1195,11 +1198,10 @@ function App(): React.JSX.Element {
                                       />
                                     )}
                                     <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : cn('bg-background', id === 'kanban' ? 'p-3' : ''))} style={{ width: w }}>
-                                      {id === 'kanban' && (
+                                      {id === 'kanban' && filter.viewMode !== 'list' && (
                                         <KanbanBoard
                                           tasks={displayTasks}
-                                          groupBy={filter.groupBy}
-                                          sortBy={filter.sortBy}
+                                          viewConfig={getViewConfig(filter)}
                                           isActive={tabs[activeTabIndex]?.type === 'home'}
                                           onTaskMove={handleTaskMove}
                                           onTaskReorder={reorderTasks}
@@ -1207,7 +1209,7 @@ function App(): React.JSX.Element {
                                           onCreateTask={handleCreateTaskFromColumn}
                                           projectsMap={projectsMap}
                                           showProjectDot={selectedProjectId === null}
-                                          disableDrag={filter.groupBy === 'due_date'}
+                                          cardProperties={filter.cardProperties}
                                           taskTags={taskTags}
                                           tags={tags}
                                           blockedTaskIds={blockedTaskIds}
@@ -1216,6 +1218,24 @@ function App(): React.JSX.Element {
                                           onArchiveTask={archiveTask}
                                           onDeleteTask={deleteTask}
                                           onArchiveAllTasks={archiveTasks}
+                                        />
+                                      )}
+                                      {id === 'kanban' && filter.viewMode === 'list' && (
+                                        <KanbanListView
+                                          tasks={displayTasks}
+                                          viewConfig={getViewConfig(filter)}
+                                          onTaskMove={handleTaskMove}
+                                          onTaskReorder={reorderTasks}
+                                          onTaskClick={handleTaskClick}
+                                          onCreateTask={handleCreateTaskFromColumn}
+                                          projectsMap={projectsMap}
+                                          showProjectDot={selectedProjectId === null}
+                                          cardProperties={filter.cardProperties}
+                                          blockedTaskIds={blockedTaskIds}
+                                          allProjects={projects}
+                                          onUpdateTask={contextMenuUpdate}
+                                          onArchiveTask={archiveTask}
+                                          onDeleteTask={deleteTask}
                                         />
                                       )}
                                       {id === 'git' && <UnifiedGitPanel ref={homeGitPanelRef} projectPath={projectPath} visible={true} defaultTab={homeGitDefaultTab} />}
