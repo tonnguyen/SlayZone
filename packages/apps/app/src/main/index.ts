@@ -41,13 +41,13 @@ import logoSolid from '../../resources/logo-solid.svg?asset'
 import { getDatabase, closeDatabase, getDiagnosticsDatabase, closeDiagnosticsDatabase } from './db'
 // Domain handlers
 import { registerProjectHandlers } from '@slayzone/projects/main'
-import { registerTaskHandlers, registerAiHandlers, registerFilesHandlers } from '@slayzone/task/main'
+import { configureTaskRuntimeAdapters, registerTaskHandlers, registerAiHandlers, registerFilesHandlers } from '@slayzone/task/main'
 import { registerTagHandlers } from '@slayzone/tags/main'
 import { registerSettingsHandlers, registerThemeHandlers } from '@slayzone/settings/main'
-import { registerPtyHandlers, registerUsageHandlers, killAllPtys, startIdleChecker, stopIdleChecker } from '@slayzone/terminal/main'
+import { registerPtyHandlers, registerUsageHandlers, killAllPtys, killPtysByTaskId, startIdleChecker, stopIdleChecker } from '@slayzone/terminal/main'
 import { registerTerminalTabsHandlers } from '@slayzone/task-terminals/main'
 import { registerWorktreeHandlers } from '@slayzone/worktrees/main'
-import { registerDiagnosticsHandlers, registerProcessDiagnostics, stopDiagnostics } from '@slayzone/diagnostics/main'
+import { registerDiagnosticsHandlers, registerProcessDiagnostics, recordDiagnosticEvent, stopDiagnostics } from '@slayzone/diagnostics/main'
 import { registerAiConfigHandlers } from '@slayzone/ai-config/main'
 import { registerIntegrationHandlers, startLinearSyncPoller } from '@slayzone/integrations/main'
 import { registerFileEditorHandlers } from '@slayzone/file-editor/main'
@@ -197,6 +197,12 @@ let rendererDataReady = false
 const OAUTH_LOOPBACK_HOST = '127.0.0.1'
 const OAUTH_LOOPBACK_PORT = 3210
 const OAUTH_LOOPBACK_PATH = '/auth/callback'
+
+function logBoot(step: string): void {
+  if (is.dev && process.env.SLAYZONE_DEBUG_BOOT === '1') {
+    console.log(`[boot] ${step}`)
+  }
+}
 
 function tryShowMainWindow(): void {
   if (!mainWindowReady || !rendererDataReady) return
@@ -391,7 +397,7 @@ function handleOAuthDeepLinkFromArgv(argv: string[]): void {
 
 function startOAuthLoopbackServer(): void {
   if (oauthCallbackServer) return
-  oauthCallbackServer = createServer((req, res) => {
+  const server = createServer((req, res) => {
     try {
       const reqUrl = new URL(req.url ?? '/', `http://${OAUTH_LOOPBACK_HOST}:${OAUTH_LOOPBACK_PORT}`)
       if (reqUrl.pathname !== OAUTH_LOOPBACK_PATH) {
@@ -419,13 +425,25 @@ function startOAuthLoopbackServer(): void {
     }
   })
 
-  oauthCallbackServer.listen(OAUTH_LOOPBACK_PORT, OAUTH_LOOPBACK_HOST, () => {})
+  server.on('error', (error) => {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'EADDRINUSE') {
+      console.warn(`[oauth] Loopback callback port ${OAUTH_LOOPBACK_PORT} is already in use; continuing without local callback server`)
+      return
+    }
+    console.error('[oauth] Loopback callback server failed:', error)
+  })
+
+  server.listen(OAUTH_LOOPBACK_PORT, OAUTH_LOOPBACK_HOST, () => {})
+  oauthCallbackServer = server
 }
 
-const gotSingleInstanceLock = isPlaywright || app.requestSingleInstanceLock()
+const shouldEnforceSingleInstanceLock = !isPlaywright && !is.dev
+const gotSingleInstanceLock = !shouldEnforceSingleInstanceLock || app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
+  console.error('[app] Failed to acquire single-instance lock; quitting duplicate instance')
   app.quit()
-} else {
+} else if (shouldEnforceSingleInstanceLock) {
   app.on('second-instance', (_event, argv) => {
     handleOAuthDeepLinkFromArgv(argv)
     if (mainWindow) {
@@ -508,7 +526,7 @@ function createSplashWindow(): void {
     width: DEFAULT_WINDOW_WIDTH,
     height: DEFAULT_WINDOW_HEIGHT,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 10, y: 12 },
     resizable: false,
     center: true,
     skipTaskbar: true,
@@ -553,7 +571,7 @@ function createMainWindow(): void {
     center: true,
     title: 'SlayZone',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 10, y: 12 },
     backgroundColor: '#0a0a0a',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -632,19 +650,25 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  logBoot('whenReady begin')
   if (process.defaultApp) {
     const entry = process.argv[1] ? [resolve(process.argv[1])] : []
     app.setAsDefaultProtocolClient('slayzone', process.execPath, entry)
   } else {
     app.setAsDefaultProtocolClient('slayzone')
   }
+  logBoot('protocol client configured')
   handleOAuthDeepLinkFromArgv(process.argv)
   startOAuthLoopbackServer()
+  logBoot('oauth callback handlers initialized')
 
   // Initialize databases
+  logBoot('database init start')
   const db = getDatabase()
   const diagDb = getDiagnosticsDatabase()
+  logBoot('database init complete')
   registerProcessDiagnostics(app)
+  logBoot('process diagnostics registered')
 
   // Load and apply persisted theme BEFORE creating window to prevent flash
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as
@@ -722,7 +746,11 @@ app.whenReady().then(async () => {
       {
         label: 'View',
         submenu: [
-          { role: 'reload' },
+          {
+            label: 'Reload',
+            accelerator: 'CmdOrCtrl+R',
+            click: () => mainWindow?.webContents.send('app:reload-browser')
+          },
           { role: 'forceReload' },
           { role: 'toggleDevTools' },
           { type: 'separator' },
@@ -760,6 +788,13 @@ app.whenReady().then(async () => {
 
   // Register diagnostics first so IPC handlers below are instrumented.
   registerDiagnosticsHandlers(ipcMain, db, diagDb)
+  logBoot('diagnostics IPC registered')
+
+  configureTaskRuntimeAdapters({
+    killPtysByTaskId,
+    recordDiagnosticEvent,
+  })
+  logBoot('task runtime adapters configured')
 
   // Register domain handlers (inject ipcMain and db)
   registerProjectHandlers(ipcMain, db)
@@ -796,6 +831,7 @@ app.whenReady().then(async () => {
   registerScreenshotHandlers()
   registerExportImportHandlers(ipcMain, db, isPlaywright)
   registerLeaderboardHandlers(ipcMain, db)
+  logBoot('domain IPC handlers registered')
 
   // Start MCP server (use port 0 in Playwright to avoid conflict with dev instance)
   const mcpPort = (() => {
@@ -811,8 +847,10 @@ app.whenReady().then(async () => {
   })
 
   linearSyncPoller = startLinearSyncPoller(db)
+  logBoot('integration poller started')
 
   initAutoUpdater()
+  logBoot('auto-updater initialized')
 
   // Configure webview session for WebAuthn/passkey support
   const browserSession = session.fromPartition('persist:browser-tabs')
@@ -1512,7 +1550,9 @@ app.whenReady().then(async () => {
 
 
   initProcessManager(db)
+  logBoot('process manager initialized')
   createWindow()
+  logBoot('windows created')
   if (mainWindow) setProcessManagerWindow(mainWindow)
 
   // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
@@ -1547,6 +1587,8 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
     else mainWindow?.show()
   })
+}).catch((error) => {
+  console.error('[boot] whenReady failed:', error)
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

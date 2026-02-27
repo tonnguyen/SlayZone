@@ -8,6 +8,7 @@ import { BUILTIN_PANEL_IDS, getProviderConversationId, getProviderFlags, setProv
 import type { BrowserTabsState } from '@slayzone/task-browser/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { Project } from '@slayzone/projects/shared'
+import { getDefaultStatus, getDoneStatus, isTerminalStatus } from '@slayzone/projects/shared'
 import { DEV_SERVER_URL_PATTERN, SESSION_ID_COMMANDS, SESSION_ID_UNAVAILABLE } from '@slayzone/terminal/shared'
 import type { TerminalMode, ValidationResult } from '@slayzone/terminal/shared'
 import { Button, PanelToggle, DevServerToast, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@slayzone/ui'
@@ -36,8 +37,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
   ContextMenuRadioGroup,
-  ContextMenuRadioItem,
-  taskStatusOptions
+  ContextMenuRadioItem
 } from '@slayzone/ui'
 import { DeleteTaskDialog } from './DeleteTaskDialog'
 import {
@@ -57,7 +57,7 @@ import { RichTextEditor } from '@slayzone/editor'
 import { markSkipCache, usePty } from '@slayzone/terminal'
 import { TerminalContainer, type TerminalContainerHandle } from '@slayzone/task-terminals'
 import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
-import { cn, getTaskStatusStyle, projectColorBg, useAppearance } from '@slayzone/ui'
+import { buildStatusOptions, cn, getColumnStatusStyle, projectColorBg, useAppearance } from '@slayzone/ui'
 import { BrowserPanel, type BrowserPanelHandle } from '@slayzone/task-browser'
 import { FileEditorView, QuickOpenDialog, type FileEditorViewHandle } from '@slayzone/file-editor/client'
 import type { EditorOpenFilesState } from '@slayzone/file-editor/shared'
@@ -69,15 +69,17 @@ import { RegionSelector } from './RegionSelector'
 import { ProcessesPanel } from './ProcessesPanel'
 // ErrorBoundary should be provided by the app when rendering this component
 
-function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
+function SortableSubTask({ sub, columns, statusOptions, onNavigate, onUpdate, onDelete }: {
   sub: Task
+  columns?: Project['columns_config']
+  statusOptions: Array<{ value: string; label: string }>
   onNavigate?: (id: string) => void
   onUpdate: (id: string, updates: Record<string, unknown>) => void
   onDelete: (id: string) => void
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
-  const statusStyle = getTaskStatusStyle(sub.status)
+  const statusStyle = getColumnStatusStyle(sub.status, columns)
   const StatusIcon = statusStyle?.icon
 
   return (
@@ -101,7 +103,7 @@ function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
             <TooltipContent side="bottom" className="text-xs">{statusStyle?.label ?? sub.status}</TooltipContent>
           </Tooltip>
           <span
-            className={cn("text-xs flex-1 truncate", sub.status === 'done' && "line-through text-muted-foreground")}
+            className={cn("text-xs flex-1 truncate", isTerminalStatus(sub.status, columns ?? null) && "line-through text-muted-foreground")}
             onClick={() => onNavigate?.(sub.id)}
           >
             {sub.title}
@@ -115,7 +117,7 @@ function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
           <ContextMenuSubTrigger>Status</ContextMenuSubTrigger>
           <ContextMenuSubContent>
             <ContextMenuRadioGroup value={sub.status} onValueChange={(v) => onUpdate(sub.id, { status: v })}>
-              {taskStatusOptions.map((s) => (
+              {statusOptions.map((s) => (
                 <ContextMenuRadioItem key={s.value} value={s.value}>{s.label}</ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -172,6 +174,8 @@ export function TaskDetailPage({
   const [tags, setTags] = useState<Tag[]>([])
   const [taskTagIds, setTaskTagIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const statusOptions = useMemo(() => buildStatusOptions(project?.columns_config), [project?.columns_config])
+  const completedStatus = useMemo(() => getDoneStatus(project?.columns_config), [project?.columns_config])
 
   // Sub-tasks
   const [subTasks, setSubTasks] = useState<Task[]>([])
@@ -792,6 +796,17 @@ export function TaskDetailPage({
     })
   }, [isActive, setBrowserTabs])
 
+  // Cmd+R: reload browser webview when browser panel has focus
+  useEffect(() => {
+    if (!isActive) return
+    return window.api.app.onReloadBrowser(() => {
+      const el = document.activeElement as HTMLElement | null
+      if (el?.closest('[data-browser-panel]')) {
+        browserPanelRef.current?.reload()
+      }
+    })
+  }, [isActive])
+
   // Clear quick run prompt after it's been passed to Terminal
   useEffect(() => {
     if (!task) return
@@ -1087,7 +1102,7 @@ export function TaskDetailPage({
       projectId: task.project_id,
       title: subTaskTitle.trim(),
       parentId: task.id,
-      status: 'todo'
+      status: getDefaultStatus(project?.columns_config)
     })
     if (sub) setSubTasks(prev => [...prev, sub])
     setSubTaskTitle('')
@@ -1288,7 +1303,7 @@ export function TaskDetailPage({
 
   const handleConfirmInProgress = async (): Promise<void> => {
     if (!task) return
-    const updated = await window.api.db.updateTask({ id: task.id, status: 'in_progress' })
+    const updated = await window.api.db.updateTask({ id: task.id, status: getDefaultStatus(project?.columns_config) })
     handleTaskUpdate(updated)
   }
 
@@ -1844,6 +1859,7 @@ export function TaskDetailPage({
               ref={gitPanelRef}
               task={task}
               projectPath={project?.path ?? null}
+              completedStatus={completedStatus}
               visible={panelVisibility.diff}
               defaultTab={gitDefaultTab}
               pollIntervalMs={5000}
@@ -1906,7 +1922,7 @@ export function TaskDetailPage({
               Sub-tasks
               {subTasks.length > 0 && (
                 <span className="ml-auto text-muted-foreground/60 text-[10px]">
-                  {subTasks.filter(s => s.status === 'done').length}/{subTasks.length}
+                  {subTasks.filter((s) => isTerminalStatus(s.status, project?.columns_config ?? null)).length}/{subTasks.length}
                 </span>
               )}
             </CollapsibleTrigger>
@@ -1918,6 +1934,8 @@ export function TaskDetailPage({
                   <SortableSubTask
                     key={sub.id}
                     sub={sub}
+                    columns={project?.columns_config}
+                    statusOptions={statusOptions}
                     onNavigate={onNavigateToTask}
                     onUpdate={handleUpdateSubTask}
                     onDelete={handleDeleteSubTask}

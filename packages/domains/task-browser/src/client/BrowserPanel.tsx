@@ -80,6 +80,7 @@ interface BrowserPanelProps {
 
 export interface BrowserPanelHandle {
   pickElement: () => void
+  reload: () => void
 }
 
 function generateTabId(): string {
@@ -682,6 +683,9 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   useImperativeHandle(ref, () => ({
     pickElement: () => {
       handlePickElement()
+    },
+    reload: () => {
+      webviewRef.current?.reload()
     }
   }), [handlePickElement])
 

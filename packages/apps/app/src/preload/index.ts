@@ -147,6 +147,11 @@ const api: ElectronAPI = {
       ipcRenderer.on('app:close-current-focus', handler)
       return () => ipcRenderer.removeListener('app:close-current-focus', handler)
     },
+    onReloadBrowser: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('app:reload-browser', handler)
+      return () => ipcRenderer.removeListener('app:reload-browser', handler)
+    },
     onCloseActiveTask: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on('app:close-active-task', handler)
@@ -308,8 +313,8 @@ const api: ElectronAPI = {
     deleteItem: (id) => ipcRenderer.invoke('ai-config:delete-item', id),
     listProjectSelections: (projectId) => ipcRenderer.invoke('ai-config:list-project-selections', projectId),
     setProjectSelection: (input) => ipcRenderer.invoke('ai-config:set-project-selection', input),
-    removeProjectSelection: (projectId, itemId) =>
-      ipcRenderer.invoke('ai-config:remove-project-selection', projectId, itemId),
+    removeProjectSelection: (projectId, itemId, provider?) =>
+      ipcRenderer.invoke('ai-config:remove-project-selection', projectId, itemId, provider),
     discoverContextFiles: (projectPath) => ipcRenderer.invoke('ai-config:discover-context-files', projectPath),
     readContextFile: (filePath, projectPath) => ipcRenderer.invoke('ai-config:read-context-file', filePath, projectPath),
     writeContextFile: (filePath, content, projectPath) =>

@@ -218,6 +218,7 @@ export interface ElectronAPI {
     onScreenshotTrigger: (callback: () => void) => () => void
     onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
     onCloseCurrent: (callback: () => void) => () => void
+    onReloadBrowser: (callback: () => void) => () => void
     onCloseActiveTask: (callback: () => void) => () => void
     dataReady: () => void
     restartForUpdate: () => Promise<void>
@@ -333,7 +334,7 @@ export interface ElectronAPI {
     deleteItem: (id: string) => Promise<boolean>
     listProjectSelections: (projectId: string) => Promise<AiConfigProjectSelection[]>
     setProjectSelection: (input: SetAiConfigProjectSelectionInput) => Promise<void>
-    removeProjectSelection: (projectId: string, itemId: string) => Promise<boolean>
+    removeProjectSelection: (projectId: string, itemId: string, provider?: string) => Promise<boolean>
     discoverContextFiles: (projectPath: string) => Promise<ContextFileInfo[]>
     readContextFile: (filePath: string, projectPath: string) => Promise<string>
     writeContextFile: (filePath: string, content: string, projectPath: string) => Promise<void>
