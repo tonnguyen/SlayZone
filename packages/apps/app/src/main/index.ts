@@ -1,5 +1,6 @@
 
 import { app, shell, BrowserWindow, BrowserView, ipcMain, nativeTheme, session, webContents, dialog, Menu, protocol } from 'electron'
+import { registerBrowserPanel, unregisterBrowserPanel } from './browser-registry'
 import { join, extname, normalize, sep, resolve } from 'path'
 import { homedir } from 'os'
 import { createServer, type Server as HttpServer } from 'http'
@@ -1153,6 +1154,14 @@ app.whenReady().then(async () => {
       return dialog.showOpenDialog(options)
     }
   )
+
+  // Browser panel registration for CLI control
+  ipcMain.handle('webview:register-browser-panel', (_, taskId: string, webContentsId: number) => {
+    registerBrowserPanel(taskId, webContentsId)
+  })
+  ipcMain.handle('webview:unregister-browser-panel', (_, taskId: string) => {
+    unregisterBrowserPanel(taskId)
+  })
 
   // Webview shortcut interception
   const registeredWebviews = new Set<number>()

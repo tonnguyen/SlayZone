@@ -4,12 +4,15 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import express from 'express'
 import type { Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, app as electronApp } from 'electron'
 import { z } from 'zod'
 import type { Database } from 'better-sqlite3'
 import { updateTask } from '@slayzone/task/main'
 import { PROVIDER_DEFAULTS, TASK_STATUSES } from '@slayzone/task/shared'
 import { listAllProcesses, killProcess, subscribeToProcessLogs } from './process-manager'
+import { getBrowserWebContents } from './browser-registry'
+import { join } from 'node:path'
+import { mkdirSync, writeFileSync, readdirSync, unlinkSync, statSync } from 'node:fs'
 
 let httpServer: Server | null = null
 let idleTimer: NodeJS.Timeout | null = null
@@ -357,6 +360,168 @@ export function startMcpServer(db: Database, port: number): void {
     })
 
     req.on('close', unsub)
+  })
+
+  // Browser control API for CLI (`slay tasks browser *`)
+  const BROWSER_JS_TIMEOUT = 10_000
+
+  function resolveBrowserWc(taskId: string | undefined, res: express.Response): Electron.WebContents | null {
+    if (!taskId) { res.status(400).json({ error: 'taskId required' }); return null }
+    const wc = getBrowserWebContents(taskId)
+    if (!wc) { res.status(404).json({ error: 'Browser panel not found. Is the browser panel open on the first tab?' }); return null }
+    return wc
+  }
+
+  function execJs<T>(wc: Electron.WebContents, code: string): Promise<T> {
+    return Promise.race([
+      wc.executeJavaScript(code) as Promise<T>,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Browser script timed out (10s)')), BROWSER_JS_TIMEOUT)
+      ),
+    ])
+  }
+
+  const ALLOWED_NAVIGATE_SCHEMES = ['http:', 'https:', 'file:']
+
+  app.get('/api/browser/url', (req, res) => {
+    const wc = resolveBrowserWc(req.query.taskId as string, res)
+    if (!wc) return
+    res.json({ url: wc.getURL() })
+  })
+
+  app.post('/api/browser/navigate', async (req, res) => {
+    const { taskId, url } = req.body ?? {}
+    if (!url) { res.status(400).json({ error: 'url required' }); return }
+    try {
+      const parsed = new URL(url)
+      if (!ALLOWED_NAVIGATE_SCHEMES.includes(parsed.protocol)) {
+        res.status(400).json({ error: `Scheme not allowed: ${parsed.protocol}` }); return
+      }
+    } catch {
+      res.status(400).json({ error: 'Invalid URL' }); return
+    }
+    const wc = resolveBrowserWc(taskId, res)
+    if (!wc) return
+    try {
+      await wc.loadURL(url)
+      res.json({ ok: true, url: wc.getURL() })
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  app.post('/api/browser/click', async (req, res) => {
+    const { taskId, selector } = req.body ?? {}
+    if (!selector) { res.status(400).json({ error: 'selector required' }); return }
+    const wc = resolveBrowserWc(taskId, res)
+    if (!wc) return
+    try {
+      const result = await execJs<{ ok: boolean; error?: string; tag?: string; text?: string }>(wc, `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return { ok: false, error: 'Element not found: ' + ${JSON.stringify(selector)} };
+        el.scrollIntoView({ block: 'center' });
+        el.click();
+        return { ok: true, tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 100) };
+      })()`)
+      if (!result.ok) { res.status(404).json(result); return }
+      res.json(result)
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  app.post('/api/browser/type', async (req, res) => {
+    const { taskId, selector, text } = req.body ?? {}
+    if (!selector || text == null) { res.status(400).json({ error: 'selector and text required' }); return }
+    const wc = resolveBrowserWc(taskId, res)
+    if (!wc) return
+    try {
+      const result = await execJs<{ ok: boolean; error?: string }>(wc, `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return { ok: false, error: 'Element not found: ' + ${JSON.stringify(selector)} };
+        el.scrollIntoView({ block: 'center' });
+        el.focus();
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+          || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        if (setter) setter.call(el, ${JSON.stringify(text)});
+        else el.value = ${JSON.stringify(text)};
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true };
+      })()`)
+      if (!result.ok) { res.status(404).json(result); return }
+      res.json(result)
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  app.post('/api/browser/eval', async (req, res) => {
+    const { taskId, code } = req.body ?? {}
+    if (!code) { res.status(400).json({ error: 'code required' }); return }
+    const wc = resolveBrowserWc(taskId, res)
+    if (!wc) return
+    try {
+      const result = await execJs(wc, code)
+      res.json({ ok: true, result })
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  app.get('/api/browser/content', async (req, res) => {
+    const wc = resolveBrowserWc(req.query.taskId as string, res)
+    if (!wc) return
+    try {
+      const content = await execJs(wc, `(() => {
+        const url = location.href;
+        const title = document.title;
+        const text = (document.body?.innerText || '').slice(0, 50000);
+        const interactive = Array.from(document.querySelectorAll('input,textarea,select,button,a[href]'))
+          .slice(0, 200)
+          .map(el => {
+            const o = { tag: el.tagName.toLowerCase() };
+            if (el.id) o.id = el.id;
+            if (el.name) o.name = el.name;
+            if (el.type) o.type = el.type;
+            if (el.placeholder) o.placeholder = el.placeholder;
+            if (el.href) o.href = el.href;
+            if (el.getAttribute('aria-label')) o.ariaLabel = el.getAttribute('aria-label');
+            const t = (el.textContent || '').trim().slice(0, 80);
+            if (t) o.text = t;
+            return o;
+          });
+        return { url, title, text, interactive };
+      })()`)
+      res.json(content)
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  app.post('/api/browser/screenshot', async (req, res) => {
+    const { taskId } = req.body ?? {}
+    const wc = resolveBrowserWc(taskId, res)
+    if (!wc) return
+    try {
+      const image = await wc.capturePage()
+      if (image.isEmpty()) { res.status(500).json({ error: 'Captured image is empty' }); return }
+      const dir = join(electronApp.getPath('temp'), 'slayzone', 'browser-screenshots')
+      mkdirSync(dir, { recursive: true })
+      // Clean up screenshots older than 1 hour
+      try {
+        const cutoff = Date.now() - 3600_000
+        for (const f of readdirSync(dir)) {
+          const fp = join(dir, f)
+          try { if (statSync(fp).mtimeMs < cutoff) unlinkSync(fp) } catch { /* ignore */ }
+        }
+      } catch { /* ignore cleanup errors */ }
+      const filePath = join(dir, `${randomUUID()}.png`)
+      writeFileSync(filePath, image.toPNG())
+      res.json({ ok: true, path: filePath })
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+    }
   })
 
   httpServer = app.listen(port, '127.0.0.1', () => {

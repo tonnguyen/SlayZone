@@ -418,6 +418,10 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('webview:enable-device-emulation', webviewId, params),
     disableDeviceEmulation: (webviewId) =>
       ipcRenderer.invoke('webview:disable-device-emulation', webviewId),
+    registerBrowserPanel: (taskId, webContentsId) =>
+      ipcRenderer.invoke('webview:register-browser-panel', taskId, webContentsId),
+    unregisterBrowserPanel: (taskId) =>
+      ipcRenderer.invoke('webview:unregister-browser-panel', taskId),
   },
   exportImport: {
     exportAll: () => ipcRenderer.invoke('export-import:export-all'),

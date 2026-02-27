@@ -121,6 +121,14 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   const inlineAttachAttemptRef = useRef(0)
   const darkModeCSSKeyRef = useRef<string | null>(null)
 
+  // Register browser panel for CLI control (tab 0 only)
+  const isFirstTabActive = tabs.activeTabId === tabs.tabs[0]?.id
+  useEffect(() => {
+    if (!taskId || webviewId == null || !isFirstTabActive) return
+    void window.api.webview.registerBrowserPanel(taskId, webviewId)
+    return () => { void window.api.webview.unregisterBrowserPanel(taskId) }
+  }, [taskId, webviewId, isFirstTabActive])
+
   // Fetch URLs from other tasks when dropdown opens
   useEffect(() => {
     if (!importDropdownOpen || !taskId) return

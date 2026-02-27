@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { execSync } from 'child_process'
 import { openDb, notifyApp } from '../db'
+import { browserCommand } from './browser'
 
 interface TaskRow extends Record<string, unknown> {
   id: string
@@ -503,6 +504,8 @@ export function tasksCommand(): Command {
         printTasks(tasks)
       }
     })
+
+  cmd.addCommand(browserCommand())
 
   return cmd
 }

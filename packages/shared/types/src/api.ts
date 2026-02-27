@@ -421,6 +421,8 @@ export interface ElectronAPI {
       }
     ) => Promise<boolean>
     disableDeviceEmulation: (webviewId: number) => Promise<boolean>
+    registerBrowserPanel: (taskId: string, webContentsId: number) => Promise<void>
+    unregisterBrowserPanel: (taskId: string) => Promise<void>
   }
   integrations: {
     connectLinear: (input: ConnectLinearInput) => Promise<IntegrationConnectionPublic>

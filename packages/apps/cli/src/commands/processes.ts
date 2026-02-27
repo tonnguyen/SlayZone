@@ -1,53 +1,5 @@
 import { Command } from 'commander'
-import { openDb } from '../db'
-
-function getPort(): number {
-  if (process.env.SLAYZONE_MCP_PORT) return parseInt(process.env.SLAYZONE_MCP_PORT, 10) || 45678
-  try {
-    const db = openDb()
-    const row = db.query<{ value: string }>(`SELECT value FROM settings WHERE key = 'mcp_server_port' LIMIT 1`)
-    db.close()
-    return parseInt(row[0]?.value ?? '45678', 10) || 45678
-  } catch {
-    return 45678
-  }
-}
-
-async function apiGet<T>(path: string): Promise<T> {
-  const port = getPort()
-  const url = `http://127.0.0.1:${port}${path}`
-  let res: Response
-  try {
-    res = await fetch(url)
-  } catch {
-    console.error('SlayZone is not running (could not connect to app).')
-    process.exit(1)
-  }
-  if (!res.ok) {
-    const body = await res.text()
-    console.error(`API error ${res.status}: ${body}`)
-    process.exit(1)
-  }
-  return res.json() as Promise<T>
-}
-
-async function apiDelete<T>(path: string): Promise<T> {
-  const port = getPort()
-  const url = `http://127.0.0.1:${port}${path}`
-  let res: Response
-  try {
-    res = await fetch(url, { method: 'DELETE' })
-  } catch {
-    console.error('SlayZone is not running (could not connect to app).')
-    process.exit(1)
-  }
-  if (!res.ok) {
-    const body = await res.text()
-    console.error(`API error ${res.status}: ${body}`)
-    process.exit(1)
-  }
-  return res.json() as Promise<T>
-}
+import { apiGet, apiDelete, apiFetch } from '../api'
 
 interface ProcessInfo {
   id: string
@@ -165,14 +117,7 @@ export function processesCommand(): Command {
       }
 
       const proc = matches[0]
-      const port = getPort()
-      let res: Response
-      try {
-        res = await fetch(`http://127.0.0.1:${port}/api/processes/${proc.id}/follow`)
-      } catch {
-        console.error('SlayZone is not running (could not connect to app).')
-        process.exit(1)
-      }
+      const res = await apiFetch(`/api/processes/${proc.id}/follow`)
 
       if (!res.ok || !res.body) {
         console.error(`Failed to follow process: ${res.status}`)
