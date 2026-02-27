@@ -243,6 +243,18 @@ function App(): React.JSX.Element {
     [projects, selectedProjectId]
   )
 
+  // Auto-switch project when activating a task tab
+  const activeTab = tabs[activeTabIndex]
+  const activeTaskProjectId =
+    activeTab?.type === 'task'
+      ? tasks.find((t) => t.id === activeTab.taskId)?.project_id
+      : undefined
+  useEffect(() => {
+    if (activeTaskProjectId && activeTaskProjectId !== selectedProjectId) {
+      setSelectedProjectId(activeTaskProjectId)
+    }
+  }, [activeTaskProjectId, selectedProjectId, setSelectedProjectId])
+
   // Map of taskId → project color for tab tinting
   const taskProjectColors = useMemo(() => {
     const map = new Map<string, string>()
