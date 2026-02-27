@@ -527,14 +527,23 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   ), [handleStageFolderAction])
 
   const unstagedFolderActions = useCallback((folder: { name: string; path: string }) => (
-    <span
-      className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
-      onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'unstaged') }}
-      title="Stage folder"
-    >
-      <Plus className="size-3.5" />
-    </span>
-  ), [handleStageFolderAction])
+    <>
+      <span
+        className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+        onClick={(e) => { e.stopPropagation(); handleDiscardFile(folder.path) }}
+        title="Discard folder changes"
+      >
+        <Undo2 className="size-3.5" />
+      </span>
+      <span
+        className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+        onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'unstaged') }}
+        title="Stage folder"
+      >
+        <Plus className="size-3.5" />
+      </span>
+    </>
+  ), [handleStageFolderAction, handleDiscardFile])
 
   return (
     <div data-testid="git-diff-panel" className="h-full flex flex-col">
