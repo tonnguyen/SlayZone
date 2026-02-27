@@ -34,6 +34,18 @@ describe('validateColumns', () => {
     ])
   })
 
+  test('orders columns by workflow category before position', () => {
+    const scrambled: ColumnConfig[] = [
+      { id: 'doneish', label: 'Doneish', color: 'green', position: 0, category: 'completed' },
+      { id: 'queue', label: 'Queue', color: 'gray', position: 99, category: 'unstarted' },
+      { id: 'doing', label: 'Doing', color: 'blue', position: 1, category: 'started' },
+      { id: 'backlog', label: 'Backlog', color: 'slate', position: 2, category: 'backlog' },
+    ]
+
+    const normalized = validateColumns(scrambled)
+    expect(normalized.map((column) => column.id)).toEqual(['backlog', 'queue', 'doing', 'doneish'])
+  })
+
   test('requires at least one completed column', () => {
     const invalid: ColumnConfig[] = [
       { id: 'queue', label: 'Queue', color: 'gray', position: 0, category: 'unstarted' },

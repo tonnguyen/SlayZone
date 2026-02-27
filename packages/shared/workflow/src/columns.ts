@@ -7,6 +7,7 @@ import {
 
 export const TERMINAL_CATEGORIES: readonly WorkflowCategory[] = ['completed', 'canceled'] as const
 export const DONE_CATEGORIES: readonly WorkflowCategory[] = ['completed'] as const
+const CATEGORY_ORDER = new Map(WORKFLOW_CATEGORIES.map((category, index) => [category, index]))
 
 function isValidCategory(category: unknown): category is WorkflowCategory {
   return typeof category === 'string' && WORKFLOW_CATEGORIES.includes(category as WorkflowCategory)
@@ -17,7 +18,13 @@ function cloneColumns(columns: ColumnConfig[]): ColumnConfig[] {
 }
 
 export function sortColumns(columns: ColumnConfig[]): ColumnConfig[] {
-  return [...columns].sort((a, b) => a.position - b.position)
+  return [...columns].sort((a, b) => {
+    const aCategoryOrder = CATEGORY_ORDER.get(a.category as WorkflowCategory) ?? Number.MAX_SAFE_INTEGER
+    const bCategoryOrder = CATEGORY_ORDER.get(b.category as WorkflowCategory) ?? Number.MAX_SAFE_INTEGER
+    if (aCategoryOrder !== bCategoryOrder) return aCategoryOrder - bCategoryOrder
+    if (a.position !== b.position) return a.position - b.position
+    return String(a.id ?? '').localeCompare(String(b.id ?? ''))
+  })
 }
 
 export function validateColumns(columns: ColumnConfig[]): ColumnConfig[] {
