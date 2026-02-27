@@ -848,6 +848,19 @@ function App(): React.JSX.Element {
 
   }, [selectedProjectId, tasks, setTasks, openTask])
 
+
+  // Cmd+R: reload browser webview if focused, else reload app
+  useEffect(() => {
+    return window.api.app.onReloadBrowser(() => {
+      const el = document.activeElement as HTMLElement | null
+      const webview = el?.closest('[data-browser-panel]')?.querySelector('webview') as any
+      if (webview?.reload) {
+        webview.reload()
+      } else {
+        window.location.reload()
+      }
+    })
+  }, [])
   useEffect(() => {
     return window.api.app.onNewTemporaryTask(() => {
       handleCreateScratchTerminal()

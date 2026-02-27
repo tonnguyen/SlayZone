@@ -629,6 +629,12 @@ function createMainWindow(): void {
       event.preventDefault()
       mainWindow?.webContents.send('app:screenshot-trigger')
     }
+
+    // Cmd+R: send to renderer (browser panel reload or app reload)
+    if (input.type === 'keyDown' && input.key.toLowerCase() === 'r' && input.meta && !input.shift && !input.alt) {
+      event.preventDefault()
+      mainWindow?.webContents.send('app:reload-browser')
+    }
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -750,6 +756,7 @@ app.whenReady().then(async () => {
           {
             label: 'Reload',
             accelerator: 'CmdOrCtrl+R',
+            registerAccelerator: false,
             click: () => mainWindow?.webContents.send('app:reload-browser')
           },
           { role: 'forceReload' },

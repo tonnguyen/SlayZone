@@ -804,18 +804,7 @@ export function TaskDetailPage({
     })
   }, [isActive, setBrowserTabs])
 
-  // Cmd+R: reload browser webview when browser panel has focus, else reload app
-  useEffect(() => {
-    if (!isActive) return
-    return window.api.app.onReloadBrowser(() => {
-      const el = document.activeElement as HTMLElement | null
-      if (el?.closest('[data-browser-panel]')) {
-        browserPanelRef.current?.reload()
-      } else {
-        window.location.reload()
-      }
-    })
-  }, [isActive])
+  // Cmd+R browser reload is handled globally in App.tsx
 
   // Clear quick run prompt after it's been passed to Terminal
   useEffect(() => {
