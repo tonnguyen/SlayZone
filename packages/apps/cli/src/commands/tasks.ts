@@ -2,9 +2,17 @@ import { Command } from 'commander'
 import { execSync } from 'child_process'
 import { openDb, notifyApp } from '../db'
 import { browserCommand } from './browser'
+import {
+  getDefaultStatus,
+  getDoneStatus,
+  isCompletedStatus,
+  isKnownStatus,
+  parseColumnsConfig,
+} from '@slayzone/projects/shared'
 
 interface TaskRow extends Record<string, unknown> {
   id: string
+  project_id: string
   title: string
   status: string
   priority: number
@@ -12,7 +20,13 @@ interface TaskRow extends Record<string, unknown> {
   created_at: string
 }
 
-const STATUSES = ['inbox', 'backlog', 'todo', 'in_progress', 'review', 'done'] as const
+function getProjectColumnsConfig(db: ReturnType<typeof openDb>, projectId: string) {
+  const rows = db.query<{ columns_config: string | null }>(
+    `SELECT columns_config FROM projects WHERE id = :projectId LIMIT 1`,
+    { ':projectId': projectId }
+  )
+  return parseColumnsConfig(rows[0]?.columns_config)
+}
 
 function resolveId(explicit?: string): string {
   const id = explicit ?? process.env.SLAYZONE_TASK_ID
@@ -48,18 +62,16 @@ export function tasksCommand(): Command {
     .command('list')
     .description('List tasks')
     .option('--project <name|id>', 'Filter by project name (partial, case-insensitive) or ID')
-    .option('--status <status>', `Filter by status: ${STATUSES.join(' | ')}`)
-    .option('--done', 'Shorthand for --status done')
+    .option('--status <status>', 'Filter by status key')
+    .option('--done', 'Show tasks in a completed category for each project')
     .option('--limit <n>', 'Max number of results', '100')
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       const db = openDb()
 
-      const status = opts.done ? 'done' : opts.status
-      if (status && !STATUSES.includes(status)) {
-        console.error(`Unknown status: ${status}. Valid: ${STATUSES.join(', ')}`)
-        process.exit(1)
-      }
+      const limit = parseInt(opts.limit, 10)
+      const doneFilter = Boolean(opts.done)
+      const status = doneFilter ? undefined : opts.status
 
       const conditions: string[] = ['t.archived_at IS NULL', 't.is_temporary = 0']
       const params: Record<string, string | number | null> = {}
@@ -76,22 +88,29 @@ export function tasksCommand(): Command {
       }
 
       const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
-      const limit = parseInt(opts.limit, 10)
 
+      const limitClause = doneFilter ? '' : 'LIMIT :limit'
       const tasks = db.query<TaskRow>(
-        `SELECT t.id, t.title, t.status, t.priority, p.name AS project_name, t.created_at
+        `SELECT t.id, t.project_id, t.title, t.status, t.priority, p.name AS project_name, t.created_at
          FROM tasks t
          JOIN projects p ON t.project_id = p.id
          ${where}
          ORDER BY t."order" ASC
-         LIMIT :limit`,
-        { ...params, ':limit': limit }
+         ${limitClause}`,
+        doneFilter ? params : { ...params, ':limit': limit }
       )
 
+      const filteredTasks = doneFilter
+        ? tasks.filter((task) => {
+            const projectColumns = getProjectColumnsConfig(db, task.project_id)
+            return isCompletedStatus(task.status, projectColumns)
+          }).slice(0, limit)
+        : tasks
+
       if (opts.json) {
-        console.log(JSON.stringify(tasks, null, 2))
+        console.log(JSON.stringify(filteredTasks, null, 2))
       } else {
-        printTasks(tasks)
+        printTasks(filteredTasks)
       }
     })
 
@@ -100,7 +119,7 @@ export function tasksCommand(): Command {
     .command('create <title>')
     .description('Create a new task')
     .requiredOption('--project <name|id>', 'Project name (partial, case-insensitive) or ID')
-    .option('--status <status>', 'Initial status', 'inbox')
+    .option('--status <status>', 'Initial status key')
     .option('--priority <n>', 'Priority 1-5 (1=highest)', '3')
     .action(async (title, opts) => {
       const db = openDb()
@@ -126,16 +145,17 @@ export function tasksCommand(): Command {
 
       const project = projects[0]
 
-      if (!STATUSES.includes(opts.status)) {
-        console.error(`Unknown status: ${opts.status}. Valid: ${STATUSES.join(', ')}`)
-        process.exit(1)
-      }
-
       const priority = parseInt(opts.priority, 10)
       if (isNaN(priority) || priority < 1 || priority > 5) {
         console.error('Priority must be 1-5.')
         process.exit(1)
       }
+      const projectColumns = getProjectColumnsConfig(db, project.id)
+      if (opts.status && !isKnownStatus(opts.status, projectColumns)) {
+        console.error(`Unknown status "${opts.status}" for project "${project.name}".`)
+        process.exit(1)
+      }
+      const status = opts.status ?? getDefaultStatus(projectColumns)
 
       const id = crypto.randomUUID()
       const now = new Date().toISOString()
@@ -149,7 +169,7 @@ export function tasksCommand(): Command {
           ':id': id,
           ':projectId': project.id,
           ':title': title,
-          ':status': opts.status,
+          ':status': status,
           ':priority': priority,
           ':now': now,
         }
@@ -157,7 +177,7 @@ export function tasksCommand(): Command {
 
       db.close()
       await notifyApp()
-      console.log(`Created: ${id.slice(0, 8)}  ${title}  [${opts.status}]  ${project.name}`)
+      console.log(`Created: ${id.slice(0, 8)}  ${title}  [${status}]  ${project.name}`)
     })
 
   // slay tasks view
@@ -202,8 +222,8 @@ export function tasksCommand(): Command {
       idPrefix = resolveId(idPrefix)
       const db = openDb()
 
-      const tasks = db.query<{ id: string; title: string }>(
-        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+      const tasks = db.query<{ id: string; title: string; project_id: string }>(
+        `SELECT id, title, project_id FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
         { ':prefix': idPrefix }
       )
 
@@ -217,7 +237,10 @@ export function tasksCommand(): Command {
       }
 
       const task = tasks[0]
-      db.run(`UPDATE tasks SET status = 'done', updated_at = :now WHERE id = :id`, {
+      const projectColumns = getProjectColumnsConfig(db, task.project_id)
+      const doneStatus = getDoneStatus(projectColumns)
+      db.run(`UPDATE tasks SET status = :status, updated_at = :now WHERE id = :id`, {
+        ':status': doneStatus,
         ':now': new Date().toISOString(),
         ':id': task.id,
       })
@@ -232,7 +255,7 @@ export function tasksCommand(): Command {
     .command('update [id]')
     .description('Update a task (id prefix supported; defaults to $SLAYZONE_TASK_ID)')
     .option('--title <title>', 'New title')
-    .option('--status <status>', `New status: ${STATUSES.join(' | ')}`)
+    .option('--status <status>', 'New status key')
     .option('--priority <n>', 'New priority 1-5')
     .action(async (idPrefix, opts) => {
       idPrefix = resolveId(idPrefix)
@@ -243,8 +266,8 @@ export function tasksCommand(): Command {
 
       const db = openDb()
 
-      const tasks = db.query<{ id: string; title: string }>(
-        `SELECT id, title FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
+      const tasks = db.query<{ id: string; title: string; project_id: string }>(
+        `SELECT id, title, project_id FROM tasks WHERE id LIKE :prefix || '%' LIMIT 2`,
         { ':prefix': idPrefix }
       )
 
@@ -254,17 +277,19 @@ export function tasksCommand(): Command {
         process.exit(1)
       }
 
-      if (opts.status && !STATUSES.includes(opts.status)) {
-        console.error(`Unknown status: ${opts.status}. Valid: ${STATUSES.join(', ')}`)
-        process.exit(1)
-      }
-
       if (opts.priority) {
         const p = parseInt(opts.priority, 10)
         if (isNaN(p) || p < 1 || p > 5) { console.error('Priority must be 1-5.'); process.exit(1) }
       }
 
       const task = tasks[0]
+      if (opts.status) {
+        const taskColumns = getProjectColumnsConfig(db, task.project_id)
+        if (!isKnownStatus(opts.status, taskColumns)) {
+          console.error(`Unknown status "${opts.status}" for this task's project.`)
+          process.exit(1)
+        }
+      }
       const sets: string[] = ['updated_at = :now']
       const params: Record<string, string | number | null> = { ':now': new Date().toISOString(), ':id': task.id }
 
@@ -407,7 +432,7 @@ export function tasksCommand(): Command {
   cmd
     .command('subtask-add [parentId] <title>')
     .description('Add a subtask (parentId defaults to $SLAYZONE_TASK_ID)')
-    .option('--status <status>', 'Initial status', 'inbox')
+    .option('--status <status>', 'Initial status key')
     .option('--priority <n>', 'Priority 1-5', '3')
     .action(async (parentId, title, opts) => {
       parentId = resolveId(parentId)
@@ -426,16 +451,17 @@ export function tasksCommand(): Command {
 
       const parent = parents[0]
 
-      if (!STATUSES.includes(opts.status)) {
-        console.error(`Unknown status: ${opts.status}. Valid: ${STATUSES.join(', ')}`)
-        process.exit(1)
-      }
-
       const priority = parseInt(opts.priority, 10)
       if (isNaN(priority) || priority < 1 || priority > 5) {
         console.error('Priority must be 1-5.')
         process.exit(1)
       }
+      const parentColumns = getProjectColumnsConfig(db, parent.project_id)
+      if (opts.status && !isKnownStatus(opts.status, parentColumns)) {
+        console.error(`Unknown status "${opts.status}" for parent task's project.`)
+        process.exit(1)
+      }
+      const status = opts.status ?? getDefaultStatus(parentColumns)
 
       const terminalMode = parent.terminal_mode
         ?? (db.query<{ value: string }>(`SELECT value FROM settings WHERE key = 'default_terminal_mode' LIMIT 1`)[0]?.value)
@@ -454,7 +480,7 @@ export function tasksCommand(): Command {
           ':projectId': parent.project_id,
           ':parentId': parent.id,
           ':title': title,
-          ':status': opts.status,
+          ':status': status,
           ':priority': priority,
           ':terminalMode': terminalMode,
           ':now': now,

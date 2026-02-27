@@ -38,6 +38,28 @@ describe('db:tasks:create', () => {
     expect(t.priority).toBe(1)
   })
 
+  test('normalizes unknown create status to the project default', () => {
+    const customProjectId = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      customProjectId,
+      'CreateStatusNormalize',
+      '#777',
+      '/tmp/create-status-normalize',
+      JSON.stringify([
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'closed', label: 'Closed', color: 'green', position: 1, category: 'completed' },
+      ])
+    )
+
+    const task = h.invoke('db:tasks:create', {
+      projectId: customProjectId,
+      title: 'Unknown status create',
+      status: 'not_real'
+    }) as Task
+
+    expect(task.status).toBe('queued')
+  })
+
   test('builds provider_config from defaults', () => {
     const t = createTask('WithConfig')
     expect(t.provider_config['claude-code']?.flags).toBe('--allow-dangerously-skip-permissions')
@@ -55,6 +77,42 @@ describe('db:tasks:create', () => {
     const parent = createTask('Parent')
     const child = createTask('Child', { parentId: parent.id })
     expect(child.parent_id).toBe(parent.id)
+  })
+
+  test('uses project-specific default status from columns config', () => {
+    const customProjectId = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      customProjectId,
+      'ColumnsProject',
+      '#111',
+      '/tmp/custom',
+      JSON.stringify([
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'progressing', label: 'Progressing', color: 'blue', position: 1, category: 'started' },
+        { id: 'closed', label: 'Closed', color: 'green', position: 2, category: 'completed' },
+      ])
+    )
+    const task = h.invoke('db:tasks:create', {
+      projectId: customProjectId,
+      title: 'Project-specific default',
+    }) as Task
+    expect(task.status).toBe('queued')
+  })
+
+  test('falls back to inbox when project columns config is invalid', () => {
+    const invalidProjectId = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      invalidProjectId,
+      'InvalidColumns',
+      '#222',
+      '/tmp/invalid',
+      '{"not":"a-valid-columns-array"}'
+    )
+    const task = h.invoke('db:tasks:create', {
+      projectId: invalidProjectId,
+      title: 'Fallback default status',
+    }) as Task
+    expect(task.status).toBe('inbox')
   })
 })
 
@@ -113,6 +171,84 @@ describe('db:tasks:update', () => {
     const t = createTask('StatusTest')
     const updated = h.invoke('db:tasks:update', { id: t.id, status: 'in_progress' }) as Task
     expect(updated.status).toBe('in_progress')
+  })
+
+  test('normalizes unknown update status to the project default', () => {
+    const customProjectId = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      customProjectId,
+      'UpdateStatusNormalize',
+      '#888',
+      '/tmp/update-status-normalize',
+      JSON.stringify([
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'closed', label: 'Closed', color: 'green', position: 1, category: 'completed' },
+      ])
+    )
+    const task = h.invoke('db:tasks:create', {
+      projectId: customProjectId,
+      title: 'Unknown status update'
+    }) as Task
+    const updated = h.invoke('db:tasks:update', { id: task.id, status: 'ghost' }) as Task
+
+    expect(updated.status).toBe('queued')
+  })
+
+  test('updates to custom terminal status id', () => {
+    const projectWithTerminal = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      projectWithTerminal,
+      'TerminalColumns',
+      '#333',
+      '/tmp/terminal',
+      JSON.stringify([
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'wontfix', label: 'Wontfix', color: 'slate', position: 1, category: 'canceled' },
+        { id: 'closed', label: 'Closed', color: 'green', position: 2, category: 'completed' },
+      ])
+    )
+    const t = h.invoke('db:tasks:create', { projectId: projectWithTerminal, title: 'TerminalStatus' }) as Task
+    const updated = h.invoke('db:tasks:update', { id: t.id, status: 'wontfix' }) as Task
+    expect(updated.status).toBe('wontfix')
+  })
+
+  test('normalizes status when moving task to a project with different columns', () => {
+    const sourceProjectId = crypto.randomUUID()
+    const targetProjectId = crypto.randomUUID()
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      sourceProjectId,
+      'MoveSource',
+      '#444',
+      '/tmp/source',
+      JSON.stringify([
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'doing', label: 'Doing', color: 'blue', position: 1, category: 'started' },
+        { id: 'shipped', label: 'Shipped', color: 'green', position: 2, category: 'completed' },
+      ])
+    )
+    h.db.prepare('INSERT INTO projects (id, name, color, path, columns_config) VALUES (?, ?, ?, ?, ?)').run(
+      targetProjectId,
+      'MoveTarget',
+      '#555',
+      '/tmp/target',
+      JSON.stringify([
+        { id: 'triage', label: 'Triage', color: 'gray', position: 0, category: 'triage' },
+        { id: 'done', label: 'Done', color: 'green', position: 1, category: 'completed' },
+      ])
+    )
+
+    const task = h.invoke('db:tasks:create', {
+      projectId: sourceProjectId,
+      title: 'Move me',
+      status: 'doing'
+    }) as Task
+    const updated = h.invoke('db:tasks:update', {
+      id: task.id,
+      projectId: targetProjectId
+    }) as Task
+
+    expect(updated.project_id).toBe(targetProjectId)
+    expect(updated.status).toBe('triage')
   })
 
   test('no-op returns current task', () => {

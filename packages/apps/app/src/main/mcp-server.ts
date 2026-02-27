@@ -4,13 +4,16 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import express from 'express'
 import type { Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow, app as electronApp } from 'electron'
+import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import type { Database } from 'better-sqlite3'
 import { updateTask } from '@slayzone/task/main'
-import { PROVIDER_DEFAULTS, TASK_STATUSES } from '@slayzone/task/shared'
+import { PROVIDER_DEFAULTS } from '@slayzone/task/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { getDefaultStatus, isKnownStatus, parseColumnsConfig } from '@slayzone/projects/shared'
 import { listAllProcesses, killProcess, subscribeToProcessLogs } from './process-manager'
 import { getBrowserWebContents } from './browser-registry'
+import { app as electronApp } from 'electron'
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync, readdirSync, unlinkSync, statSync } from 'node:fs'
 
@@ -45,6 +48,19 @@ function createMcpServer(db: Database): McpServer {
       providerConfig[mode] = { flags: dbDefault }
     }
     return providerConfig
+  }
+
+  function getProjectColumns(projectId: string): ColumnConfig[] | null {
+    const row = db.prepare('SELECT columns_config FROM projects WHERE id = ?').get(projectId) as
+      | { columns_config: string | null }
+      | undefined
+    return parseColumnsConfig(row?.columns_config)
+  }
+
+  function getAllowedStatusesText(columns: ColumnConfig[] | null): string {
+    return columns
+      ? columns.map((column) => column.id).join(', ')
+      : 'inbox, backlog, todo, in_progress, review, done, canceled'
   }
 
   server.tool(
@@ -92,13 +108,34 @@ function createMcpServer(db: Database): McpServer {
       task_id: z.string().describe('The task ID to update (read from $SLAYZONE_TASK_ID env var)'),
       title: z.string().optional().describe('New title'),
       description: z.string().nullable().optional().describe('New description (null to clear)'),
-      status: z.enum(TASK_STATUSES).optional().describe('New status'),
+      status: z.string().optional().describe('New status'),
       priority: z.number().min(1).max(5).optional().describe('Priority 1-5 (1=highest)'),
       assignee: z.string().nullable().optional().describe('Assignee name (null to clear)'),
       due_date: z.string().nullable().optional().describe('Due date ISO string (null to clear)'),
       close: z.boolean().optional().describe('Close the task tab in the UI')
     },
     async ({ task_id, due_date, close, ...fields }) => {
+      if (fields.status !== undefined) {
+        const taskRow = db.prepare('SELECT project_id FROM tasks WHERE id = ?').get(task_id) as
+          | { project_id: string }
+          | undefined
+        if (!taskRow) {
+          return { content: [{ type: 'text' as const, text: `Task ${task_id} not found` }], isError: true }
+        }
+
+        const projectColumns = getProjectColumns(taskRow.project_id)
+        if (!isKnownStatus(fields.status, projectColumns)) {
+          const allowed = getAllowedStatusesText(projectColumns)
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Unknown status "${fields.status}" for task ${task_id}. Allowed statuses: ${allowed}.`
+            }],
+            isError: true
+          }
+        }
+      }
+
       const updated = updateTask(db, { id: task_id, ...fields, dueDate: due_date })
       if (!updated) {
         return { content: [{ type: 'text' as const, text: `Task ${task_id} not found` }], isError: true }
@@ -127,7 +164,7 @@ function createMcpServer(db: Database): McpServer {
       parent_task_id: z.string().optional().describe('Parent task ID (recommended: pass $SLAYZONE_TASK_ID)'),
       title: z.string().describe('Subtask title'),
       description: z.string().nullable().optional().describe('Subtask description (null to clear)'),
-      status: z.enum(TASK_STATUSES).optional().describe('Initial status (default: inbox)'),
+      status: z.string().optional().describe('Initial status (default: first non-terminal project status)'),
       priority: z.number().min(1).max(5).optional().describe('Priority 1-5 (1=highest, default: 3)'),
       assignee: z.string().nullable().optional().describe('Assignee name (null to clear)'),
       due_date: z.string().nullable().optional().describe('Due date ISO string (null to clear)')
@@ -164,6 +201,19 @@ function createMcpServer(db: Database): McpServer {
           .get() as { value: string } | undefined)?.value
         ?? 'claude-code'
       const providerConfig = buildDefaultProviderConfig()
+      const projectColumns = getProjectColumns(parent.project_id)
+      if (status && !isKnownStatus(status, projectColumns)) {
+        const allowed = getAllowedStatusesText(projectColumns)
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Unknown status "${status}" for project ${parent.project_id}. Allowed statuses: ${allowed}.`
+          }],
+          isError: true
+        }
+      }
+      const initialStatus =
+        status ?? getDefaultStatus(projectColumns)
 
       db.prepare(`
         INSERT INTO tasks (
@@ -179,7 +229,7 @@ function createMcpServer(db: Database): McpServer {
         title,
         description ?? null,
         assignee ?? null,
-        status ?? 'inbox',
+        initialStatus,
         priority ?? 3,
         due_date ?? null,
         terminalMode,
@@ -362,7 +412,7 @@ export function startMcpServer(db: Database, port: number): void {
     req.on('close', unsub)
   })
 
-  // Browser control API for CLI (`slay tasks browser *`)
+  // Browser control API for CLI (`slay browser *`)
   const BROWSER_JS_TIMEOUT = 10_000
 
   function resolveBrowserWc(taskId: string | undefined, res: express.Response): Electron.WebContents | null {

@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react'
-import { FolderOpen } from 'lucide-react'
+import {
+  FolderOpen,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Inbox,
+  CircleDashed,
+  Circle,
+  CircleDot,
+  CircleCheck,
+  CircleX
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@slayzone/ui'
 import { SettingsLayout } from '@slayzone/ui'
 import { Button } from '@slayzone/ui'
@@ -7,10 +20,21 @@ import { Input } from '@slayzone/ui'
 import { Label } from '@slayzone/ui'
 import { ColorPicker } from '@slayzone/ui'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@slayzone/ui'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@slayzone/ui'
 import { Checkbox } from '@slayzone/ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@slayzone/ui'
-import { ContextManagerSettings } from '../../../ai-config/src/client/ContextManagerSettings'
-import type { Project } from '@slayzone/projects/shared'
+import { Tabs, TabsList, TabsTrigger } from '@slayzone/ui'
+import { cn } from '@slayzone/ui'
+import { ContextManagerSettings, type ProjectContextManagerTab } from '../../../ai-config/src/client/ContextManagerSettings'
+import {
+  DEFAULT_COLUMNS,
+  WORKFLOW_CATEGORIES,
+  resolveColumns,
+  validateColumns,
+  type WorkflowCategory,
+  type ColumnConfig,
+  type Project
+} from '@slayzone/projects/shared'
 import type {
   IntegrationConnectionPublic,
   IntegrationProjectMapping,
@@ -27,17 +51,50 @@ interface ProjectSettingsDialogProps {
   onUpdated: (project: Project) => void
 }
 
+function SettingsTabIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="space-y-1">
+      <h3 className="text-base font-semibold">{title}</h3>
+      <p className="max-w-[80%] text-sm text-muted-foreground" style={{ textWrap: 'balance' }}>{description}</p>
+    </div>
+  )
+}
+
+const CATEGORY_META: Record<
+  WorkflowCategory,
+  { label: string; hint: string; icon: LucideIcon }
+> = {
+  triage: { label: 'Triage', hint: 'Incoming work that needs classification.', icon: Inbox },
+  backlog: { label: 'Backlog', hint: 'Queued work waiting to be pulled.', icon: CircleDashed },
+  unstarted: { label: 'Unstarted', hint: 'Ready to start.', icon: Circle },
+  started: { label: 'Started', hint: 'Work currently in progress.', icon: CircleDot },
+  completed: { label: 'Completed', hint: 'Finished and counted as done.', icon: CircleCheck },
+  canceled: { label: 'Canceled', hint: 'Stopped, declined, or duplicate.', icon: CircleX }
+}
+
+const STATUS_COLOR_BADGE: Record<string, string> = {
+  gray: 'bg-gray-500/20 text-gray-300',
+  slate: 'bg-slate-500/20 text-slate-300',
+  blue: 'bg-blue-500/20 text-blue-300',
+  yellow: 'bg-yellow-500/20 text-yellow-300',
+  purple: 'bg-purple-500/20 text-purple-300',
+  green: 'bg-green-500/20 text-green-300',
+  red: 'bg-red-500/20 text-red-300',
+  orange: 'bg-orange-500/20 text-orange-300'
+}
+
 export function ProjectSettingsDialog({
   project,
   open,
   onOpenChange,
   onUpdated
 }: ProjectSettingsDialogProps) {
-  const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'ai-config'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'columns' | 'integrations' | 'ai-config'>('general')
   const [name, setName] = useState('')
   const [color, setColor] = useState('')
   const [path, setPath] = useState('')
   const [autoCreateWorktreeOverride, setAutoCreateWorktreeOverride] = useState<'inherit' | 'on' | 'off'>('inherit')
+  const [columnsDraft, setColumnsDraft] = useState<ColumnConfig[]>(() => DEFAULT_COLUMNS.map((column) => ({ ...column })))
   const [loading, setLoading] = useState(false)
   const [connections, setConnections] = useState<IntegrationConnectionPublic[]>([])
   const [teams, setTeams] = useState<LinearTeam[]>([])
@@ -53,6 +110,7 @@ export function ProjectSettingsDialog({
   const [issueOptions, setIssueOptions] = useState<LinearIssueSummary[]>([])
   const [selectedIssueIds, setSelectedIssueIds] = useState<Set<string>>(new Set())
   const [loadingIssues, setLoadingIssues] = useState(false)
+  const [contextManagerTab, setContextManagerTab] = useState<ProjectContextManagerTab>('config')
 
   useEffect(() => {
     if (project) {
@@ -66,11 +124,15 @@ export function ProjectSettingsDialog({
             ? 'off'
             : 'inherit'
       )
+      setColumnsDraft(resolveColumns(project.columns_config))
     }
   }, [project])
 
   useEffect(() => {
-    if (open) setActiveTab('general')
+    if (open) {
+      setActiveTab('general')
+      setContextManagerTab('config')
+    }
   }, [open, project?.id])
 
   useEffect(() => {
@@ -154,6 +216,87 @@ export function ProjectSettingsDialog({
     } finally {
       setLoading(false)
     }
+  }
+
+  const normalizePositions = (columns: ColumnConfig[]): ColumnConfig[] =>
+    columns.map((column, index) => ({ ...column, position: index }))
+
+  const updateColumn = (id: string, update: Partial<ColumnConfig>) => {
+    setColumnsDraft((prev) => normalizePositions(prev.map((column) => (
+      column.id === id ? { ...column, ...update } : column
+    ))))
+  }
+
+  const moveColumn = (id: string, category: WorkflowCategory, direction: -1 | 1) => {
+    setColumnsDraft((prev) => {
+      const sorted = [...prev].sort((a, b) => a.position - b.position)
+
+      const categoryColumns = sorted.filter((column) => column.category === category)
+      const categoryIndex = categoryColumns.findIndex((column) => column.id === id)
+      const nextCategoryIndex = categoryIndex + direction
+      if (categoryIndex < 0 || nextCategoryIndex < 0 || nextCategoryIndex >= categoryColumns.length) return prev
+
+      const nextCategoryColumns = [...categoryColumns]
+      const [moved] = nextCategoryColumns.splice(categoryIndex, 1)
+      nextCategoryColumns.splice(nextCategoryIndex, 0, moved)
+
+      let replacementIndex = 0
+      const next = sorted.map((column) => (
+        column.category === category
+          ? nextCategoryColumns[replacementIndex++]
+          : column
+      ))
+
+      return normalizePositions(next)
+    })
+  }
+
+  const addColumn = (category: WorkflowCategory = 'unstarted') => {
+    setColumnsDraft((prev) => {
+      const sorted = [...prev].sort((a, b) => a.position - b.position)
+      const base = `status-${sorted.length + 1}`
+      let id = base
+      let n = 2
+      const ids = new Set(sorted.map((column) => column.id))
+      while (ids.has(id)) {
+        id = `${base}-${n}`
+        n++
+      }
+      return [
+        ...sorted,
+        { id, label: 'New Status', color: 'blue', category, position: sorted.length }
+      ]
+    })
+  }
+
+  const deleteColumn = (id: string) => {
+    const next = columnsDraft.filter((column) => column.id !== id)
+    if (next.length === columnsDraft.length) return
+    if (next.length === 0) return
+
+    setColumnsDraft(normalizePositions(next))
+  }
+
+  const handleResetColumns = () => {
+    setColumnsDraft(DEFAULT_COLUMNS.map((column) => ({ ...column })))
+  }
+
+  const handleSaveColumns = async () => {
+    if (!project) return
+    let normalized: ColumnConfig[]
+    try {
+      normalized = validateColumns(normalizePositions(columnsDraft))
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : String(error))
+      return
+    }
+
+    const updated = await window.api.db.updateProject({
+      id: project.id,
+      columnsConfig: normalized
+    })
+    onUpdated(updated)
+    setColumnsDraft(resolveColumns(updated.columns_config))
   }
 
   const [savingMapping, setSavingMapping] = useState(false)
@@ -251,9 +394,12 @@ export function ProjectSettingsDialog({
 
   const navItems: Array<{ key: typeof activeTab; label: string }> = [
     { key: 'general', label: 'General' },
-    { key: 'integrations', label: 'Integrations' }
-    // { key: 'ai-config', label: 'Context Manager' }
+    { key: 'columns', label: 'Task statuses' },
+    { key: 'integrations', label: 'Integrations' },
+    { key: 'ai-config', label: 'Context Manager' }
   ]
+  const colorOptions = ['gray', 'slate', 'blue', 'yellow', 'purple', 'green', 'red', 'orange']
+  const sortedColumns = [...columnsDraft].sort((a, b) => a.position - b.position)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -267,7 +413,11 @@ export function ProjectSettingsDialog({
           onSelect={(key) => setActiveTab(key as typeof activeTab)}
         >
           {activeTab === 'general' && (
-            <div className="w-full">
+            <div className="w-full space-y-6">
+              <SettingsTabIntro
+                title="General"
+                description="Configure the project identity and repository defaults. These settings define where task workflows run and how the project appears in the app."
+              />
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-1">
                   <Label htmlFor="edit-name">Name</Label>
@@ -324,8 +474,171 @@ export function ProjectSettingsDialog({
             </div>
           )}
 
+          {activeTab === 'columns' && (
+            <div className="w-full space-y-6">
+              <SettingsTabIntro
+                title="Task statuses"
+                description="Define the workflow statuses your tasks move through. Group statuses by stage and customize each status name, color, and behavior."
+              />
+              <p className="text-xs text-muted-foreground">
+                Status IDs are immutable and stored on tasks. Labels, color, and order can be changed.
+              </p>
+              <div className="overflow-hidden rounded-xl border border-border/60 bg-card/30">
+                {WORKFLOW_CATEGORIES.map((category) => {
+                  const meta = CATEGORY_META[category]
+                  const Icon = meta.icon
+                  const rows = sortedColumns.filter((column) => column.category === category)
+
+                  return (
+                    <div key={category} className="border-b border-border/60 last:border-b-0">
+                      <div className="flex items-center justify-between bg-muted/50 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-foreground/90">
+                              {meta.label}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">{meta.hint}</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => addColumn(category)}
+                          title={`Add ${meta.label} status`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {rows.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          No statuses in this group.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border/40">
+                          {rows.map((column, index) => (
+                            <div
+                              key={column.id}
+                              className="space-y-2 px-3 py-3"
+                              data-testid={`project-column-${column.id}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className={cn(
+                                        'h-8 w-8 rounded-md border border-border/60 p-0',
+                                        STATUS_COLOR_BADGE[column.color] ?? STATUS_COLOR_BADGE.gray
+                                      )}
+                                      title="Select status color"
+                                    >
+                                      <Icon className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start">
+                                    {colorOptions.map((value) => (
+                                      <DropdownMenuItem
+                                        key={value}
+                                        onSelect={() => updateColumn(column.id, { color: value })}
+                                      >
+                                        <span
+                                          className={cn(
+                                            'mr-2 inline-flex h-2.5 w-2.5 rounded-full',
+                                            STATUS_COLOR_BADGE[value] ?? STATUS_COLOR_BADGE.gray
+                                          )}
+                                        />
+                                        {value}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Input
+                                  value={column.label}
+                                  onChange={(event) => updateColumn(column.id, { label: event.target.value })}
+                                  placeholder="Status label"
+                                  className="h-8"
+                                />
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    data-testid={`move-up-project-column-${column.id}`}
+                                    aria-label={`Move ${column.label} status up`}
+                                    disabled={index === 0}
+                                    onClick={() => moveColumn(column.id, category, -1)}
+                                  >
+                                    <ChevronUp className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    data-testid={`move-down-project-column-${column.id}`}
+                                    aria-label={`Move ${column.label} status down`}
+                                    disabled={index === rows.length - 1}
+                                    onClick={() => moveColumn(column.id, category, 1)}
+                                  >
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive"
+                                    data-testid={`delete-project-column-${column.id}`}
+                                    aria-label={`Delete ${column.label} column`}
+                                    onClick={() => deleteColumn(column.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pl-10">
+                                <span className="text-xs text-muted-foreground">
+                                  ID: <code>{column.id}</code>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-between">
+                <Button type="button" variant="outline" onClick={() => addColumn()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add status
+                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={handleResetColumns}>
+                    Reset defaults
+                  </Button>
+                  <Button type="button" onClick={handleSaveColumns} data-testid="save-project-columns">
+                    Save statuses
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'integrations' && (
             <div className="w-full space-y-6">
+              <SettingsTabIntro
+                title="Integrations"
+                description="Map this project to external systems and control sync flow. Use this tab to connect Linear and import issues safely."
+              />
               <Card className="gap-4 py-4">
                 <CardHeader className="px-4">
                   <CardTitle className="text-base">Mapping</CardTitle>
@@ -552,12 +865,33 @@ export function ProjectSettingsDialog({
           )}
 
           {activeTab === 'ai-config' && (
-            <ContextManagerSettings
-              scope="project"
-              projectId={project?.id ?? null}
-              projectPath={project?.path}
-              projectName={project?.name}
-            />
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <SettingsTabIntro
+                    title="Context Manager"
+                    description="Manage project-specific AI instructions, skills, and provider sync behavior. Use this to adapt global context to this project's workflow."
+                  />
+                </div>
+                <Tabs
+                  value={contextManagerTab}
+                  onValueChange={(value) => setContextManagerTab(value as ProjectContextManagerTab)}
+                  className="shrink-0"
+                >
+                  <TabsList>
+                    <TabsTrigger value="config">Config</TabsTrigger>
+                    <TabsTrigger value="files">Files</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <ContextManagerSettings
+                scope="project"
+                projectId={project?.id ?? null}
+                projectPath={project?.path}
+                projectName={project?.name}
+                projectTab={contextManagerTab}
+              />
+            </div>
           )}
         </SettingsLayout>
       </DialogContent>

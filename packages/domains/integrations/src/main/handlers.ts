@@ -17,6 +17,15 @@ import type {
 } from '../shared'
 import { runSyncNow } from './sync'
 import { markdownToHtml } from './markdown'
+import {
+  getDefaultStatus,
+  getDoneStatus,
+  getStatusByCategories,
+  parseColumnsConfig,
+  resolveColumns,
+  type ColumnConfig,
+  type WorkflowCategory
+} from '@slayzone/workflow'
 
 function columnExists(db: Database, table: string, column: string): boolean {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
@@ -137,20 +146,29 @@ function priorityToLocal(priority: number): number {
   return 3
 }
 
-function stateToLocal(type: string): string {
+function getProjectColumns(db: Database, projectId: string): ColumnConfig[] | null {
+  const row = db.prepare('SELECT columns_config FROM projects WHERE id = ?').get(projectId) as
+    | { columns_config: string | null }
+    | undefined
+  return parseColumnsConfig(row?.columns_config)
+}
+
+function stateToLocal(type: string, columns: ColumnConfig[] | null): string {
   switch (type) {
     case 'backlog':
-      return 'backlog'
+      return getStatusByCategories(['backlog', 'unstarted', 'triage'], columns) ?? getDefaultStatus(columns)
     case 'started':
-      return 'in_progress'
+      return getStatusByCategories(['started'], columns) ?? getDefaultStatus(columns)
     case 'completed':
+      return getStatusByCategories(['completed'], columns) ?? getDoneStatus(columns)
     case 'canceled':
-      return 'done'
+      return getStatusByCategories(['canceled', 'completed'], columns) ?? getDoneStatus(columns)
     case 'unstarted':
+      return getStatusByCategories(['unstarted', 'triage', 'backlog'], columns) ?? getDefaultStatus(columns)
     case 'triage':
-      return 'todo'
+      return getStatusByCategories(['triage', 'unstarted', 'backlog'], columns) ?? getDefaultStatus(columns)
     default:
-      return 'todo'
+      return getDefaultStatus(columns)
   }
 }
 
@@ -186,6 +204,7 @@ function upsertLinkForIssue(
 }
 
 function upsertTaskFromIssue(db: Database, localProjectId: string, issue: LinearIssueSummary): string {
+  const projectColumns = getProjectColumns(db, localProjectId)
   const byLink = db.prepare(`
     SELECT task_id FROM external_links
     WHERE provider = 'linear' AND external_id = ?
@@ -202,7 +221,7 @@ function upsertTaskFromIssue(db: Database, localProjectId: string, issue: Linear
       localProjectId,
       issue.title,
       descHtml,
-      stateToLocal(issue.state.type),
+      stateToLocal(issue.state.type, projectColumns),
       priorityToLocal(issue.priority),
       issue.assignee?.name ?? null,
       issue.updatedAt,
@@ -224,7 +243,7 @@ function upsertTaskFromIssue(db: Database, localProjectId: string, issue: Linear
     localProjectId,
     issue.title,
     descHtml,
-    stateToLocal(issue.state.type),
+    stateToLocal(issue.state.type, projectColumns),
     priorityToLocal(issue.priority),
     issue.assignee?.name ?? null,
     issue.updatedAt
@@ -239,26 +258,45 @@ function getConnection(db: Database, id: string): IntegrationConnection {
   return row
 }
 
-function refreshStateMappings(db: Database, projectMappingId: string, states: Array<{ id: string; type: string }>): void {
-  const map = new Map<string, string>()
+function getLinearStateTypeForCategory(
+  category: WorkflowCategory,
+  availableStateTypes: Set<string>
+): string | null {
+  const candidates: Record<WorkflowCategory, string[]> = {
+    triage: ['triage', 'unstarted', 'backlog'],
+    backlog: ['backlog', 'unstarted', 'triage'],
+    unstarted: ['unstarted', 'triage', 'backlog'],
+    started: ['started'],
+    completed: ['completed', 'canceled'],
+    canceled: ['canceled', 'completed']
+  }
+  return candidates[category].find((type) => availableStateTypes.has(type)) ?? null
+}
+
+function refreshStateMappings(
+  db: Database,
+  projectMappingId: string,
+  projectId: string,
+  states: Array<{ id: string; type: string }>
+): void {
+  const stateIdByType = new Map<string, string>()
   for (const state of states) {
-    if (!map.has(state.type)) {
-      map.set(state.type, state.id)
+    if (!stateIdByType.has(state.type)) {
+      stateIdByType.set(state.type, state.id)
     }
   }
 
-  const targetByStatus: Array<{ status: string; type: string }> = [
-    { status: 'inbox', type: 'triage' },
-    { status: 'backlog', type: 'backlog' },
-    { status: 'todo', type: 'unstarted' },
-    { status: 'in_progress', type: 'started' },
-    { status: 'review', type: 'started' },
-    { status: 'done', type: 'completed' }
-  ]
+  const columns = resolveColumns(getProjectColumns(db, projectId))
+  const availableStateTypes = new Set(stateIdByType.keys())
+  db.prepare("DELETE FROM integration_state_mappings WHERE provider = 'linear' AND project_mapping_id = ?")
+    .run(projectMappingId)
 
-  for (const item of targetByStatus) {
-    const stateId = map.get(item.type)
+  for (const column of columns) {
+    const stateType = getLinearStateTypeForCategory(column.category, availableStateTypes)
+    if (!stateType) continue
+    const stateId = stateIdByType.get(stateType)
     if (!stateId) continue
+
     db.prepare(`
       INSERT INTO integration_state_mappings (
         id, provider, project_mapping_id, local_status, state_id, state_type, created_at, updated_at
@@ -267,7 +305,7 @@ function refreshStateMappings(db: Database, projectMappingId: string, states: Ar
         state_id = excluded.state_id,
         state_type = excluded.state_type,
         updated_at = datetime('now')
-    `).run(crypto.randomUUID(), projectMappingId, item.status, stateId, item.type)
+    `).run(crypto.randomUUID(), projectMappingId, column.id, stateId, stateType)
   }
 }
 
@@ -390,7 +428,7 @@ export function registerIntegrationHandlers(ipcMain: IpcMain, db: Database): voi
     if (input.provider === 'linear') {
       const apiKey = readCredential(db, connection.credential_ref)
       const states = await listWorkflowStates(apiKey, input.externalTeamId)
-      refreshStateMappings(db, mappingId, states)
+      refreshStateMappings(db, mappingId, input.projectId, states)
     }
 
     return db.prepare('SELECT * FROM integration_project_mappings WHERE id = ?').get(mappingId) as IntegrationProjectMapping

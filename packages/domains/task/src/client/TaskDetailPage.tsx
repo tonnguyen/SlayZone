@@ -8,7 +8,7 @@ import { BUILTIN_PANEL_IDS, getProviderConversationId, getProviderFlags, setProv
 import type { BrowserTabsState } from '@slayzone/task-browser/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { Project } from '@slayzone/projects/shared'
-import { getDefaultStatus, getDoneStatus, isTerminalStatus } from '@slayzone/projects/shared'
+import { getDefaultStatus, getDoneStatus, getStatusByCategory, isTerminalStatus } from '@slayzone/projects/shared'
 import { DEV_SERVER_URL_PATTERN, SESSION_ID_COMMANDS, SESSION_ID_UNAVAILABLE } from '@slayzone/terminal/shared'
 import type { TerminalMode, ValidationResult } from '@slayzone/terminal/shared'
 import { Button, PanelToggle, DevServerToast, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@slayzone/ui'
@@ -176,6 +176,14 @@ export function TaskDetailPage({
   const [loading, setLoading] = useState(true)
   const statusOptions = useMemo(() => buildStatusOptions(project?.columns_config), [project?.columns_config])
   const completedStatus = useMemo(() => getDoneStatus(project?.columns_config), [project?.columns_config])
+  const startedStatus = useMemo(
+    () => getStatusByCategory('started', project?.columns_config) ?? getDefaultStatus(project?.columns_config),
+    [project?.columns_config]
+  )
+  const startedStatusLabel = useMemo(
+    () => statusOptions.find((option) => option.value === startedStatus)?.label ?? 'In Progress',
+    [statusOptions, startedStatus]
+  )
 
   // Sub-tasks
   const [subTasks, setSubTasks] = useState<Task[]>([])
@@ -796,13 +804,15 @@ export function TaskDetailPage({
     })
   }, [isActive, setBrowserTabs])
 
-  // Cmd+R: reload browser webview when browser panel has focus
+  // Cmd+R: reload browser webview when browser panel has focus, else reload app
   useEffect(() => {
     if (!isActive) return
     return window.api.app.onReloadBrowser(() => {
       const el = document.activeElement as HTMLElement | null
       if (el?.closest('[data-browser-panel]')) {
         browserPanelRef.current?.reload()
+      } else {
+        window.location.reload()
       }
     })
   }, [isActive])
@@ -1303,7 +1313,7 @@ export function TaskDetailPage({
 
   const handleConfirmInProgress = async (): Promise<void> => {
     if (!task) return
-    const updated = await window.api.db.updateTask({ id: task.id, status: getDefaultStatus(project?.columns_config) })
+    const updated = await window.api.db.updateTask({ id: task.id, status: startedStatus })
     handleTaskUpdate(updated)
   }
 
@@ -1402,13 +1412,13 @@ export function TaskDetailPage({
               </Tooltip>
             )}
 
-            {!task.is_temporary && task.status !== 'in_progress' && (
+            {!task.is_temporary && task.status !== startedStatus && (
               <button
                 type="button"
                 onClick={handleConfirmInProgress}
                 className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 dark:text-yellow-400 transition-colors cursor-pointer"
               >
-                Set status to <em>In Progress</em>
+                Set status to <em>{startedStatusLabel}</em>
               </button>
             )}
 
