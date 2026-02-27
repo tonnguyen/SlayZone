@@ -357,8 +357,12 @@ export function unstageFile(path: string, filePath: string): void {
   spawnGit(['reset', 'HEAD', '--', filePath], { cwd: path })
 }
 
-export function discardFile(path: string, filePath: string): void {
-  spawnGit(['checkout', '--', filePath], { cwd: path })
+export function discardFile(path: string, filePath: string, untracked?: boolean): void {
+  if (untracked) {
+    spawnGit(['clean', '-f', '--', filePath], { cwd: path })
+  } else {
+    spawnGit(['checkout', '--', filePath], { cwd: path })
+  }
 }
 
 export function stageAll(path: string): void {

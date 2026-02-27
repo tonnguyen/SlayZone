@@ -292,7 +292,7 @@ export interface ElectronAPI {
     getWorkingDiff: (path: string) => Promise<GitDiffSnapshot>
     stageFile: (path: string, filePath: string) => Promise<void>
     unstageFile: (path: string, filePath: string) => Promise<void>
-    discardFile: (path: string, filePath: string) => Promise<void>
+    discardFile: (path: string, filePath: string, untracked?: boolean) => Promise<void>
     stageAll: (path: string) => Promise<void>
     unstageAll: (path: string) => Promise<void>
     getUntrackedFileDiff: (repoPath: string, filePath: string) => Promise<string>
@@ -340,10 +340,12 @@ export interface ElectronAPI {
     writeContextFile: (filePath: string, content: string, projectPath: string) => Promise<void>
     getContextTree: (projectPath: string, projectId: string) => Promise<ContextTreeEntry[]>
     loadGlobalItem: (input: LoadGlobalItemInput) => Promise<ContextTreeEntry>
-    syncLinkedFile: (projectId: string, projectPath: string, itemId: string) => Promise<ContextTreeEntry>
+    syncLinkedFile: (projectId: string, projectPath: string, itemId: string, provider?: CliProvider) => Promise<ContextTreeEntry>
     unlinkFile: (projectId: string, itemId: string) => Promise<boolean>
     renameContextFile: (oldPath: string, newPath: string, projectPath: string) => Promise<void>
     deleteContextFile: (filePath: string, projectPath: string, projectId: string) => Promise<void>
+    deleteGlobalFile: (filePath: string) => Promise<void>
+    createGlobalFile: (provider: CliProvider, category: 'skill' | 'command', slug: string) => Promise<GlobalFileEntry>
     discoverMcpConfigs: (projectPath: string) => Promise<McpConfigFileResult[]>
     writeMcpServer: (input: WriteMcpServerInput) => Promise<void>
     removeMcpServer: (input: RemoveMcpServerInput) => Promise<void>

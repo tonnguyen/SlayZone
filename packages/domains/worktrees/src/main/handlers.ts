@@ -179,8 +179,8 @@ ${steps.join('\n\n')}`
     unstageFile(path, filePath)
   })
 
-  ipcMain.handle('git:discardFile', (_, path: string, filePath: string) => {
-    discardFile(path, filePath)
+  ipcMain.handle('git:discardFile', (_, path: string, filePath: string, untracked?: boolean) => {
+    discardFile(path, filePath, untracked)
   })
 
   ipcMain.handle('git:stageAll', (_, path: string) => {

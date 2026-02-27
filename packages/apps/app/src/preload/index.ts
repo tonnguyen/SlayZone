@@ -270,7 +270,7 @@ const api: ElectronAPI = {
     getWorkingDiff: (path) => ipcRenderer.invoke('git:getWorkingDiff', path),
     stageFile: (path, filePath) => ipcRenderer.invoke('git:stageFile', path, filePath),
     unstageFile: (path, filePath) => ipcRenderer.invoke('git:unstageFile', path, filePath),
-    discardFile: (path, filePath) => ipcRenderer.invoke('git:discardFile', path, filePath),
+    discardFile: (path, filePath, untracked?) => ipcRenderer.invoke('git:discardFile', path, filePath, untracked),
     stageAll: (path) => ipcRenderer.invoke('git:stageAll', path),
     unstageAll: (path) => ipcRenderer.invoke('git:unstageAll', path),
     getUntrackedFileDiff: (repoPath, filePath) => ipcRenderer.invoke('git:getUntrackedFileDiff', repoPath, filePath),
@@ -322,13 +322,17 @@ const api: ElectronAPI = {
     getContextTree: (projectPath, projectId) =>
       ipcRenderer.invoke('ai-config:get-context-tree', projectPath, projectId),
     loadGlobalItem: (input) => ipcRenderer.invoke('ai-config:load-global-item', input),
-    syncLinkedFile: (projectId, projectPath, itemId) =>
-      ipcRenderer.invoke('ai-config:sync-linked-file', projectId, projectPath, itemId),
+    syncLinkedFile: (projectId, projectPath, itemId, provider?) =>
+      ipcRenderer.invoke('ai-config:sync-linked-file', projectId, projectPath, itemId, provider),
     unlinkFile: (projectId, itemId) => ipcRenderer.invoke('ai-config:unlink-file', projectId, itemId),
     renameContextFile: (oldPath, newPath, projectPath) =>
       ipcRenderer.invoke('ai-config:rename-context-file', oldPath, newPath, projectPath),
     deleteContextFile: (filePath, projectPath, projectId) =>
       ipcRenderer.invoke('ai-config:delete-context-file', filePath, projectPath, projectId),
+    deleteGlobalFile: (filePath) =>
+      ipcRenderer.invoke('ai-config:delete-global-file', filePath),
+    createGlobalFile: (provider, category, slug) =>
+      ipcRenderer.invoke('ai-config:create-global-file', provider, category, slug),
     discoverMcpConfigs: (projectPath) =>
       ipcRenderer.invoke('ai-config:discover-mcp-configs', projectPath),
     writeMcpServer: (input) =>

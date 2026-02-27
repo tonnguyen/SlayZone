@@ -412,10 +412,10 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
     }
   }, [targetPath])
 
-  const handleDiscardFile = useCallback(async (filePath: string) => {
+  const handleDiscardFile = useCallback(async (filePath: string, untracked?: boolean) => {
     if (!targetPath) return
     try {
-      await window.api.git.discardFile(targetPath, filePath)
+      await window.api.git.discardFile(targetPath, filePath, untracked)
       await fetchDiff()
     } catch {
       // silently fail — next poll will correct state
@@ -499,7 +499,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   const renderFileItem = useCallback((entry: FileEntry, { name, depth }: { name: string; depth: number }) => {
     const diff = getDiffForEntry(entry)
     const selected = isSelected(entry)
-    const canDiscard = entry.source === 'unstaged' && entry.status !== '?'
+    const canDiscard = entry.source === 'unstaged'
     return (
       <FileListItem
         entry={entry}
@@ -509,7 +509,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
         deletions={diff?.deletions}
         onClick={() => handleSelectFile(entry.path, entry.source)}
         onAction={() => handleStageAction(entry.path, entry.source)}
-        onDiscard={canDiscard ? () => handleDiscardFile(entry.path) : undefined}
+        onDiscard={canDiscard ? () => handleDiscardFile(entry.path, entry.status === '?') : undefined}
         itemRef={selected ? selectedItemRef : undefined}
         depth={depth}
       />
