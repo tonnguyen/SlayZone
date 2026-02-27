@@ -6,7 +6,7 @@ import { Button } from '@slayzone/ui'
 import { Switch } from '@slayzone/ui'
 import { Label } from '@slayzone/ui'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@slayzone/ui'
-import { ListFilter, SlidersHorizontal, X, LayoutList, Kanban } from 'lucide-react'
+import { ListFilter, SlidersHorizontal, LayoutList, Kanban } from 'lucide-react'
 
 interface FilterBarBProps {
   filter: FilterState
@@ -50,52 +50,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 ]
 
 
-/** Active filter pills shown below toolbar */
-function FilterPills({ filter, onChange, tags }: FilterBarBProps): React.JSX.Element | null {
-  const pills: { label: string; onRemove: () => void }[] = []
-
-  if (filter.priority !== null) {
-    const label = PRIORITY_OPTIONS.find((o) => o.value === String(filter.priority))?.label ?? 'Priority'
-    pills.push({ label: `Priority: ${label}`, onRemove: () => onChange({ ...filter, priority: null }) })
-  }
-
-  if (filter.dueDateRange !== 'all') {
-    const label = DUE_DATE_OPTIONS.find((o) => o.value === filter.dueDateRange)?.label ?? filter.dueDateRange
-    pills.push({ label: `Due: ${label}`, onRemove: () => onChange({ ...filter, dueDateRange: 'all' }) })
-  }
-
-  if (filter.tagIds.length > 0) {
-    const tagNames = filter.tagIds
-      .map((id) => tags.find((t) => t.id === id)?.name)
-      .filter(Boolean)
-      .join(', ')
-    pills.push({ label: `Tags: ${tagNames}`, onRemove: () => onChange({ ...filter, tagIds: [] }) })
-  }
-
-  if (pills.length === 0) return null
-
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {pills.map((pill) => (
-        <button
-          key={pill.label}
-          className="flex items-center gap-1 rounded-md bg-accent px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-accent/80 transition-colors"
-          onClick={pill.onRemove}
-        >
-          {pill.label}
-          <X className="size-3 text-muted-foreground" />
-        </button>
-      ))}
-      <button
-        className="text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1"
-        onClick={() => onChange({ ...filter, priority: null, dueDateRange: 'all', tagIds: [] })}
-      >
-        Clear all
-      </button>
-    </div>
-  )
-}
-
 export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.JSX.Element {
   const activeFilterCount =
     (filter.priority !== null ? 1 : 0) +
@@ -112,8 +66,7 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
   }
 
   return (
-    <div className="ml-auto flex flex-col gap-1.5">
-      <div className="flex items-center gap-1">
+    <div className="ml-auto flex items-center gap-1">
         {/* ──────── Filter Popover ──────── */}
         <Popover>
           <PopoverTrigger asChild>
@@ -131,12 +84,12 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 p-3" align="end">
+          <PopoverContent className="w-auto p-3" align="end">
             <div className="space-y-3">
               {/* Priority — multi-select pills */}
               <div className="space-y-1.5">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Priority</span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex gap-1.5">
                   {PRIORITY_OPTIONS.map((opt) => {
                     const isActive = filter.priority === parseInt(opt.value, 10)
                     return (
@@ -159,7 +112,7 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
               {/* Due date — pills */}
               <div className="space-y-1.5">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Due date</span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex gap-1.5">
                   {DUE_DATE_OPTIONS.map((opt) => {
                     const isActive = filter.dueDateRange === opt.value
                     return (
@@ -183,7 +136,7 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
               {tags.length > 0 && (
                 <div className="space-y-1.5">
                   <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex gap-1.5">
                     {tags.map((tag) => {
                       const isActive = filter.tagIds.includes(tag.id)
                       return (
@@ -317,10 +270,6 @@ export function FilterBarB({ filter, onChange, tags }: FilterBarBProps): React.J
             </div>
           </PopoverContent>
         </Popover>
-      </div>
-
-      {/* Active filter pills */}
-      <FilterPills filter={filter} onChange={onChange} tags={tags} />
     </div>
   )
 }
