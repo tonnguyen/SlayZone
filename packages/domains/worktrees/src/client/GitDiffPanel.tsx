@@ -422,6 +422,20 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
     }
   }, [targetPath])
 
+  const handleStageFolderAction = useCallback(async (folderPath: string, source: 'unstaged' | 'staged') => {
+    if (!targetPath) return
+    try {
+      if (source === 'unstaged') {
+        await window.api.git.stageFile(targetPath, folderPath)
+      } else {
+        await window.api.git.unstageFile(targetPath, folderPath)
+      }
+      await fetchDiff()
+    } catch {
+      // silently fail — next poll will correct state
+    }
+  }, [targetPath])
+
   const handleCommit = useCallback(async () => {
     if (!targetPath || !commitMessage.trim() || stagedEntries.length === 0) return
     setCommitting(true)
@@ -501,6 +515,26 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
       />
     )
   }, [getDiffForEntry, selectedFile, handleSelectFile, handleStageAction, handleDiscardFile])
+
+  const stagedFolderActions = useCallback((folder: { name: string; path: string }) => (
+    <span
+      className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+      onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'staged') }}
+      title="Unstage folder"
+    >
+      <Minus className="size-3.5" />
+    </span>
+  ), [handleStageFolderAction])
+
+  const unstagedFolderActions = useCallback((folder: { name: string; path: string }) => (
+    <span
+      className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+      onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'unstaged') }}
+      title="Stage folder"
+    >
+      <Plus className="size-3.5" />
+    </span>
+  ), [handleStageFolderAction])
 
   return (
     <div data-testid="git-diff-panel" className="h-full flex flex-col">
@@ -589,6 +623,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                     expandedFolders={expandedFolders}
                     onToggleFolder={toggleFolder}
                     renderFile={renderFileItem}
+                    folderActions={stagedFolderActions}
                   />
                 )}
               </div>
@@ -621,6 +656,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                     expandedFolders={expandedFolders}
                     onToggleFolder={toggleFolder}
                     renderFile={renderFileItem}
+                    folderActions={unstagedFolderActions}
                   />
                 )}
               </div>

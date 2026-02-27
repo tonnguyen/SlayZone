@@ -97,12 +97,14 @@ function FolderRow({
   name,
   expanded,
   depth,
-  onClick
+  onClick,
+  actions
 }: {
   name: string
   expanded: boolean
   depth: number
   onClick: () => void
+  actions?: ReactNode
 }) {
   return (
     <button
@@ -118,7 +120,8 @@ function FolderRow({
           ? <ChevronDown className="absolute inset-0 m-auto size-3 opacity-0 transition-opacity group-hover/folder:opacity-100" />
           : <ChevronRight className="absolute inset-0 m-auto size-3 opacity-0 transition-opacity group-hover/folder:opacity-100" />}
       </span>
-      <span className="truncate font-mono">{name}</span>
+      <span className="truncate font-mono flex-1 text-left">{name}</span>
+      {actions}
     </button>
   )
 }
@@ -128,13 +131,15 @@ function TreeBranch<T>({
   depth,
   expandedFolders,
   onToggleFolder,
-  renderFile
+  renderFile,
+  folderActions
 }: {
   nodes: TreeNode<T>[]
   depth: number
   expandedFolders: Set<string>
   onToggleFolder: (path: string) => void
   renderFile: (item: T, info: { name: string; depth: number }) => ReactNode
+  folderActions?: (folder: { name: string; path: string }) => ReactNode
 }) {
   return (
     <>
@@ -148,6 +153,7 @@ function TreeBranch<T>({
                 expanded={expanded}
                 depth={depth}
                 onClick={() => onToggleFolder(node.path)}
+                actions={folderActions?.({ name: node.name, path: node.path })}
               />
               {expanded && (
                 <TreeBranch
@@ -156,6 +162,7 @@ function TreeBranch<T>({
                   expandedFolders={expandedFolders}
                   onToggleFolder={onToggleFolder}
                   renderFile={renderFile}
+                  folderActions={folderActions}
                 />
               )}
             </div>
@@ -178,6 +185,8 @@ export interface FileTreeProps<T> {
   getPath: (item: T) => string
   /** Render a file leaf node */
   renderFile: (item: T, info: { name: string; depth: number }) => ReactNode
+  /** Extra actions rendered inside each folder row (e.g. stage/unstage buttons) */
+  folderActions?: (folder: { name: string; path: string }) => ReactNode
   /** Merge single-child directory chains (e.g. "a/b/c") */
   compress?: boolean
   /** Controlled expanded folders state */
@@ -193,6 +202,7 @@ export function FileTree<T>({
   items,
   getPath,
   renderFile,
+  folderActions,
   compress,
   expandedFolders: controlledExpanded,
   onToggleFolder: controlledToggle,
@@ -250,6 +260,7 @@ export function FileTree<T>({
         expandedFolders={expandedFolders}
         onToggleFolder={toggleFolder}
         renderFile={renderFile}
+        folderActions={folderActions}
       />
     </div>
   )
