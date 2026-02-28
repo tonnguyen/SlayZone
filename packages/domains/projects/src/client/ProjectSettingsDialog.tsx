@@ -111,6 +111,7 @@ export function ProjectSettingsDialog({
   const [selectedIssueIds, setSelectedIssueIds] = useState<Set<string>>(new Set())
   const [loadingIssues, setLoadingIssues] = useState(false)
   const [contextManagerTab, setContextManagerTab] = useState<ProjectContextManagerTab>('config')
+  const [contextManagerEnabled, setContextManagerEnabled] = useState(import.meta.env.DEV)
 
   useEffect(() => {
     if (project) {
@@ -134,6 +135,20 @@ export function ProjectSettingsDialog({
       setContextManagerTab('config')
     }
   }, [open, project?.id])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.api.app.isContextManagerEnabled()
+      .then((enabled) => {
+        if (!cancelled) setContextManagerEnabled(enabled)
+      })
+      .catch(() => {
+        if (!cancelled) setContextManagerEnabled(import.meta.env.DEV)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const loadIntegrationState = async () => {
@@ -396,8 +411,10 @@ export function ProjectSettingsDialog({
     { key: 'general', label: 'General' },
     { key: 'columns', label: 'Task statuses' },
     { key: 'integrations', label: 'Integrations' },
-    { key: 'ai-config', label: 'Context Manager' }
   ]
+  if (contextManagerEnabled) {
+    navItems.push({ key: 'ai-config', label: 'Context Manager' })
+  }
   const colorOptions = ['gray', 'slate', 'blue', 'yellow', 'purple', 'green', 'red', 'orange']
   const sortedColumns = [...columnsDraft].sort((a, b) => a.position - b.position)
 
@@ -841,7 +858,7 @@ export function ProjectSettingsDialog({
             </div>
           )}
 
-          {activeTab === 'ai-config' && (
+          {contextManagerEnabled && activeTab === 'ai-config' && (
             <div className="space-y-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">

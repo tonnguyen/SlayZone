@@ -208,6 +208,7 @@ export interface ElectronAPI {
   }
   app: {
     getVersion: () => Promise<string>
+    isContextManagerEnabled: () => Promise<boolean>
     onGoHome: (callback: () => void) => () => void
     onOpenSettings: (callback: () => void) => () => void
     onOpenProjectSettings: (callback: () => void) => () => void

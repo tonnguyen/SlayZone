@@ -101,14 +101,30 @@ export function UserSettingsDialog({
   const [cliInstalling, setCliInstalling] = useState(false)
   const [cliMessage, setCliMessage] = useState('')
   const [leaderboardEnabled, setLeaderboardEnabled] = useState(false)
+  const [contextManagerEnabled, setContextManagerEnabled] = useState(import.meta.env.DEV)
   const loadRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (open) {
-      setActiveTab(initialTab)
+      const resolvedInitialTab = !contextManagerEnabled && initialTab === 'ai-config' ? 'general' : initialTab
+      setActiveTab(resolvedInitialTab)
       loadData()
     }
-  }, [open, initialTab])
+  }, [open, initialTab, contextManagerEnabled])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.api.app.isContextManagerEnabled()
+      .then((enabled) => {
+        if (!cancelled) setContextManagerEnabled(enabled)
+      })
+      .catch(() => {
+        if (!cancelled) setContextManagerEnabled(import.meta.env.DEV)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -468,7 +484,7 @@ export function UserSettingsDialog({
     { key: 'general', label: 'General' },
     { key: 'appearance', label: 'Appearance' },
     { key: 'panels', label: 'Panels' },
-    { key: 'ai-config', label: 'Context Manager' },
+    ...(contextManagerEnabled ? [{ key: 'ai-config', label: 'Context Manager' }] : []),
     { key: 'tags', label: 'Tags' },
     { key: 'integrations', label: 'Integrations' },
     { key: 'data', label: 'Import & Export' },
@@ -1090,7 +1106,7 @@ export function UserSettingsDialog({
               </>
             )}
 
-            {activeTab === 'ai-config' && (
+            {contextManagerEnabled && activeTab === 'ai-config' && (
               <ContextManagerSettings scope="global" projectId={null} />
             )}
 

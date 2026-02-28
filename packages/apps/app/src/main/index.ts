@@ -32,6 +32,8 @@ protocol.registerSchemesAsPrivileged([
 // Use consistent app name for userData path (paired with legacy DB migration)
 app.name = 'slayzone'
 const isPlaywright = process.env.PLAYWRIGHT === '1'
+const isContextManagerEnabled =
+  is.dev || isPlaywright || process.env.SLAYZONE_ENABLE_CONTEXT_MANAGER === '1'
 
 // Enable remote debugging in dev (port 0 = OS-assigned, avoids conflicts with other dev instances)
 if (is.dev && !isPlaywright) {
@@ -833,7 +835,9 @@ app.whenReady().then(async () => {
   registerTerminalTabsHandlers(ipcMain, db)
   registerFilesHandlers(ipcMain)
   registerWorktreeHandlers(ipcMain)
-  registerAiConfigHandlers(ipcMain, db)
+  if (isContextManagerEnabled) {
+    registerAiConfigHandlers(ipcMain, db)
+  }
   registerIntegrationHandlers(ipcMain, db)
   registerFileEditorHandlers(ipcMain)
   registerScreenshotHandlers()
@@ -1136,6 +1140,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
+  ipcMain.handle('app:is-context-manager-enabled', () => isContextManagerEnabled)
   ipcMain.handle('app:restart-for-update', () => restartForUpdate())
   ipcMain.handle('app:check-for-updates', () => checkForUpdates())
   ipcMain.handle('app:cli-status', () => ({ installed: existsSync(CLI_TARGET) }))

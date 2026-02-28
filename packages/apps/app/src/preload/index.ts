@@ -102,6 +102,7 @@ const api: ElectronAPI = {
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    isContextManagerEnabled: () => ipcRenderer.invoke('app:is-context-manager-enabled'),
     onGoHome: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on('app:go-home', handler)
