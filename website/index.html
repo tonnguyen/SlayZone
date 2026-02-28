@@ -68,6 +68,7 @@
     bottom: 15%;
     background: linear-gradient(180deg, #27286B 0%, #215274 46%, #1C757B 100%);
     z-index: 0;
+    overflow: hidden;
   }
   .bubble { position: absolute; border-radius: 50%; pointer-events: none; animation: bubbleRise linear infinite; }
   @keyframes bubbleRise {
@@ -87,7 +88,7 @@
   }
 
   /* DEMO */
-  .demo-section { margin: 60px auto 40px; width: 912px; animation: fadeIn 0.8s ease 0.4s both; }
+  .demo-section { margin: 60px auto 40px; width: 100%; max-width: 912px; animation: fadeIn 0.8s ease 0.4s both; }
   .app-frame { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03); }
   .app-bar { display: flex; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border); position: relative; }
   .app-bar-default { display: flex; align-items: center; gap: 8px; transition: opacity 0.3s ease; }
@@ -519,9 +520,9 @@
     <h2>Super unbiased comparison</h2>
     <div class="cg-wrap">
     <div class="cg">
-      <div class="cg-head"><span></span><span class="col-slayzone">SlayZone</span><span>Cursor</span><span>Lovable</span><span>VibeKanban</span><span>Devin</span><span>Linear</span></div>
+      <div class="cg-head"><span></span><span class="col-slayzone">SlayZone</span><span>Cursor</span><span>VibeKanban</span><span>Devin</span><span>Linear</span><span>Lovable</span></div>
       <div class="cg-row"><span>Has all the features</span><span class="check">✓</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span></div>
-      <div class="cg-row"><span>Makes money</span><span class="no">✗</span><span>💰💰💰</span><span>💰💰💰</span><span>💰</span><span>💰💰</span><span>💰💰</span></div>
+      <div class="cg-row"><span>Makes money</span><span class="no">✗</span><span>💰💰💰</span><span>💰</span><span>💰💰</span><span>💰💰</span><span>💰💰💰</span></div>
       <div class="cg-row"><span>Built with passion</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span></div>
     </div>
     </div>
@@ -754,14 +755,6 @@ function run() {
     bow.appendChild(b);
   }
 })();
-
-function scaleDemo() {
-  var demo = document.querySelector('.demo-section');
-  var pw = demo.parentElement.clientWidth;
-  demo.style.zoom = Math.min(1, pw / 912);
-}
-window.addEventListener('resize', scaleDemo);
-scaleDemo();
 
 setTimeout(run, 1200);
 </script>
