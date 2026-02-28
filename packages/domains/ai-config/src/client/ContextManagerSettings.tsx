@@ -1,32 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  ArrowLeft, Check, AlertCircle, ChevronRight,
-  Plus, Sparkles, Wrench, Server, FileText, FolderTree, RefreshCw, Settings2
+  ArrowLeft, Check, ChevronRight,
+  Plus, Sparkles, Wrench, Server, FileText, FolderTree, Settings2
 } from 'lucide-react'
-import { Button, cn, FileTree, fileTreeIndent, Switch } from '@slayzone/ui'
+import { Button, cn, Switch } from '@slayzone/ui'
 import type {
-  AiConfigItem, AiConfigItemType, AiConfigScope,
-  CliProvider, CliProviderInfo, ContextTreeEntry, ProjectSkillStatus,
-  ProviderSyncStatus, UpdateAiConfigItemInput
+  AiConfigItem, AiConfigItemType, AiConfigScope, CliProvider,
+  CliProviderInfo, UpdateAiConfigItemInput
 } from '../shared'
+import { PROVIDER_LABELS } from '../shared/provider-registry'
 import { ContextItemEditor } from './ContextItemEditor'
 import { GlobalContextFiles } from './GlobalContextFiles'
 import { McpServersPanel } from './McpServersPanel'
-import { ProjectContextTree } from './ProjectContextTree'
+import { ProjectContextFlat } from './ProjectContextFlat'
+import { ProjectContextFilesView } from './ProjectContextFilesView'
 import { ProjectInstructions } from './ProjectInstructions'
-import { ProjectSkills } from './ProjectSkills'
-import { ProviderChips } from './ProviderChips'
 
-type GlobalSection = 'providers' | 'instructions' | 'skill' | 'command' | 'mcp' | 'files'
-type ProjectSection = 'providers' | 'instructions' | 'skills' | 'commands' | 'files' | 'mcp'
-type Section = GlobalSection | ProjectSection
+type Section = 'providers' | 'instructions' | 'skill' | 'command' | 'mcp' | 'files'
 
 interface ContextManagerSettingsProps {
   scope: AiConfigScope
   projectId: string | null
   projectPath?: string | null
   projectName?: string
+  projectTab?: ProjectContextManagerTab
 }
+
+export type ProjectContextManagerTab = 'config' | 'files'
 
 function formatTimestamp(value: string): string {
   const date = new Date(value)
@@ -34,52 +34,28 @@ function formatTimestamp(value: string): string {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-// ---------------------------------------------------------------------------
-// Sync status badge
-// ---------------------------------------------------------------------------
-
-function SyncBadge({ status, label }: { status: ProviderSyncStatus; label: string }) {
-  const synced = status === 'synced'
-  return (
-    <span className={cn(
-      'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
-      synced
-        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-        : status === 'out_of_sync'
-          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-          : 'bg-muted text-muted-foreground'
-    )}>
-      {synced ? <Check className="size-2.5" /> : <AlertCircle className="size-2.5" />}
-      {label}
-    </span>
-  )
+function nextAvailableSlug(base: string, existingSlugs: Set<string>): string {
+  if (!existingSlugs.has(base)) return base
+  let index = 2
+  while (existingSlugs.has(`${base}-${index}`)) index += 1
+  return `${base}-${index}`
 }
 
 // ---------------------------------------------------------------------------
-// Overview panel — loads live data and renders clickable cards
+// Overview panel — global scope only
 // ---------------------------------------------------------------------------
 
 interface OverviewData {
-  instructions: { content: string; providerStatus: Partial<Record<CliProvider, ProviderSyncStatus>> } | null
-  skills: AiConfigItem[] | ProjectSkillStatus[]
-  commands: AiConfigItem[] | ProjectSkillStatus[]
+  instructions: { content: string } | null
+  skills: AiConfigItem[]
+  commands: AiConfigItem[]
   providers: CliProviderInfo[]
-  enabledProviders: CliProvider[]
-  mcpCount: number
 }
 
 function OverviewPanel({
-  scope,
-  isProject,
-  projectId,
-  projectPath,
   onNavigate,
   version
 }: {
-  scope: AiConfigScope
-  isProject: boolean
-  projectId: string | null
-  projectPath: string | null | undefined
   onNavigate: (section: Section) => void
   version: number
 }) {
@@ -89,48 +65,25 @@ function OverviewPanel({
     let stale = false
     void (async () => {
       try {
-        if (isProject && projectId && projectPath) {
-          const [instrResult, skillsResult, commandsResult, providers, enabledProviders, mcpConfigs] = await Promise.all([
-            window.api.aiConfig.getRootInstructions(projectId, projectPath),
-            window.api.aiConfig.getProjectSkillsStatus(projectId, projectPath),
-            window.api.aiConfig.listItems({ scope: 'project', projectId, type: 'command' }),
-            window.api.aiConfig.listProviders(),
-            window.api.aiConfig.getProjectProviders(projectId),
-            window.api.aiConfig.discoverMcpConfigs(projectPath)
-          ])
-          if (stale) return
-          const mcpCount = mcpConfigs.reduce((sum, c) => sum + Object.keys(c.servers).length, 0)
-          setData({
-            instructions: instrResult,
-            skills: skillsResult,
-            commands: commandsResult,
-            providers,
-            enabledProviders,
-            mcpCount
-          })
-        } else {
-          const [instrContent, skills, commands, providers] = await Promise.all([
-            window.api.aiConfig.getGlobalInstructions(),
-            window.api.aiConfig.listItems({ scope: 'global', type: 'skill' }),
-            window.api.aiConfig.listItems({ scope: 'global', type: 'command' }),
-            window.api.aiConfig.listProviders()
-          ])
-          if (stale) return
-          setData({
-            instructions: { content: instrContent, providerStatus: {} },
-            skills,
-            commands,
-            providers,
-            enabledProviders: providers.filter(p => p.enabled).map(p => p.id as CliProvider),
-            mcpCount: 0
-          })
-        }
+        const [instrContent, skills, commands, providers] = await Promise.all([
+          window.api.aiConfig.getGlobalInstructions(),
+          window.api.aiConfig.listItems({ scope: 'global', type: 'skill' }),
+          window.api.aiConfig.listItems({ scope: 'global', type: 'command' }),
+          window.api.aiConfig.listProviders()
+        ])
+        if (stale) return
+        setData({
+          instructions: { content: instrContent },
+          skills,
+          commands,
+          providers,
+        })
       } catch {
         // silently fail — cards will show loading state
       }
     })()
     return () => { stale = true }
-  }, [isProject, projectId, projectPath, scope, version])
+  }, [version])
 
   if (!data) {
     return (
@@ -147,24 +100,12 @@ function OverviewPanel({
   const enabledProviders = data.providers.filter(p => p.enabled)
   const hasContent = !!data.instructions?.content
 
-  // Compute aggregate sync status for project skills
-  const skillSyncSummary: Partial<Record<CliProvider, { synced: number; total: number }>> = {}
-  if (isProject && data.skills.length > 0 && 'providers' in (data.skills[0] ?? {})) {
-    for (const s of data.skills as ProjectSkillStatus[]) {
-      for (const [prov, info] of Object.entries(s.providers)) {
-        const key = prov as CliProvider
-        if (!skillSyncSummary[key]) skillSyncSummary[key] = { synced: 0, total: 0 }
-        skillSyncSummary[key]!.total++
-        if (info?.status === 'synced') skillSyncSummary[key]!.synced++
-      }
-    }
-  }
-
   return (
     <div className="space-y-2.5">
-      {/* Providers — at top */}
+      {/* Providers */}
       <button
         onClick={() => onNavigate('providers')}
+        data-testid="context-overview-providers"
         className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <Settings2 className="size-5 shrink-0 text-muted-foreground" />
@@ -175,7 +116,7 @@ function OverviewPanel({
               {enabledProviders.map(p => (
                 <span key={p.id} className="flex items-center gap-1 text-xs text-muted-foreground">
                   <div className="size-2 rounded-full bg-green-500" />
-                  {p.name}
+                  {PROVIDER_LABELS[p.kind as CliProvider] ?? p.name}
                 </span>
               ))}
             </div>
@@ -187,20 +128,14 @@ function OverviewPanel({
       {/* Instructions */}
       <button
         onClick={() => onNavigate('instructions')}
+        data-testid="context-overview-instructions"
         className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <FileText className="size-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Instructions</span>
-            {isProject && data.instructions?.providerStatus && (
-              <div className="flex gap-1">
-                {Object.entries(data.instructions.providerStatus).map(([prov, status]) => (
-                  <SyncBadge key={prov} status={status} label={prov === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'} />
-                ))}
-              </div>
-            )}
-            {!isProject && hasContent && (
+            {hasContent && (
               <span className="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
                 <Check className="size-2.5" /> Saved
               </span>
@@ -220,7 +155,8 @@ function OverviewPanel({
 
       {/* Skills */}
       <button
-        onClick={() => onNavigate(isProject ? 'skills' : 'skill')}
+        onClick={() => onNavigate('skill')}
+        data-testid="context-overview-skills"
         className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <Sparkles className="size-5 shrink-0 text-muted-foreground" />
@@ -228,20 +164,12 @@ function OverviewPanel({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Skills</span>
             <span className="text-xs text-muted-foreground">{skillCount} defined</span>
-            {isProject && Object.entries(skillSyncSummary).map(([prov, info]) => (
-              <SyncBadge
-                key={prov}
-                status={info.synced === info.total ? 'synced' : 'out_of_sync'}
-                label={`${prov} ${info.synced}/${info.total}`}
-              />
-            ))}
           </div>
           {skillCount > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
-              {(data.skills as Array<AiConfigItem | ProjectSkillStatus>).slice(0, 5).map((s, i) => {
-                const slug = 'slug' in s ? s.slug : s.item.slug
-                return <span key={i} className="rounded border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px]">{slug}</span>
-              })}
+              {data.skills.slice(0, 5).map((s, i) => (
+                <span key={i} className="rounded border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px]">{s.slug}</span>
+              ))}
               {skillCount > 5 && <span className="text-[11px] text-muted-foreground">+{skillCount - 5} more</span>}
             </div>
           )}
@@ -251,7 +179,8 @@ function OverviewPanel({
 
       {/* Commands */}
       <button
-        onClick={() => onNavigate(isProject ? 'commands' : 'command')}
+        onClick={() => onNavigate('command')}
+        data-testid="context-overview-commands"
         className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <Wrench className="size-5 shrink-0 text-muted-foreground" />
@@ -262,7 +191,7 @@ function OverviewPanel({
           </div>
           {commandCount > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
-              {(data.commands as AiConfigItem[]).slice(0, 5).map((s, i) => (
+              {data.commands.slice(0, 5).map((s, i) => (
                 <span key={i} className="rounded border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px]">{s.slug}</span>
               ))}
             </div>
@@ -274,34 +203,29 @@ function OverviewPanel({
       {/* MCP Servers */}
       <button
         onClick={() => onNavigate('mcp')}
+        data-testid="context-overview-mcp"
         className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
       >
         <Server className="size-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">MCP Servers</span>
-            {isProject && data.mcpCount > 0 && (
-              <span className="text-xs text-muted-foreground">{data.mcpCount} configured</span>
-            )}
-          </div>
+          <span className="text-sm font-medium">MCP Servers</span>
         </div>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </button>
 
-      {/* Files — only for global scope (project has the side panel) */}
-      {!isProject && (
-        <button
-          onClick={() => onNavigate('files')}
-          className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-        >
-          <FolderTree className="size-5 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-medium">Files</span>
-            <p className="mt-0.5 text-xs text-muted-foreground">Global config files across all providers</p>
-          </div>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-        </button>
-      )}
+      {/* Files */}
+      <button
+        onClick={() => onNavigate('files')}
+        data-testid="context-overview-files"
+        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
+      >
+        <FolderTree className="size-5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium">Files</span>
+          <p className="mt-0.5 text-xs text-muted-foreground">Global config files across all providers</p>
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </button>
     </div>
   )
 }
@@ -336,7 +260,7 @@ function ProvidersPanel() {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Enable the CLI tools you use. Skills and instructions will sync to enabled providers.
+        Enable the providers you use. Skills and instructions will sync to enabled providers.
       </p>
       {providers.map(provider => {
         const isPlaceholder = provider.status === 'placeholder'
@@ -349,7 +273,9 @@ function ProvidersPanel() {
             )}
           >
             <div className="min-w-0">
-              <p className="text-sm font-medium">{provider.name}</p>
+              <p className="text-sm font-medium">
+                {PROVIDER_LABELS[provider.kind as CliProvider] ?? provider.name}
+              </p>
               {isPlaceholder && (
                 <p className="text-[11px] text-muted-foreground">Coming soon</p>
               )}
@@ -367,189 +293,46 @@ function ProvidersPanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Synced files panel — shows file tree on disk with per-file sync
-// ---------------------------------------------------------------------------
-
-function SyncedFileRow({
-  entry,
-  name,
-  depth,
-  onSync,
-}: {
-  entry: ContextTreeEntry
-  name: string
-  depth: number
-  onSync: () => void
-}) {
-  return (
-    <div
-      className="group flex items-center gap-1.5 rounded px-1 py-1 text-xs hover:bg-muted/50"
-      style={{ paddingLeft: fileTreeIndent(depth) }}
-    >
-      <span className="flex-1 truncate font-mono">{name}</span>
-      {entry.syncStatus === 'synced' && (
-        <Check className="size-3 text-green-600 dark:text-green-400 shrink-0" />
-      )}
-      {entry.syncStatus === 'out_of_sync' && (
-        <AlertCircle className="size-3 text-amber-600 dark:text-amber-400 shrink-0" />
-      )}
-      {entry.linkedItemId && (
-        <button
-          type="button"
-          onClick={onSync}
-          className="text-muted-foreground hover:text-foreground transition-colors p-0.5 opacity-0 group-hover:opacity-100"
-          title={`Sync ${name}`}
-        >
-          <RefreshCw className="size-3" />
-        </button>
-      )}
-    </div>
-  )
-}
-
-function SyncedFilesPanel({
-  projectId,
-  projectPath,
-  version,
-  onSynced,
-}: {
-  projectId: string
-  projectPath: string
-  version: number
-  onSynced: () => void
-}) {
-  const [entries, setEntries] = useState<ContextTreeEntry[]>([])
-  const [loading, setLoading] = useState(false)
-  const [syncingAll, setSyncingAll] = useState(false)
-
-  useEffect(() => {
-    let stale = false
-    setLoading(true)
-    void (async () => {
-      try {
-        const tree = await window.api.aiConfig.getContextTree(projectPath, projectId)
-        if (stale) return
-        setEntries(tree)
-      } finally {
-        if (!stale) setLoading(false)
-      }
-    })()
-    return () => { stale = true }
-  }, [projectId, projectPath, version])
-
-  const handleSyncFile = async (entry: ContextTreeEntry) => {
-    if (!entry.linkedItemId) return
-    try {
-      const updated = await window.api.aiConfig.syncLinkedFile(projectId, projectPath, entry.linkedItemId)
-      setEntries((prev) => prev.map((e) => (e.path === updated.path ? updated : e)))
-      onSynced()
-    } catch {
-      // silently fail
-    }
-  }
-
-  const handleSyncAll = async () => {
-    setSyncingAll(true)
-    try {
-      await window.api.aiConfig.syncAll({ projectId, projectPath })
-      const tree = await window.api.aiConfig.getContextTree(projectPath, projectId)
-      setEntries(tree)
-      onSynced()
-    } finally {
-      setSyncingAll(false)
-    }
-  }
-
-  const getPath = useCallback((e: ContextTreeEntry) => e.relativePath, [])
-  const projectEntries = useMemo(() => entries.filter((e) => !e.relativePath.startsWith('~')), [entries])
-  const globalEntries = useMemo(() => entries.filter((e) => e.relativePath.startsWith('~')), [entries])
-
-  const renderFile = useCallback((entry: ContextTreeEntry, info: { name: string; depth: number }) => (
-    <SyncedFileRow
-      entry={entry}
-      name={info.name}
-      depth={info.depth}
-      onSync={() => handleSyncFile(entry)}
-    />
-  ), [])
-
-  if (loading && entries.length === 0) {
-    return (
-      <div className="space-y-1">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-5 animate-pulse rounded bg-muted/20" />
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-muted-foreground">Synced Files</span>
-        <button
-          type="button"
-          onClick={handleSyncAll}
-          disabled={syncingAll}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={cn('size-3', syncingAll && 'animate-spin')} />
-          Sync All
-        </button>
-      </div>
-
-      <div className="overflow-y-auto space-y-3" style={{ maxHeight: 'calc(100vh - 340px)' }}>
-        {projectEntries.length > 0 && (
-          <div>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Project</span>
-            <FileTree
-              items={projectEntries}
-              getPath={getPath}
-              renderFile={renderFile}
-              defaultExpanded
-            />
-          </div>
-        )}
-
-        {globalEntries.length > 0 && (
-          <div>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Global</span>
-            <FileTree
-              items={globalEntries}
-              getPath={getPath}
-              renderFile={renderFile}
-              defaultExpanded
-            />
-          </div>
-        )}
-
-        {entries.length === 0 && !loading && (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            No synced files yet. Hit Sync to write files to disk.
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
-export function ContextManagerSettings({ scope, projectId, projectPath, projectName }: ContextManagerSettingsProps) {
+export function ContextManagerSettings({ scope, projectId, projectPath, projectName, projectTab }: ContextManagerSettingsProps) {
+  const isProject = scope === 'project' && !!projectId && !!projectPath
+  const activeProjectTab = projectTab ?? 'config'
+
+  if (isProject) {
+    if (activeProjectTab === 'files') {
+      return (
+        <ProjectContextFilesView
+          projectId={projectId!}
+          projectPath={projectPath!}
+        />
+      )
+    }
+
+    return (
+      <ProjectContextFlat
+        projectId={projectId!}
+        projectPath={projectPath!}
+        projectName={projectName}
+      />
+    )
+  }
+
+  return <GlobalContextManager />
+}
+
+// ---------------------------------------------------------------------------
+// Global context manager — own component so hooks are unconditional
+// ---------------------------------------------------------------------------
+
+function GlobalContextManager() {
   const [section, setSection] = useState<Section | null>(null)
   const [items, setItems] = useState<AiConfigItem[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [providerVersion, setProviderVersion] = useState(0)
-  const [syncCheckVersion, setSyncCheckVersion] = useState(0)
-  const [pickerTrigger, setPickerTrigger] = useState(0)
-  const [createTrigger, setCreateTrigger] = useState(0)
-
-  const isProject = scope === 'project' && !!projectId && !!projectPath
-
-  const handleChildChanged = () => setSyncCheckVersion(v => v + 1)
+  const [providerVersion] = useState(0)
+  const [syncCheckVersion] = useState(0)
 
   const isItemSection = section === 'skill' || section === 'command'
 
@@ -575,13 +358,15 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
   const handleCreate = async () => {
     if (!isItemSection) return
     const type = section as AiConfigItemType
+    const existingSlugs = new Set(items.map((item) => item.slug))
+    const slug = nextAvailableSlug(type === 'skill' ? 'new-skill' : 'new-command', existingSlugs)
     const defaultContent = type === 'skill'
       ? '---\ndescription: \ntrigger: auto\n---\n\n'
       : '---\ndescription: \nshortcut: \n---\n\n'
     const created = await window.api.aiConfig.createItem({
       type,
       scope: 'global',
-      slug: type === 'skill' ? 'new-skill' : 'new-command',
+      slug,
       content: defaultContent
     })
     setItems((prev) => [created, ...prev])
@@ -600,8 +385,8 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
     setEditingId(null)
   }
 
-  const mainContent = (
-    <div className={cn(isProject ? 'flex-1 min-w-0' : 'flex min-h-full flex-col')}>
+  return (
+    <div className="flex min-h-full flex-col">
       {/* Header: back button + actions when drilled in */}
       {section !== null && (
         <div className="flex items-center justify-between gap-3 pb-4">
@@ -615,22 +400,14 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
 
           <div className="flex items-center gap-2">
             {isItemSection && (
-              <Button size="sm" onClick={handleCreate}>
+              <Button
+                size="sm"
+                onClick={handleCreate}
+                data-testid={`context-new-${section}`}
+              >
                 <Plus className="mr-1 size-3.5" />
                 New
               </Button>
-            )}
-            {(section === 'skills' || section === 'commands') && scope === 'project' && (
-              <>
-                <Button size="sm" onClick={() => setCreateTrigger(v => v + 1)}>
-                  <Plus className="mr-1 size-3.5" />
-                  New
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setPickerTrigger(v => v + 1)}>
-                  <Plus className="mr-1 size-3.5" />
-                  Add from Global
-                </Button>
-              </>
             )}
           </div>
         </div>
@@ -640,26 +417,11 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
       {section !== null && (
         <p className="pb-3 text-xs text-muted-foreground">
           {section === 'providers' && 'Choose which AI coding tools to sync content to.'}
-          {section === 'instructions' && (isProject
-            ? 'Project-level instructions synced to each provider\'s config file (e.g. CLAUDE.md).'
-            : 'Global instructions stored in the database. Not synced to any file.'
-          )}
-          {(section === 'skill' || section === 'skills') && (isProject
-            ? 'Reusable prompt snippets available to AI assistants in this project.'
-            : 'Global skills shared across all projects. Synced to enabled providers.'
-          )}
-          {(section === 'command' || section === 'commands') && (isProject
-            ? 'Slash commands available to AI assistants in this project.'
-            : 'Global commands shared across all projects. Invoked via /command-name.'
-          )}
-          {section === 'mcp' && (isProject
-            ? 'MCP servers configured for this project, written to each provider\'s config.'
-            : 'Browse and favorite MCP servers from the curated catalog.'
-          )}
-          {section === 'files' && (isProject
-            ? 'Raw config files on disk. Managed automatically when you sync.'
-            : 'Global config files across all provider directories.'
-          )}
+          {section === 'instructions' && 'Global instructions stored in the database. Not synced to any file.'}
+          {section === 'skill' && 'Global skills shared across all projects. Synced to enabled providers.'}
+          {section === 'command' && 'Global commands shared across all projects. Invoked via /command-name.'}
+          {section === 'mcp' && 'Browse and favorite MCP servers from the curated catalog.'}
+          {section === 'files' && 'Global config files across all provider directories.'}
         </p>
       )}
 
@@ -667,41 +429,17 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
       <div className="flex-1">
         {section === null ? (
           <OverviewPanel
-            scope={scope}
-            isProject={isProject}
-            projectId={projectId}
-            projectPath={projectPath}
             onNavigate={setSection}
             version={providerVersion + syncCheckVersion}
           />
         ) : section === 'providers' ? (
-          scope === 'project' && projectId ? (
-            <ProviderChips projectId={projectId} onChange={() => setProviderVersion(v => v + 1)} />
-          ) : (
-            <ProvidersPanel />
-          )
-        ) : section === 'instructions' && scope === 'project' && projectPath && projectId ? (
-          <ProjectInstructions key={providerVersion} projectId={projectId} projectPath={projectPath} onChanged={handleChildChanged} />
-        ) : section === 'instructions' && scope === 'global' ? (
+          <ProvidersPanel />
+        ) : section === 'instructions' ? (
           <ProjectInstructions />
-        ) : section === 'skills' && scope === 'project' && projectPath && projectId ? (
-          <ProjectSkills key={providerVersion} projectId={projectId} projectPath={projectPath} type="skill" openPickerTrigger={pickerTrigger} openCreateTrigger={createTrigger} onChanged={handleChildChanged} />
-        ) : section === 'commands' && scope === 'project' && projectPath && projectId ? (
-          <ProjectSkills key={`cmd-${providerVersion}`} projectId={projectId} projectPath={projectPath} type="command" openPickerTrigger={pickerTrigger} openCreateTrigger={createTrigger} onChanged={handleChildChanged} />
         ) : section === 'mcp' ? (
-          <McpServersPanel
-            mode={scope === 'project' ? 'project' : 'global'}
-            projectPath={projectPath ?? undefined}
-            projectId={projectId ?? undefined}
-          />
-        ) : section === 'files' && scope === 'global' ? (
+          <McpServersPanel mode="global" />
+        ) : section === 'files' ? (
           <GlobalContextFiles />
-        ) : section === 'files' && scope === 'project' && projectPath && projectId ? (
-          <ProjectContextTree
-            projectPath={projectPath}
-            projectId={projectId}
-            projectName={projectName}
-          />
         ) : isItemSection ? (
           <>
             {loading ? (
@@ -739,6 +477,7 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
                     ) : (
                       <button
                         onClick={() => setEditingId(item.id)}
+                        data-testid={`context-global-item-${item.slug}`}
                         className="flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
                       >
                         <div className="min-w-0">
@@ -758,23 +497,4 @@ export function ContextManagerSettings({ scope, projectId, projectPath, projectN
       </div>
     </div>
   )
-
-  // Project mode: horizontal split with file tree on the right
-  if (isProject) {
-    return (
-      <div className="flex min-h-full gap-4">
-        {mainContent}
-        <div className="w-64 shrink-0 border-l pl-4">
-          <SyncedFilesPanel
-            projectId={projectId!}
-            projectPath={projectPath!}
-            version={providerVersion + syncCheckVersion}
-            onSynced={() => setSyncCheckVersion(v => v + 1)}
-          />
-        </div>
-      </div>
-    )
-  }
-
-  return mainContent
 }

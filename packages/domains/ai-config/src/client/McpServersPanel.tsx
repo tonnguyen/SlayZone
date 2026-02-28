@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Star, Check, Search, Plus, Trash2 } from 'lucide-react'
 import { Button, Input, Label, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@slayzone/ui'
 import { CURATED_MCP_SERVERS, CATEGORY_LABELS, type CuratedMcpServer } from '../shared/mcp-registry'
-import type { McpConfigFileResult, McpProvider, McpServerConfig } from '../shared'
+import type { McpConfigFileResult, McpTarget, McpServerConfig } from '../shared'
+import { getConfigurableMcpTargets } from '../shared/provider-registry'
 
 // ---------------------------------------------------------------------------
 // Shared types & helpers
@@ -92,13 +93,20 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
   )
 }
 
-const PROVIDER_LABELS: Record<McpProvider, string> = {
+const PROVIDER_LABELS: Partial<Record<McpTarget, string>> = {
   claude: 'Claude Code',
   cursor: 'Cursor',
-  vscode: 'VSCode'
+  gemini: 'Gemini',
+  opencode: 'OpenCode',
 }
 
-const ALL_PROVIDERS: McpProvider[] = ['claude', 'cursor', 'vscode']
+const ALL_PROVIDERS: McpTarget[] = getConfigurableMcpTargets({ writableOnly: true })
+
+function createDefaultProviderFlags(): Partial<Record<McpTarget, boolean>> {
+  const flags: Partial<Record<McpTarget, boolean>> = {}
+  for (const provider of ALL_PROVIDERS) flags[provider] = true
+  return flags
+}
 
 // ---------------------------------------------------------------------------
 // Add/Edit MCP Server dialog — shared between global and project modes
@@ -280,12 +288,12 @@ function AddProjectMcpDialog({ open, onOpenChange, projectPath, onAdded }: AddPr
   const [command, setCommand] = useState('')
   const [args, setArgs] = useState('')
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([])
-  const [providers, setProviders] = useState<Record<McpProvider, boolean>>({ claude: true, cursor: true, vscode: true })
+  const [providers, setProviders] = useState<Partial<Record<McpTarget, boolean>>>(() => createDefaultProviderFlags())
   const [adding, setAdding] = useState(false)
 
   const reset = () => {
     setServerKey(''); setCommand(''); setArgs(''); setEnvVars([])
-    setProviders({ claude: true, cursor: true, vscode: true })
+    setProviders(createDefaultProviderFlags())
   }
 
   const handleAdd = async () => {
@@ -297,7 +305,7 @@ function AddProjectMcpDialog({ open, onOpenChange, projectPath, onAdded }: AddPr
         if (!enabled) continue
         await window.api.aiConfig.writeMcpServer({
           projectPath,
-          provider: provider as McpProvider,
+          provider: provider as McpTarget,
           serverKey: serverKey.trim(),
           config
         })
@@ -335,7 +343,7 @@ function AddProjectMcpDialog({ open, onOpenChange, projectPath, onAdded }: AddPr
                     checked={providers[p]}
                     onChange={(e) => setProviders({ ...providers, [p]: e.target.checked })}
                   />
-                  {PROVIDER_LABELS[p]}
+                  {PROVIDER_LABELS[p] ?? p}
                 </label>
               ))}
             </div>
@@ -492,7 +500,7 @@ interface MergedServer {
   curated: CuratedMcpServer | null
   custom: CustomMcpServer | null
   config: McpServerConfig | null
-  providers: McpProvider[]
+  providers: McpTarget[]
 }
 
 function ProjectMcpPanel({ projectPath }: ProjectMcpPanelProps) {
@@ -525,6 +533,11 @@ function ProjectMcpPanel({ projectPath }: ProjectMcpPanelProps) {
     })
   }, [])
 
+  const writableProviders = useMemo(
+    () => new Set(configs.filter((cfg) => cfg.writable).map((cfg) => cfg.provider)),
+    [configs]
+  )
+
   const toggleFavorite = async (id: string) => {
     const next = favorites.includes(id)
       ? favorites.filter((f) => f !== id)
@@ -540,7 +553,7 @@ function ProjectMcpPanel({ projectPath }: ProjectMcpPanelProps) {
   const seen = new Set<string>()
 
   for (const curated of CURATED_MCP_SERVERS) {
-    const providers: McpProvider[] = []
+    const providers: McpTarget[] = []
     let foundConfig: McpServerConfig | null = null
     for (const cfg of configs) {
       if (cfg.servers[curated.id]) {
@@ -554,7 +567,7 @@ function ProjectMcpPanel({ projectPath }: ProjectMcpPanelProps) {
 
   for (const cs of customServers) {
     if (seen.has(cs.id)) continue
-    const providers: McpProvider[] = []
+    const providers: McpTarget[] = []
     let foundConfig: McpServerConfig | null = null
     for (const cfg of configs) {
       if (cfg.servers[cs.id]) {
@@ -600,6 +613,7 @@ function ProjectMcpPanel({ projectPath }: ProjectMcpPanelProps) {
 
   const disableServer = async (server: MergedServer) => {
     for (const provider of server.providers) {
+      if (!writableProviders.has(provider)) continue
       await window.api.aiConfig.removeMcpServer({
         projectPath,
         provider,
