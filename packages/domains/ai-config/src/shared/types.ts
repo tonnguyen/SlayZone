@@ -51,6 +51,7 @@ export interface SetAiConfigProjectSelectionInput {
   projectId: string
   itemId: string
   targetPath: string
+  provider?: CliProvider
 }
 
 export type ContextFileCategory = 'claude' | 'codex' | 'agents' | 'mcp' | 'custom'
@@ -106,10 +107,12 @@ export interface SyncAllInput {
   projectId: string
   projectPath: string
   providers?: CliProvider[]
+  pruneUnmanaged?: boolean
 }
 
 export interface SyncResult {
   written: { path: string; provider: CliProvider }[]
+  deleted: { path: string; provider: CliProvider; kind: 'skill' | 'command' | 'instruction' | 'mcp' }[]
   conflicts: SyncConflict[]
 }
 
@@ -143,7 +146,7 @@ export interface GlobalFileEntry {
 }
 
 // MCP server management
-export type McpProvider = 'claude' | 'cursor' | 'vscode'
+export type McpTarget = CliProvider
 
 export interface McpServerConfig {
   command: string
@@ -153,8 +156,9 @@ export interface McpServerConfig {
 }
 
 export interface McpConfigFileResult {
-  provider: McpProvider
+  provider: McpTarget
   exists: boolean
+  writable: boolean
   servers: Record<string, McpServerConfig>
 }
 
@@ -163,19 +167,19 @@ export interface ProjectMcpServer {
   name: string
   config: McpServerConfig
   curated: boolean
-  providers: McpProvider[]
+  providers: McpTarget[]
   category?: string
 }
 
 export interface WriteMcpServerInput {
   projectPath: string
-  provider: McpProvider
+  provider: McpTarget
   serverKey: string
   config: McpServerConfig
 }
 
 export interface RemoveMcpServerInput {
   projectPath: string
-  provider: McpProvider
+  provider: McpTarget
   serverKey: string
 }
