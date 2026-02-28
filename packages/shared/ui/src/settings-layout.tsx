@@ -28,6 +28,7 @@ export function SettingsLayout({
             <button
               key={item.key}
               onClick={() => onSelect(item.key)}
+              data-testid={`settings-tab-${item.key}`}
               className={cn(
                 'w-full rounded-md px-3.5 py-2.5 text-left text-sm font-medium transition-colors',
                 activeKey === item.key

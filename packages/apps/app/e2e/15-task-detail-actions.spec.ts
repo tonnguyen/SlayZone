@@ -8,6 +8,17 @@ test.describe('Task detail actions', () => {
     const s = seed(mainWindow)
     const p = await s.createProject({ name: 'Actions Test', color: '#8b5cf6', path: TEST_PROJECT_PATH })
     projectAbbrev = p.name.slice(0, 2).toUpperCase()
+    await s.updateProject({
+      id: p.id,
+      columnsConfig: [
+        { id: 'inbox', label: 'Inbox', color: 'gray', position: 0, category: 'triage' },
+        { id: 'backlog', label: 'Backlog', color: 'slate', position: 1, category: 'backlog' },
+        { id: 'todo', label: 'To Do', color: 'blue', position: 2, category: 'unstarted' },
+        { id: 'in_progress', label: 'In Progress', color: 'yellow', position: 3, category: 'started' },
+        { id: 'review', label: 'Review', color: 'purple', position: 4, category: 'completed' },
+        { id: 'done', label: 'Done', color: 'green', position: 5, category: 'started' }
+      ]
+    })
 
     await s.createTask({ projectId: p.id, title: 'Archive me from detail', status: 'in_progress' })
     await s.createTask({ projectId: p.id, title: 'Delete me from detail', status: 'in_progress' })
@@ -70,10 +81,10 @@ test.describe('Task detail actions', () => {
 
     await mainWindow.keyboard.press('Meta+Shift+d')
 
-    await expect(mainWindow.getByText('Mark as done and close tab?')).toBeVisible({ timeout: 3_000 })
+    await expect(mainWindow.getByText('Mark as complete and close tab?')).toBeVisible({ timeout: 3_000 })
   })
 
-  test('confirm complete task marks done and closes tab', async ({ mainWindow }) => {
+  test('confirm complete task uses project completed status and closes tab', async ({ mainWindow }) => {
     await mainWindow.getByRole('button', { name: 'Complete' }).click()
 
     await expect
@@ -82,6 +93,6 @@ test.describe('Task detail actions', () => {
         const task = tasks.find((t: { title: string }) => t.title === 'Complete me task')
         return task?.status ?? null
       }, { timeout: 5_000 })
-      .toBe('done')
+      .toBe('review')
   })
 })

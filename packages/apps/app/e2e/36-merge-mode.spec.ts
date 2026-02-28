@@ -1,4 +1,4 @@
-import { test, expect, seed, goHome, clickAll } from './fixtures/electron'
+import { test, expect, seed, goHome, clickProject } from './fixtures/electron'
 import { TEST_PROJECT_PATH } from './fixtures/electron'
 import { execSync } from 'child_process'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
@@ -464,7 +464,7 @@ test.describe('Merge badge on kanban', () => {
     await s.refreshData()
 
     await goHome(mainWindow)
-    await clickAll(mainWindow)
+    await clickProject(mainWindow, projectAbbrev)
 
     const card = mainWindow.locator('.cursor-grab:visible').filter({ hasText: 'MM badge task' }).first()
     await expect(card).toBeVisible()
