@@ -74,8 +74,7 @@ function parseConfiguredProviders(rawValue: string): CliProvider[] | null {
 function getSkillPath(provider: CliProvider, slug: string): string | null {
   const mapping = PROVIDER_PATHS[provider]
   if (!mapping.skillsDir) return null
-  if (provider === 'claude') return `${mapping.skillsDir}/${slug}/SKILL.md`
-  return `${mapping.skillsDir}/${slug}.md`
+  return `${mapping.skillsDir}/${slug}/SKILL.md`
 }
 
 function getCommandPath(provider: CliProvider, slug: string): string | null {
@@ -85,24 +84,29 @@ function getCommandPath(provider: CliProvider, slug: string): string | null {
 }
 
 function getLegacySkillPath(provider: CliProvider, itemType: string, itemSlug: string): string | null {
-  if (itemType !== 'skill' || provider !== 'claude') return null
-  return `.claude/skills/${itemSlug}.md`
+  if (itemType !== 'skill') return null
+  const mapping = PROVIDER_PATHS[provider]
+  if (!mapping.skillsDir) return null
+  return `${mapping.skillsDir}/${itemSlug}.md`
 }
 
-function isLegacyClaudeSkillTargetPath(targetPath: string, itemSlug: string): boolean {
+function isLegacySkillTargetPath(provider: CliProvider, targetPath: string, itemSlug: string): boolean {
   if (path.basename(targetPath) !== `${itemSlug}.md`) return false
+  const mapping = PROVIDER_PATHS[provider]
+  if (!mapping.skillsDir) return false
+  const normalizedSkillsDir = mapping.skillsDir.replace(/\\/g, '/').replace(/^\.\/+/, '')
   const parent = path.dirname(targetPath).replace(/\\/g, '/').replace(/^\.\/+/, '')
-  return parent === '.claude/skills' || parent.endsWith('/.claude/skills')
+  return parent === normalizedSkillsDir || parent.endsWith(`/${normalizedSkillsDir}`)
 }
 
 function getCanonicalSelectionTargetPath(provider: CliProvider, itemType: string, itemSlug: string, targetPath: string): string {
-  if (itemType !== 'skill' || provider !== 'claude') return targetPath
-  if (!isLegacyClaudeSkillTargetPath(targetPath, itemSlug)) return targetPath
+  if (itemType !== 'skill') return targetPath
+  if (!isLegacySkillTargetPath(provider, targetPath, itemSlug)) return targetPath
   const canonicalPath = path.join(path.dirname(targetPath), itemSlug, 'SKILL.md')
   return path.isAbsolute(targetPath) ? canonicalPath : canonicalPath.split(path.sep).join('/')
 }
 
-function removeLegacyClaudeSkillFileIfPresent(
+function removeLegacySkillFileIfPresent(
   provider: CliProvider,
   itemType: string,
   itemSlug: string,
@@ -733,7 +737,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         const dir = path.dirname(filePath)
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
         fs.writeFileSync(filePath, syncedContent, 'utf-8')
-        removeLegacyClaudeSkillFileIfPresent(
+        removeLegacySkillFileIfPresent(
           providerId,
           localItem.type,
           localItem.slug,
@@ -781,7 +785,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
       fs.writeFileSync(filePath, syncedContent, 'utf-8')
       updateSelection.run(effectiveTargetPath, contentHash(syncedContent), sel.id)
-      removeLegacyClaudeSkillFileIfPresent(
+      removeLegacySkillFileIfPresent(
         providerId,
         sel.item_type,
         sel.item_slug,
@@ -1204,7 +1208,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
       fs.writeFileSync(filePath, syncedContent, 'utf-8')
       updateSelection.run(effectiveTargetPath, hash, sel.id)
-      removeLegacyClaudeSkillFileIfPresent(
+      removeLegacySkillFileIfPresent(
         provider,
         sel.item_type,
         sel.item_slug,
@@ -1248,7 +1252,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
         const syncedContent = getSyncedItemContent(provider, item.type, item.slug, relativePath, item.content)
         fs.writeFileSync(filePath, syncedContent, 'utf-8')
-        removeLegacyClaudeSkillFileIfPresent(provider, item.type, item.slug, relativePath, resolvedProject, input.projectPath)
+        removeLegacySkillFileIfPresent(provider, item.type, item.slug, relativePath, resolvedProject, input.projectPath)
         result.written.push({ path: relativePath, provider })
       }
     }

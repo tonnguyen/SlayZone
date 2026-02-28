@@ -49,7 +49,7 @@ describe('ai-config:set-project-selection', () => {
     const sels = h.invoke('ai-config:list-project-selections', projectId) as Array<{ provider: string; target_path: string }>
     const codexSel = sels.find((sel) => sel.provider === 'codex')
     expect(codexSel).toBeTruthy()
-    expect(codexSel!.target_path).toBe('.agents/skills/sel-test.md')
+    expect(codexSel!.target_path).toBe('.agents/skills/sel-test/SKILL.md')
   })
 })
 

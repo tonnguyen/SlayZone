@@ -16,9 +16,9 @@ const commandContentV2 = 'echo e2e context command v2\n'
 
 const settingsDialog = (mainWindow: Page): Locator => mainWindow.getByRole('dialog').last()
 const claudeSkillPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'skills', skillSlug, 'SKILL.md')
-const codexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', `${skillSlug}.md`)
+const codexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', skillSlug, 'SKILL.md')
 const localClaudeSkillPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'skills', localSkillSlug, 'SKILL.md')
-const localCodexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', `${localSkillSlug}.md`)
+const localCodexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', localSkillSlug, 'SKILL.md')
 const claudeCommandPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'commands', `${commandSlug}.md`)
 
 async function closeTopDialog(mainWindow: Page): Promise<void> {

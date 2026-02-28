@@ -106,7 +106,7 @@ describe('ai-config:load-global-item', () => {
       projectId, projectPath: root, itemId: item.id,
       providers: ['codex']
     })
-    expect(fs.readFileSync(path.join(root, '.agents/skills/codex-skill.md'), 'utf-8')).toBe('# Codex skill')
+    expect(fs.readFileSync(path.join(root, '.agents/skills/codex-skill/SKILL.md'), 'utf-8')).toBe('# Codex skill')
   })
 })
 
@@ -152,7 +152,7 @@ describe('ai-config:sync-linked-file', () => {
     })
 
     const claudePath = path.join(fixture.projectPath, '.claude/skills/sync-all-providers/SKILL.md')
-    const codexPath = path.join(fixture.projectPath, '.agents/skills/sync-all-providers.md')
+    const codexPath = path.join(fixture.projectPath, '.agents/skills/sync-all-providers/SKILL.md')
     fs.writeFileSync(claudePath, '# changed')
     fs.writeFileSync(codexPath, '# changed')
     h.invoke('ai-config:update-item', { id: item.id, content: '# v2' })
@@ -178,7 +178,7 @@ describe('ai-config:sync-linked-file', () => {
     h.invoke('ai-config:sync-linked-file', fixture.projectId, fixture.projectPath, item.id)
 
     const claudePath = path.join(fixture.projectPath, '.claude/skills/local-item-sync/SKILL.md')
-    const codexPath = path.join(fixture.projectPath, '.agents/skills/local-item-sync.md')
+    const codexPath = path.join(fixture.projectPath, '.agents/skills/local-item-sync/SKILL.md')
     expect(fs.readFileSync(claudePath, 'utf-8').includes('name: local-item-sync')).toBe(true)
     expect(fs.readFileSync(claudePath, 'utf-8').includes('# local item')).toBe(true)
     expect(fs.readFileSync(codexPath, 'utf-8')).toBe('# local item')
@@ -350,7 +350,7 @@ describe('ai-config:needs-sync', () => {
       providers: ['codex']
     })
 
-    const codexPath = path.join(fixture.projectPath, '.agents/skills/disabled-provider-skill.md')
+    const codexPath = path.join(fixture.projectPath, '.agents/skills/disabled-provider-skill/SKILL.md')
     fs.writeFileSync(codexPath, '# modified externally')
 
     h.invoke('ai-config:set-project-providers', fixture.projectId, ['claude'])
@@ -532,7 +532,7 @@ describe('ai-config:sync-all', () => {
 
     expect(fs.readFileSync(path.join(fixture.projectPath, '.claude/skills/local-project-skill/SKILL.md'), 'utf-8').includes('# local project skill'))
       .toBe(true)
-    expect(fs.readFileSync(path.join(fixture.projectPath, '.cursor/skills/local-project-skill.md'), 'utf-8'))
+    expect(fs.readFileSync(path.join(fixture.projectPath, '.cursor/skills/local-project-skill/SKILL.md'), 'utf-8'))
       .toBe('# local project skill')
     expect(fs.readFileSync(path.join(fixture.projectPath, '.claude/commands/local-project-command.md'), 'utf-8'))
       .toBe('echo local project command')
@@ -541,7 +541,7 @@ describe('ai-config:sync-all', () => {
     expect(result.written.some((entry) =>
       entry.provider === 'claude' && entry.path === '.claude/skills/local-project-skill/SKILL.md')).toBe(true)
     expect(result.written.some((entry) =>
-      entry.provider === 'cursor' && entry.path === '.cursor/skills/local-project-skill.md')).toBe(true)
+      entry.provider === 'cursor' && entry.path === '.cursor/skills/local-project-skill/SKILL.md')).toBe(true)
     expect(result.written.some((entry) =>
       entry.provider === 'claude' && entry.path === '.claude/commands/local-project-command.md')).toBe(true)
   })
@@ -567,7 +567,7 @@ describe('ai-config:sync-all', () => {
     h.invoke('ai-config:remove-project-selection', fixture.projectId, item.id, 'codex')
     h.invoke('ai-config:update-item', { id: item.id, content: '# updated' })
 
-    const codexPath = path.join(fixture.projectPath, '.agents/skills/sync-all-provider-unlink.md')
+    const codexPath = path.join(fixture.projectPath, '.agents/skills/sync-all-provider-unlink/SKILL.md')
     const codexBefore = fs.readFileSync(codexPath, 'utf-8')
 
     const result = h.invoke('ai-config:sync-all', {
@@ -644,7 +644,7 @@ describe('ai-config:sync-all', () => {
     const unmanagedInstructionPath = path.join(fixture.projectPath, 'AGENTS.md')
     const unmanagedSkillPath = path.join(fixture.projectPath, '.claude/skills/remove-me.md')
     const unmanagedCommandPath = path.join(fixture.projectPath, '.claude/commands/remove-command.md')
-    const unmanagedCodexSkillPath = path.join(fixture.projectPath, '.agents/skills/remove-codex.md')
+    const unmanagedCodexSkillPath = path.join(fixture.projectPath, '.agents/skills/remove-codex/SKILL.md')
     const unmanagedEmptyEnabledMcpPath = path.join(fixture.projectPath, '.mcp.json')
     const disabledProviderMcpPath = path.join(fixture.projectPath, '.cursor/mcp.json')
 
