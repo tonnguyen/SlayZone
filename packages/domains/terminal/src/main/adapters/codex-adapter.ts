@@ -2,7 +2,7 @@ import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState,
 import { buildExecCommand, getShellStartupArgs, resolveUserShell, whichBinary, validateShellEnv } from '../shell-env'
 
 /**
- * Adapter for OpenAI Codex CLI.
+ * Adapter for OpenAI Codex.
  * Codex uses a full-screen Ratatui TUI. State detection is binary:
  * working (shows interrupt/cancel hints) vs attention (idle timeout fallback).
  */
@@ -101,7 +101,7 @@ export class CodexAdapter implements TerminalAdapter {
         fix: node ? undefined : 'Install Node.js from https://nodejs.org'
       },
       {
-        check: 'Codex CLI found',
+        check: 'Codex found',
         ok: !!codex,
         detail: codex ?? 'codex not found in PATH',
         fix: codex ? undefined : 'npm install -g @openai/codex'

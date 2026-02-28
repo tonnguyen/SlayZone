@@ -33,7 +33,7 @@ const MOCK_MCP = [
 const MOCK_INSTRUCTIONS = `This project uses React 19 with TypeScript and TailwindCSS 4.\nFollow existing patterns. Use pnpm for package management.\nAll components should be functional with hooks.`
 const MOCK_PROVIDERS = [
   { id: 'claude', name: 'Claude Code', enabled: true },
-  { id: 'codex', name: 'Codex CLI', enabled: true }
+  { id: 'codex', name: 'Codex', enabled: true }
 ]
 
 // ---------------------------------------------------------------------------

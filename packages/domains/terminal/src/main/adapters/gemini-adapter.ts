@@ -2,7 +2,7 @@ import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState,
 import { buildExecCommand, getShellStartupArgs, resolveUserShell, whichBinary, validateShellEnv } from '../shell-env'
 
 /**
- * Adapter for Google Gemini CLI.
+ * Adapter for Google Gemini.
  * Ink-based TUI with Braille spinner (cli-spinners "dots").
  */
 export class GeminiAdapter implements TerminalAdapter {
