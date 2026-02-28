@@ -13,7 +13,7 @@ interface NotificationPopoverProps {
   onFilterToggle: () => void
   onNavigate: (taskId: string) => void
   onCloseTerminal: (sessionId: string) => void
-  selectedProjectId: string | null
+  selectedProjectId: string
   currentProjectName?: string
 }
 
