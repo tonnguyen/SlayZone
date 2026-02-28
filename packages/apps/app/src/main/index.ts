@@ -1,11 +1,11 @@
 
 import { app, shell, BrowserWindow, BrowserView, ipcMain, nativeTheme, session, webContents, dialog, Menu, protocol } from 'electron'
-import { registerBrowserPanel, unregisterBrowserPanel } from './browser-registry'
 import { join, extname, normalize, sep, resolve } from 'path'
 import { homedir } from 'os'
 import { createServer, type Server as HttpServer } from 'http'
 import { readFileSync, promises as fsp, existsSync, unlinkSync, symlinkSync } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
+import { registerBrowserPanel, unregisterBrowserPanel } from './browser-registry'
 import {
   BLOCKED_EXTERNAL_PROTOCOLS,
   inferHostScopeFromUrl,
@@ -1167,7 +1167,7 @@ app.whenReady().then(async () => {
     }
   )
 
-  // Browser panel registration for CLI control
+  // Browser panel registry (CLI browser control)
   ipcMain.handle('webview:register-browser-panel', (_, taskId: string, webContentsId: number) => {
     registerBrowserPanel(taskId, webContentsId)
   })
