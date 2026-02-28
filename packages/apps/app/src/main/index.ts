@@ -1577,11 +1577,11 @@ app.whenReady().then(async () => {
   if (mainWindow) setProcessManagerWindow(mainWindow)
 
   // Register process IPC handlers (dev only — no-ops in production via import.meta.env.DEV gate on renderer side)
-  ipcMain.handle('processes:create', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
-    return createProcess(taskId, label, command, cwd, autoRestart)
+  ipcMain.handle('processes:create', (_event, projectId: string | null, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
+    return createProcess(projectId, taskId, label, command, cwd, autoRestart)
   })
-  ipcMain.handle('processes:spawn', (_event, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
-    return spawnProcess(taskId, label, command, cwd, autoRestart)
+  ipcMain.handle('processes:spawn', (_event, projectId: string | null, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => {
+    return spawnProcess(projectId, taskId, label, command, cwd, autoRestart)
   })
   ipcMain.handle('processes:update', (_event, processId: string, updates: Parameters<typeof updateProcess>[1]) => {
     return updateProcess(processId, updates)
@@ -1592,8 +1592,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('processes:restart', (_event, processId: string) => {
     return restartProcess(processId)
   })
-  ipcMain.handle('processes:listForTask', (_event, taskId: string | null) => {
-    return listForTask(taskId)
+  ipcMain.handle('processes:listForTask', (_event, taskId: string | null, projectId: string | null) => {
+    return listForTask(taskId, projectId)
   })
   ipcMain.handle('processes:listAll', () => {
     return listAllProcesses()

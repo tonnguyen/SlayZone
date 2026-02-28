@@ -1283,7 +1283,7 @@ function App(): React.JSX.Element {
                                       )}
                                       {id === 'git' && <UnifiedGitPanel ref={homeGitPanelRef} projectPath={projectPath} visible={true} defaultTab={homeGitDefaultTab} />}
                                       {id === 'editor' && <FileEditorView ref={homeEditorRefCallback} projectPath={projectPath ?? ''} />}
-                                      {id === 'processes' && <ProcessesPanel taskId={null} cwd={projectPath} />}
+                                      {id === 'processes' && <ProcessesPanel taskId={null} projectId={selectedProjectId} cwd={projectPath} />}
                                     </div>
                                   </React.Fragment>
                                 )

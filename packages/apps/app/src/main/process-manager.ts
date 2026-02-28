@@ -8,7 +8,8 @@ export type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 
 export interface ProcessInfo {
   id: string
-  taskId: string | null   // null = global (persists across tasks)
+  taskId: string | null
+  projectId: string | null
   label: string
   command: string
   cwd: string
@@ -44,12 +45,13 @@ export function setProcessManagerWindow(window: BrowserWindow): void {
 export function initProcessManager(database: Database): void {
   db = database
   const rows = db.prepare('SELECT * FROM processes ORDER BY created_at').all() as Array<{
-    id: string; task_id: string | null; label: string; command: string; cwd: string; auto_restart: number
+    id: string; task_id: string | null; project_id: string | null; label: string; command: string; cwd: string; auto_restart: number
   }>
   for (const row of rows) {
     processes.set(row.id, {
       id: row.id,
       taskId: row.task_id,
+      projectId: row.project_id,
       label: row.label,
       command: row.command,
       cwd: row.cwd,
@@ -120,6 +122,7 @@ function doSpawn(proc: ManagedProcess): void {
 }
 
 export function createProcess(
+  projectId: string | null,
   taskId: string | null,
   label: string,
   command: string,
@@ -128,18 +131,19 @@ export function createProcess(
 ): string {
   const id = randomUUID()
   const proc: ManagedProcess = {
-    id, taskId, label, command, cwd, autoRestart,
+    id, taskId, projectId, label, command, cwd, autoRestart,
     status: 'stopped', pid: null, exitCode: null,
     logBuffer: [], child: null,
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
-  db?.prepare('INSERT INTO processes (id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, taskId, label, command, cwd, autoRestart ? 1 : 0)
+  db?.prepare('INSERT INTO processes (id, project_id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, projectId, taskId, label, command, cwd, autoRestart ? 1 : 0)
   return id
 }
 
 export function spawnProcess(
+  projectId: string | null,
   taskId: string | null,
   label: string,
   command: string,
@@ -148,30 +152,30 @@ export function spawnProcess(
 ): string {
   const id = randomUUID()
   const proc: ManagedProcess = {
-    id, taskId, label, command, cwd, autoRestart,
+    id, taskId, projectId, label, command, cwd, autoRestart,
     status: 'running', pid: null, exitCode: null,
     logBuffer: [], child: null,
     startedAt: new Date().toISOString()
   }
   processes.set(id, proc)
-  db?.prepare('INSERT INTO processes (id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, taskId, label, command, cwd, autoRestart ? 1 : 0)
+  db?.prepare('INSERT INTO processes (id, project_id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, projectId, taskId, label, command, cwd, autoRestart ? 1 : 0)
   doSpawn(proc)
   return id
 }
 
 export function updateProcess(
   id: string,
-  updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId'>>
+  updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId' | 'projectId'>>
 ): boolean {
   const proc = processes.get(id)
   if (!proc) return false
   Object.assign(proc, updates)
   db?.prepare(`
     UPDATE processes SET
-      task_id = ?, label = ?, command = ?, cwd = ?, auto_restart = ?
+      project_id = ?, task_id = ?, label = ?, command = ?, cwd = ?, auto_restart = ?
     WHERE id = ?
-  `).run(proc.taskId, proc.label, proc.command, proc.cwd, proc.autoRestart ? 1 : 0, id)
+  `).run(proc.projectId, proc.taskId, proc.label, proc.command, proc.cwd, proc.autoRestart ? 1 : 0, id)
   return true
 }
 
@@ -197,7 +201,7 @@ export function restartProcess(id: string): boolean {
   return true
 }
 
-/** Kill all processes belonging to a specific task. Global processes are unaffected. */
+/** Kill all processes belonging to a specific task. Project-scoped processes are unaffected. */
 export function killTaskProcesses(taskId: string): void {
   for (const [id, proc] of processes.entries()) {
     if (proc.taskId === taskId) {
@@ -208,10 +212,10 @@ export function killTaskProcesses(taskId: string): void {
   }
 }
 
-/** Returns task-scoped processes for taskId plus all global (taskId=null) processes. When taskId is null, returns only global processes. */
-export function listForTask(taskId: string | null): ProcessInfo[] {
+/** Returns task-scoped processes for taskId plus project-scoped processes matching projectId. */
+export function listForTask(taskId: string | null, projectId: string | null): ProcessInfo[] {
   return Array.from(processes.values())
-    .filter(p => p.taskId === taskId || p.taskId === null)
+    .filter(p => p.taskId === taskId || (p.taskId === null && p.projectId != null && p.projectId === projectId))
     .map(({ child: _, ...info }) => info)
 }
 
