@@ -33,6 +33,15 @@ function TelemetrySettingsTab() {
   return <TelemetrySettings tier={tier} onTierChange={setTier} />
 }
 
+function SettingsTabIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="space-y-1">
+      <h3 className="text-base font-semibold">{title}</h3>
+      <p className="max-w-[80%] text-sm text-muted-foreground" style={{ textWrap: 'balance' }}>{description}</p>
+    </div>
+  )
+}
+
 interface UserSettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -526,6 +535,10 @@ export function UserSettingsDialog({
           <div className="mx-auto w-full max-w-4xl space-y-8">
             {activeTab === 'appearance' && (
               <>
+                <SettingsTabIntro
+                  title="Appearance"
+                  description="Control theme visuals, typography, and motion behavior. These preferences affect readability and comfort across the app."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Colors</Label>
                   <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
@@ -580,6 +593,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'general' && (
               <>
+                <SettingsTabIntro
+                  title="General"
+                  description="Configure workspace-level behavior such as git worktree defaults and MCP server settings used by local tooling."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Git</Label>
                   <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
@@ -653,6 +670,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'panels' && (
               <>
+                <SettingsTabIntro
+                  title="Panels"
+                  description="Choose which task panels are available and configure defaults. Built-in panels apply to every task, and custom web panels let you embed external tools."
+                />
                 {/* Native panels */}
                 <div className="space-y-3">
                   <div>
@@ -967,6 +988,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'integrations' && (
               <div className="space-y-8">
+                <SettingsTabIntro
+                  title="Integrations"
+                  description="Connect external services and control sync behavior. Integrations let work in SlayZone and external systems stay aligned."
+                />
                 <Label className="text-base font-semibold">Linear</Label>
                 <div className="space-y-3">
                   <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
@@ -1029,6 +1054,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'diagnostics' && (
               <>
+                <SettingsTabIntro
+                  title="Diagnostics"
+                  description="Control debug logging and export diagnostic bundles for troubleshooting. Keep verbose options off unless you are actively investigating an issue."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Logging</Label>
                   <div className="grid grid-cols-[220px_minmax(0,1fr)] items-center gap-4">
@@ -1107,11 +1136,21 @@ export function UserSettingsDialog({
             )}
 
             {contextManagerEnabled && activeTab === 'ai-config' && (
-              <ContextManagerSettings scope="global" projectId={null} />
+              <div className="space-y-6">
+                <SettingsTabIntro
+                  title="Context Manager"
+                  description="Manage global instructions, skills, and provider behavior that can be linked into projects. Use this to keep AI context consistent across your workspace."
+                />
+                <ContextManagerSettings scope="global" projectId={null} />
+              </div>
             )}
 
             {activeTab === 'tags' && (
               <div className="space-y-6">
+                <SettingsTabIntro
+                  title="Tags"
+                  description="Create and maintain reusable labels for tasks. Tags help organize work, improve filtering, and keep status views easy to scan."
+                />
                 <Label className="text-base font-semibold">Tags</Label>
                 <div className="space-y-2">
                   {tags.map((tag) => (
@@ -1186,11 +1225,21 @@ export function UserSettingsDialog({
             )}
 
             {activeTab === 'telemetry' && (
-              <TelemetrySettingsTab />
+              <div className="space-y-6">
+                <SettingsTabIntro
+                  title="Telemetry"
+                  description="Choose what product usage data is collected. Telemetry helps improve reliability while honoring your selected privacy tier."
+                />
+                <TelemetrySettingsTab />
+              </div>
             )}
 
             {activeTab === 'data' && (
               <>
+                <SettingsTabIntro
+                  title="Import & Export"
+                  description="Back up your data to .slay files or restore data from a previous export. Use project exports for targeted sharing and full exports for complete backups."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Export</Label>
                   <div className="flex flex-wrap gap-2">
@@ -1327,6 +1376,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'labs' && (
               <>
+                <SettingsTabIntro
+                  title="Labs"
+                  description="Try in-progress features before they are fully released. Expect behavior and UI details to evolve over time."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Experimental Features</Label>
                   <p className="text-sm text-muted-foreground">These features are in development and may change.</p>
@@ -1352,6 +1405,10 @@ export function UserSettingsDialog({
 
             {activeTab === 'about' && (
               <>
+                <SettingsTabIntro
+                  title="About"
+                  description="View runtime and environment details for your local installation, including storage location and CLI setup."
+                />
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Database</Label>
                   <div className="text-sm text-muted-foreground">
