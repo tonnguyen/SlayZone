@@ -36,14 +36,22 @@
   .hero-sub { font-size: 18px; color: rgba(255,255,255,0.55); max-width: 540px; margin: 0 auto 40px; animation: fadeIn 0.6s ease 0.2s both; }
   .cta-group { display: flex; gap: 12px; justify-content: center; animation: fadeIn 0.6s ease 0.3s both; }
   .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; }
-  .btn-primary { background: linear-gradient(135deg, #f46817, #e85d0f); color: #fff; box-shadow: 0 4px 16px rgba(244,104,23,0.3), inset 0 1px 0 rgba(255,255,255,0.2); }
+  .btn-primary { background: linear-gradient(135deg, #f46817, #e85d0f); color: #fff; box-shadow: 0 4px 16px rgba(244,104,23,0.3), inset 0 1px 0 rgba(255,255,255,0.2); position: relative; overflow: hidden; }
   .btn-primary:hover { background: linear-gradient(135deg, #f57a30, #f46817); transform: translateY(-1px); box-shadow: 0 6px 28px rgba(244,104,23,0.4), inset 0 1px 0 rgba(255,255,255,0.2); }
+  @keyframes spark-pop { 0% { opacity: 0; transform: scale(0) translate(0,0); } 20% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0) translate(var(--dx), var(--dy)); } }
+  .spark { position: absolute; width: 3px; height: 3px; background: #fff; border-radius: 50%; pointer-events: none; opacity: 0; box-shadow: 0 0 4px 1px rgba(255,255,255,0.8); }
+  @keyframes glitter-fall { 0% { opacity: 1; transform: translateY(0) scale(1); } 70% { opacity: 0.7; } 100% { opacity: 0; transform: translateY(var(--fall-h)) scale(0.2); } }
+  .btn-primary { overflow: visible; }
+  .glitter { position: absolute; width: var(--g-size, 2px); height: var(--g-size, 2px); border-radius: 50%; pointer-events: none; opacity: 0; bottom: -5px; }
   .btn-ghost { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.15); }
   .btn-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); }
-  .btn-ghost-dark { background: rgba(0,0,0,0.04); color: #555; border: 1px solid rgba(0,0,0,0.15); }
-  .btn-ghost-dark:hover { color: #1a1a2e; border-color: rgba(0,0,0,0.3); background: rgba(0,0,0,0.08); }
+  .btn-ghost-dark { background: rgba(0,0,0,0.04); color: #555; border: 1px solid rgba(0,0,0,0.15); position: relative; overflow: hidden; }
+  .btn-ghost-dark::before { content: ''; position: absolute; inset: 0; background-image: url("https://assets.codepen.io/13471/silver-glitter-background.png"), url("https://assets.codepen.io/13471/silver-glitter-background.png"), linear-gradient(0deg, white 0px, #ff8951 5px, #dcbc169c 30%, transparent 70%), radial-gradient(ellipse at bottom, transparent 30%, black 60%); background-size: 350px 500px, 400px 650px, 100% 100%, 100% 100%; background-blend-mode: hard-light, color-dodge, multiply; background-position: center 0, center 0, 50% 100%, center; background-repeat: repeat, repeat, repeat, no-repeat; mix-blend-mode: color-dodge; filter: brightness(2.4) blur(6px) contrast(4); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .btn-ghost-dark:hover::before { opacity: 0.7; animation: btn-fire 1.75s linear infinite; }
+  @keyframes btn-fire { 0% { background-position: center 0px, center 0px, 50% 100%; } 100% { background-position: center -500px, center -650px, 50% 100%; } }
+  .btn-ghost-dark:hover { color: #fff; border-color: transparent; background: #1a1a2e; }
 
-  .cta-section { text-align: center; padding: 100px 0 100px; }
+  .cta-section { text-align: center; padding: 100px 0 160px; }
   .cta-section h2 { font-size: 32px; font-weight: 700; letter-spacing: -1px; margin-bottom: 12px; color: #1a1a2e; }
   .cta-sub { font-size: 16px; color: #888; margin-bottom: 32px; }
 
@@ -265,7 +273,29 @@
   @keyframes blink { 50% { opacity: 0; } }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  @media (max-width: 800px) { .features-grid { grid-template-columns: 1fr; } }
+  /* COMPARISON GRID */
+  .comparison { padding: 80px 0; margin: 160px -24px 80px; padding-left: 24px; padding-right: 24px; background: #fafafa; border-radius: 0; overflow: hidden; }
+  .comparison h2 { font-size: 28px; font-weight: 700; letter-spacing: -1px; text-align: center; margin-bottom: 48px; }
+  .cg-wrap { overflow-x: auto; }
+  .cg { display: grid; grid-template-columns: auto repeat(6, 1fr); font-size: 14px; min-width: 600px; }
+  .cg-head { display: contents; }
+  .cg-head span { padding: 0 16px 16px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #1a1a2e; border-bottom: 2px solid #e0e0e8; }
+  .cg-head span:first-child { text-align: left; color: transparent; }
+  .cg-head .col-slayzone { color: var(--accent); font-size: 13px; }
+  .cg-section { grid-column: 1 / -1; padding: 28px 16px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #999; border-bottom: 1px solid #e0e0e8; }
+  .cg-row { display: contents; }
+  .cg-row span { padding: 12px 16px; text-align: center; border-bottom: 1px solid #e0e0e8; display: flex; align-items: center; justify-content: center; }
+  .cg-row span:first-child { text-align: left; font-weight: 500; justify-content: flex-start; }
+  .cg .check { color: var(--accent); font-size: 24px; font-weight: 700; }
+  .cg .partial { color: #1a1a2e; font-size: 24px; display: inline-flex; align-items: center; justify-content: center; }
+  .cg .no { color: #1a1a2e; font-size: 24px; }
+  .cg-punchline { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; margin-top: 16px; padding: 20px 0; background: rgba(244,104,23,0.08); border-radius: 12px; box-shadow: 0 4px 16px rgba(244,104,23,0.12); }
+  .cg-punchline span { padding: 0 16px; text-align: center; display: flex; align-items: center; justify-content: center; }
+  .cg-punchline span:first-child { justify-content: flex-start; font-weight: 700; color: #1a1a2e; font-size: 15px; }
+  .cg-punchline .check { font-size: 22px; }
+  .cg-punchline .no { font-size: 22px; }
+
+  @media (max-width: 800px) { .features-grid { grid-template-columns: 1fr; } .comparison-table { font-size: 12px; } .comparison-table th, .comparison-table td { padding: 10px 8px; } }
   @media (max-width: 500px) { .cta-group { flex-direction: column; align-items: center; } .hero { padding: 64px 0 32px; } .nav-links { display: none; } footer { flex-direction: column; gap: 16px; text-align: center; }
     h1 { line-height: 1.2; }
     h1 .highlight { display: flex; flex-direction: column; align-items: center; gap: 0; margin-top: 12px; }
@@ -485,6 +515,21 @@
     </div>
   </section>
 
+  <section class="comparison">
+    <h2>Super unbiased comparison</h2>
+    <div class="cg-wrap">
+    <div class="cg">
+      <div class="cg-head"><span></span><span class="col-slayzone">SlayZone</span><span>Cursor</span><span>Lovable</span><span>VibeKanban</span><span>Devin</span><span>Linear</span></div>
+      <div class="cg-row"><span>Has all the features</span><span class="check">✓</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span><span class="no">✗</span></div>
+      <div class="cg-row"><span>Makes money</span><span class="no">✗</span><span>💰💰💰</span><span>💰💰💰</span><span>💰</span><span>💰💰</span><span>💰💰</span></div>
+      <div class="cg-row"><span>Built with passion</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span></div>
+    </div>
+    </div>
+    <div style="text-align: center; margin-top: 24px;">
+      <!-- <a href="comparison.html" class="btn btn-ghost-dark" id="comparison-btn">Full (and real) comparison →</a> -->
+    </div>
+  </section>
+
   <section class="cta-section">
     <h2>Ready to Slay?</h2>
     <p class="cta-sub">All platforms. Free. Open source.</p>
@@ -521,6 +566,36 @@
   else if (/Win/.test(ua)) { os='win'; icon=icons.win; label='Download for Windows'; }
   else { os='linux'; icon=icons.linux; label='Download for Linux'; }
   btns.forEach(function(b){ if(b){ b.innerHTML = icon + label; b.href = urls[os]; } });
+  // Glitter waterfall on hover
+  btns.forEach(function(b) {
+    if (!b) return;
+    var glitterInterval;
+    var colors = ['#fff', '#ffe0c0', '#ffd4a8', '#fff5e6', '#ffcfa0'];
+    function spawnGlitter() {
+      for (var i = 0; i < 10; i++) {
+        var g = document.createElement('span');
+        g.className = 'glitter';
+        var size = 1.5 + Math.random() * 2.5;
+        var c = colors[Math.floor(Math.random() * colors.length)];
+        g.style.setProperty('--g-size', size + 'px');
+        g.style.setProperty('--fall-h', (30 + Math.random() * 40) + 'px');
+        g.style.left = (5 + Math.random() * 90) + '%';
+        g.style.background = c;
+        g.style.boxShadow = '0 0 ' + (3 + size) + 'px ' + c;
+        g.style.animation = 'glitter-fall ' + (0.5 + Math.random() * 0.6) + 's ease-in forwards';
+        g.style.animationDelay = (Math.random() * 0.1) + 's';
+        b.appendChild(g);
+        g.addEventListener('animationend', function() { this.remove(); });
+      }
+    }
+    b.addEventListener('mouseenter', function() {
+      spawnGlitter();
+      glitterInterval = setInterval(spawnGlitter, 50);
+    });
+    b.addEventListener('mouseleave', function() {
+      clearInterval(glitterInterval);
+    });
+  });
 })();
 </script>
 
