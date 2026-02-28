@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
@@ -27,12 +27,21 @@
   .nav-links a { color: #888; text-decoration: none; font-size: 14px; font-weight: 500; }
   .nav-links a:hover { color: #1a1a2e; }
   .social-links { display: flex; gap: 16px; align-items: center; margin-left: 24px; border-left: 1px solid #eee; padding-left: 24px; }
-  .social-links a { color: #888; }
+  .social-links a { color: #1a1a2e; }
+  .social-links a:hover { color: var(--accent); }
   .social-links svg { width: 16px; height: 16px; display: block; }
 
   .docs-layout { display: flex; gap: 48px; margin: 40px 0 80px; }
   .docs-sidebar { width: 180px; flex-shrink: 0; position: sticky; top: 40px; height: fit-content; }
-  .docs-sidebar h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #bbb; margin: 20px 0 8px; font-family: 'JetBrains Mono', monospace; }
+  .docs-sidebar h4 { 
+    font-size: 10px; 
+    text-transform: uppercase; 
+    letter-spacing: 0.15em; 
+    color: var(--accent); 
+    margin: 32px 0 12px; 
+    font-family: 'JetBrains Mono', monospace; 
+    font-weight: 700;
+  }
   .docs-sidebar ul { list-style: none; }
   .docs-sidebar a { text-decoration: none; color: #777; font-size: 14px; display: block; padding: 4px 0; }
   .docs-sidebar a:hover { color: var(--accent); }
@@ -71,11 +80,18 @@
   <nav>
     <a href="index.html" class="logo">Slay<span class="slash">/</span>Zone</a>
     <div class="nav-links">
-      <a href="comparison.html">Comparison</a>
       <a href="faq.html">FAQ</a>
       <a href="docs.html">Docs</a>
       <div class="social-links">
-        <a href="https://github.com/debuglebowski/SlayZone" target="_blank" aria-label="GitHub"><svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg></a>
+<a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+  <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+</a>
+<a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+</a>
+<a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+</a>
       </div>
     </div>
   </nav>
@@ -222,7 +238,18 @@ slay processes list</code></pre>
   </div>
 
   <footer>
-    <div class="left">slay.zone — made with 🤖 in Stockholm</div>
+    <div class="left">slay.zone — made with <span id="ee-robot" style="cursor:pointer">🤖</span> in <span id="ee-stockholm" style="cursor:default;position:relative">Stockholm</span></div>
+    <div class="social-links">
+<a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+  <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+</a>
+<a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+</a>
+<a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+</a>
+    </div>
   </footer>
 </div>
 
@@ -244,6 +271,276 @@ slay processes list</code></pre>
       }
     });
   });
+</script>
+<!-- Easter Eggs -->
+<style>
+  /* Type "slay" — neon flash */
+  @keyframes ee-neon-flash {
+    0% { filter: none; }
+    15% { filter: brightness(1.8) saturate(2) hue-rotate(-10deg); }
+    30% { filter: brightness(1) saturate(1); }
+    45% { filter: brightness(2) saturate(2.5) hue-rotate(10deg); }
+    60% { filter: brightness(1) saturate(1); }
+    100% { filter: none; }
+  }
+  .ee-neon-flash { animation: ee-neon-flash 0.6s ease-out; }
+
+  /* Type "zone" — melt distort */
+  @keyframes ee-melt {
+    0% { filter: none; transform: none; }
+    20% { filter: blur(1px); transform: skewX(1deg) scaleY(1.01); }
+    40% { filter: blur(3px); transform: skewX(-2deg) scaleY(1.04) translateY(4px); }
+    60% { filter: blur(2px); transform: skewX(1.5deg) scaleY(1.02) translateY(2px); }
+    80% { filter: blur(0.5px); transform: skewX(-0.5deg) scaleY(1.005); }
+    100% { filter: none; transform: none; }
+  }
+  .ee-melt { animation: ee-melt 1.2s ease-in-out; }
+
+  /* Logo explosion particles */
+  .ee-particle {
+    position: fixed;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99999;
+  }
+  @keyframes ee-particle-fly {
+    0% { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(0); }
+  }
+  @keyframes ee-logo-reform {
+    0% { opacity: 0; transform: scale(0.5) rotate(10deg); filter: blur(4px); }
+    50% { opacity: 1; transform: scale(1.15) rotate(-3deg); filter: blur(1px); }
+    100% { opacity: 1; transform: scale(1) rotate(0); filter: none; }
+  }
+  .ee-logo-reform { animation: ee-logo-reform 0.6s ease-out; }
+
+  /* Walking robot */
+  .ee-walker {
+    position: fixed;
+    bottom: 20px;
+    font-size: 32px;
+    z-index: 99999;
+    pointer-events: none;
+    transition: none;
+  }
+  @keyframes ee-walk-bounce {
+    0%, 100% { transform: translateY(0) scaleX(var(--dir, 1)); }
+    50% { transform: translateY(-6px) scaleX(var(--dir, 1)); }
+  }
+
+  /* Stockholm hover — Swedish flag */
+  .ee-flag {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    font-size: 24px;
+    white-space: nowrap;
+  }
+  #ee-stockholm:hover .ee-flag {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-4px);
+  }
+
+  /* Idle cursor zzz */
+  .ee-zzz {
+    position: fixed;
+    pointer-events: none;
+    z-index: 99999;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent, #f46817);
+    opacity: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  @keyframes ee-zzz-float {
+    0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+    15% { opacity: 1; transform: translate(var(--zx), -8px) scale(1); }
+    100% { opacity: 0; transform: translate(var(--zx2), -40px) scale(0.6); }
+  }
+</style>
+<script>
+(function() {
+  'use strict';
+
+  // === Console ASCII art ===
+  console.log('%c' +
+    '   _____ __            ______                \n' +
+    '  / ___// /___ ___  __/__  / ____  ____  ___ \n' +
+    '  \\__ \\/ / __ `/ / / / / / / __ \\/ __ \\/ _ \\\n' +
+    ' ___/ / / /_/ / /_/ / / /_/ /_/ / / / /  __/\n' +
+    '/____/_/\\__,_/\\__, / /____\\____/_/ /_/\\___/ \n' +
+    '             /____/                          ',
+    'color: #f46817; font-weight: bold; font-size: 12px;'
+  );
+  console.log('%cYou will not get a job by looking in the log. Go do something useful.',
+    'color: #6a6e8a; font-style: italic; font-size: 13px; padding: 8px 0;'
+  );
+
+  // === Stockholm flag ===
+  var stockholm = document.getElementById('ee-stockholm');
+  if (stockholm) {
+    var flag = document.createElement('span');
+    flag.className = 'ee-flag';
+    flag.textContent = '\ud83c\uddf8\ud83c\uddea';
+    stockholm.appendChild(flag);
+  }
+
+  // === Type "slay" / "zone" ===
+  var keyBuffer = '';
+  var keyTimer;
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    keyBuffer += e.key.toLowerCase();
+    if (keyBuffer.length > 10) keyBuffer = keyBuffer.slice(-10);
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(function() { keyBuffer = ''; }, 2000);
+
+    if (keyBuffer.includes('slay')) {
+      keyBuffer = '';
+      document.body.classList.add('ee-neon-flash');
+      setTimeout(function() { document.body.classList.remove('ee-neon-flash'); }, 700);
+    }
+    if (keyBuffer.includes('zone')) {
+      keyBuffer = '';
+      document.body.classList.add('ee-melt');
+      setTimeout(function() { document.body.classList.remove('ee-melt'); }, 1300);
+    }
+  });
+
+  // === Click logo 3 times ===
+  var logoClicks = 0;
+  var logoTimer;
+  var logos = document.querySelectorAll('.logo');
+  logos.forEach(function(logo) {
+    logo.addEventListener('click', function(e) {
+      logoClicks++;
+      clearTimeout(logoTimer);
+      logoTimer = setTimeout(function() { logoClicks = 0; }, 800);
+      if (logoClicks >= 3) {
+        e.preventDefault();
+        logoClicks = 0;
+        explodeLogo(logo);
+      }
+    });
+  });
+
+  function explodeLogo(logo) {
+    var rect = logo.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var colors = ['#f46817', '#f7e463', '#ff6b35', '#fff', '#e85d0f'];
+
+    logo.style.opacity = '0';
+    for (var i = 0; i < 30; i++) {
+      var p = document.createElement('div');
+      p.className = 'ee-particle';
+      var angle = (Math.PI * 2 / 30) * i + (Math.random() - 0.5) * 0.5;
+      var dist = 60 + Math.random() * 120;
+      p.style.setProperty('--px', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--py', Math.sin(angle) * dist + 'px');
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.boxShadow = '0 0 6px ' + p.style.background;
+      p.style.width = (3 + Math.random() * 5) + 'px';
+      p.style.height = p.style.width;
+      p.style.animation = 'ee-particle-fly ' + (0.5 + Math.random() * 0.4) + 's ease-out forwards';
+      document.body.appendChild(p);
+      p.addEventListener('animationend', function() { this.remove(); });
+    }
+
+    setTimeout(function() {
+      logo.style.opacity = '';
+      logo.classList.add('ee-logo-reform');
+      setTimeout(function() { logo.classList.remove('ee-logo-reform'); }, 700);
+    }, 500);
+  }
+
+  // === Click robot — walker ===
+  var robotEl = document.getElementById('ee-robot');
+  if (robotEl) {
+    robotEl.addEventListener('click', function() {
+      var walker = document.createElement('div');
+      walker.className = 'ee-walker';
+      walker.textContent = '\ud83e\udd16';
+      walker.style.left = '-50px';
+      document.body.appendChild(walker);
+
+      var x = -50;
+      var dir = 1;
+      var target = window.innerWidth + 50;
+      walker.style.setProperty('--dir', '1');
+      walker.style.animation = 'ee-walk-bounce 0.4s ease-in-out infinite';
+
+      function step() {
+        x += 3 * dir;
+        walker.style.left = x + 'px';
+        if (dir === 1 && x >= target) {
+          dir = -1;
+          walker.style.setProperty('--dir', '-1');
+          target = -50;
+        }
+        if (dir === -1 && x <= target) {
+          walker.remove();
+          return;
+        }
+        requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  // === Idle cursor 30s — zzz ===
+  var idleTimer;
+  var zzzInterval;
+  var mouseX = 0, mouseY = 0;
+
+  function startZzz() {
+    var zCount = 0;
+    zzzInterval = setInterval(function() {
+      if (zCount >= 6) { stopZzz(); return; }
+      var z = document.createElement('div');
+      z.className = 'ee-zzz';
+      z.textContent = 'z';
+      z.style.left = (mouseX + 12 + zCount * 4) + 'px';
+      z.style.top = (mouseY - 8) + 'px';
+      z.style.fontSize = (12 + zCount * 3) + 'px';
+      z.style.setProperty('--zx', (6 + Math.random() * 12) + 'px');
+      z.style.setProperty('--zx2', (12 + Math.random() * 20) + 'px');
+      z.style.animation = 'ee-zzz-float 2s ease-out forwards';
+      z.style.animationDelay = (zCount * 0.15) + 's';
+      document.body.appendChild(z);
+      z.addEventListener('animationend', function() { this.remove(); });
+      zCount++;
+    }, 600);
+  }
+
+  function stopZzz() {
+    clearInterval(zzzInterval);
+    zzzInterval = null;
+  }
+
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    if (zzzInterval) stopZzz();
+    idleTimer = setTimeout(startZzz, 30000);
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    resetIdle();
+  });
+  document.addEventListener('keydown', resetIdle);
+  document.addEventListener('click', resetIdle);
+  resetIdle();
+})();
 </script>
 </body>
 </html>
