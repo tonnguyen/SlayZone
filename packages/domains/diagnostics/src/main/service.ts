@@ -1,4 +1,4 @@
-import { app, dialog, BrowserWindow, type IpcMain, type App } from 'electron'
+import electron, { type IpcMain, type App } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Database } from 'better-sqlite3'
@@ -48,6 +48,11 @@ let diagnosticsDb: Database | null = null  // separate diagnostics-only DB — w
 let retentionTimer: NodeJS.Timeout | null = null
 let isIpcInstrumented = false
 let cachedConfig: DiagnosticsConfig | null = null
+
+const electronRuntime = electron as unknown as Partial<typeof import('electron')>
+const app = electronRuntime.app as App | undefined
+const dialog = electronRuntime.dialog
+const BrowserWindow = electronRuntime.BrowserWindow
 
 export interface DiagnosticsEventRow {
   id: string
@@ -500,7 +505,7 @@ async function runExport(request: DiagnosticsExportRequest): Promise<Diagnostics
   const config = getDiagnosticsConfig()
   const bundle: DiagnosticsExportBundle = {
     meta: {
-      appVersion: app.getVersion(),
+      appVersion: app?.getVersion?.() ?? 'unknown',
       platform: process.platform,
       exportedAtTsMs: Date.now(),
       config
@@ -517,9 +522,13 @@ async function runExport(request: DiagnosticsExportRequest): Promise<Diagnostics
     }
   }
 
-  const focusedWindow = BrowserWindow.getFocusedWindow() ?? undefined
+  if (!dialog?.showSaveDialog) {
+    return { success: false, error: 'Diagnostics export requires Electron dialog APIs' }
+  }
+
+  const focusedWindow = BrowserWindow?.getFocusedWindow?.() ?? undefined
   const defaultPath = path.join(
-    app.getPath('downloads'),
+    app?.getPath?.('downloads') ?? process.cwd(),
     `slayzone-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
   )
 
