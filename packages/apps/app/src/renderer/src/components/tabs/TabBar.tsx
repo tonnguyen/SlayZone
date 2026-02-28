@@ -154,13 +154,24 @@ function SortableTab({
   )
 }
 
+/** Rank badge — only rendered inside ConvexProvider (auth.configured). */
+function LeaderboardTabRank({ isAuthenticated }: { isAuthenticated: boolean }): React.JSX.Element | null {
+  const bestRank = useQuery(
+    api.leaderboard.getMyBestRank,
+    isAuthenticated ? {} : 'skip'
+  ) ?? null
+
+  if (bestRank == null) return null
+  return (
+    <span className="text-[10px] font-semibold tabular-nums leading-none">
+      #{bestRank}
+    </span>
+  )
+}
+
 /** Self-contained leaderboard tab button. Guards Convex hooks behind auth.configured check. */
 function LeaderboardTab({ isActive, onClick }: { isActive: boolean; onClick: () => void }): React.JSX.Element {
   const auth = useLeaderboardAuth()
-  const bestRank = useQuery(
-    api.leaderboard.getMyBestRank,
-    auth.configured && auth.isAuthenticated ? {} : 'skip'
-  ) ?? null
 
   return (
     <div
@@ -174,11 +185,7 @@ function LeaderboardTab({ isActive, onClick }: { isActive: boolean; onClick: () 
       onClick={onClick}
     >
       <Trophy className="h-4 w-4" />
-      {bestRank != null && (
-        <span className="text-[10px] font-semibold tabular-nums leading-none">
-          #{bestRank}
-        </span>
-      )}
+      {auth.configured && <LeaderboardTabRank isAuthenticated={auth.isAuthenticated} />}
     </div>
   )
 }
