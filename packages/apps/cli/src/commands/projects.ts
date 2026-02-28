@@ -1,11 +1,59 @@
 import { Command } from 'commander'
-import { openDb } from '../db'
+import fs from 'node:fs'
+import path from 'node:path'
+import { openDb, notifyApp } from '../db'
+import { prepareProjectCreate } from '@slayzone/projects/shared'
 
 interface ProjectRow extends Record<string, unknown> {
   id: string
   name: string
   path: string
   task_count: number
+}
+
+interface CreatedProjectRow extends Record<string, unknown> {
+  id: string
+  name: string
+  color: string
+  path: string | null
+  created_at: string
+  updated_at: string
+}
+
+const DEFAULT_PROJECT_COLOR = '#3b82f6'
+
+function normalizeProjectPath(input: string | undefined): string | null {
+  if (!input) return null
+  const trimmed = input.trim()
+  if (!trimmed) return null
+  return path.resolve(trimmed)
+}
+
+function ensureProjectPath(projectPath: string | null): boolean {
+  if (!projectPath) return false
+  const existedBefore = fs.existsSync(projectPath)
+
+  try {
+    fs.mkdirSync(projectPath, { recursive: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Failed to create project path "${projectPath}": ${message}`)
+    process.exit(1)
+  }
+
+  try {
+    const stat = fs.statSync(projectPath)
+    if (!stat.isDirectory()) {
+      console.error(`Project path exists but is not a directory: ${projectPath}`)
+      process.exit(1)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Failed to verify project path "${projectPath}": ${message}`)
+    process.exit(1)
+  }
+
+  return !existedBefore
 }
 
 export function projectsCommand(): Command {
@@ -48,6 +96,77 @@ export function projectsCommand(): Command {
         const tasks = String(p.task_count).padStart(5)
         console.log(`${id}  ${name}  ${tasks}  ${p.path}`)
       }
+    })
+
+  // slay projects create
+  cmd
+    .command('create <name>')
+    .description('Create a new project')
+    .option('--path <path>', 'Repository path (relative paths are resolved from current directory and auto-created)')
+    .option('--color <hex>', 'Project color (#RRGGBB)', DEFAULT_PROJECT_COLOR)
+    .option('--json', 'Output created project as JSON')
+    .action(async (name: string, opts: { path?: string; color: string; json?: boolean }) => {
+      const projectPath = normalizeProjectPath(opts.path)
+      let prepared: ReturnType<typeof prepareProjectCreate>
+      try {
+        prepared = prepareProjectCreate({
+          name,
+          color: opts.color,
+          path: projectPath,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.error(message)
+        process.exit(1)
+      }
+
+      const createdPath = ensureProjectPath(prepared.path)
+      if (createdPath && prepared.path) {
+        console.error(`Created directory: ${prepared.path}`)
+      }
+
+      const db = openDb()
+      let project: CreatedProjectRow | undefined
+      try {
+        db.run(
+          `INSERT INTO projects (id, name, color, path, columns_config, created_at, updated_at)
+           VALUES (:id, :name, :color, :path, :columnsConfig, :createdAt, :updatedAt)`,
+          {
+            ':id': prepared.id,
+            ':name': prepared.name,
+            ':color': prepared.color,
+            ':path': prepared.path,
+            ':columnsConfig': prepared.columnsConfigJson,
+            ':createdAt': prepared.createdAt,
+            ':updatedAt': prepared.updatedAt,
+          }
+        )
+
+        project = db.query<CreatedProjectRow>(
+          `SELECT id, name, color, path, created_at, updated_at
+           FROM projects
+           WHERE id = :id
+           LIMIT 1`,
+          { ':id': prepared.id }
+        )[0]
+      } finally {
+        db.close()
+      }
+
+      if (!project) {
+        console.error('Failed to create project.')
+        process.exit(1)
+      }
+
+      await notifyApp()
+
+      if (opts.json) {
+        console.log(JSON.stringify(project, null, 2))
+        return
+      }
+
+      const location = project.path ? `  ${project.path}` : ''
+      console.log(`Created project: ${project.id.slice(0, 8)}  ${project.name}${location}`)
     })
 
   return cmd

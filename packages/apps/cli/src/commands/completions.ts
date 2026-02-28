@@ -9,7 +9,7 @@ complete -c slay -n '__fish_use_subcommand' -a 'processes' -d 'Manage processes'
 complete -c slay -n '__fish_use_subcommand' -a 'completions' -d 'Print shell completions'
 complete -c slay -n '__fish_seen_subcommand_from tasks' -a 'list create view done update archive delete open search subtasks subtask-add'
 complete -c slay -n '__fish_seen_subcommand_from processes' -a 'list logs kill follow'
-complete -c slay -n '__fish_seen_subcommand_from projects' -a 'list'
+complete -c slay -n '__fish_seen_subcommand_from projects' -a 'list create'
 complete -c slay -n '__fish_seen_subcommand_from completions' -a 'fish zsh bash'
 `
 
@@ -53,7 +53,7 @@ _slay() {
       _describe 'process commands' process_commands
       ;;
     projects)
-      _arguments ':command:(list)'
+      _arguments ':command:(list create)'
       ;;
     completions)
       _arguments ':shell:(fish zsh bash)'
@@ -84,7 +84,7 @@ _slay_completions() {
         COMPREPLY=( $(compgen -W "list logs kill follow" -- "$cur") )
         ;;
       projects)
-        COMPREPLY=( $(compgen -W "list" -- "$cur") )
+        COMPREPLY=( $(compgen -W "list create" -- "$cur") )
         ;;
       completions)
         COMPREPLY=( $(compgen -W "fish zsh bash" -- "$cur") )

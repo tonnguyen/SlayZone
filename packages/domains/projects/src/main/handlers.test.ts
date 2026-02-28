@@ -19,7 +19,7 @@ describe('db:projects:create', () => {
   })
 
   test('creates with path', () => {
-    const p = h.invoke('db:projects:create', { name: 'Beta', color: '#00f', path: '/tmp/beta' }) as { path: string }
+    const p = h.invoke('db:projects:create', { name: 'Beta', color: '#0000ff', path: '/tmp/beta' }) as { path: string }
     expect(p.path).toBe('/tmp/beta')
   })
 
@@ -31,7 +31,7 @@ describe('db:projects:create', () => {
     ]
     const p = h.invoke('db:projects:create', {
       name: 'Columns Project',
-      color: '#abc',
+      color: '#aabbcc',
       columnsConfig: columns
     }) as { columns_config: ColumnConfig[] | null }
     expect(p.columns_config).toEqual([
@@ -196,7 +196,7 @@ describe('db:projects:update', () => {
 
 describe('db:projects:delete', () => {
   test('deletes existing', () => {
-    const p = h.invoke('db:projects:create', { name: 'Temp', color: '#000' }) as { id: string }
+    const p = h.invoke('db:projects:create', { name: 'Temp', color: '#000000' }) as { id: string }
     expect(h.invoke('db:projects:delete', p.id)).toBe(true)
   })
 

@@ -9,6 +9,7 @@ import type {
 import {
   getDefaultStatus,
   parseColumnsConfig,
+  prepareProjectCreate,
   resolveColumns,
   validateColumns
 } from '@slayzone/projects/shared'
@@ -140,14 +141,21 @@ export function registerProjectHandlers(ipcMain: IpcMain, db: Database): void {
   })
 
   ipcMain.handle('db:projects:create', (_, data: CreateProjectInput) => {
-    const id = crypto.randomUUID()
-    const columnsConfig = data.columnsConfig ? validateColumns(data.columnsConfig) : null
+    const prepared = prepareProjectCreate(data)
     const stmt = db.prepare(`
-      INSERT INTO projects (id, name, color, path, columns_config)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO projects (id, name, color, path, columns_config, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
-    stmt.run(id, data.name, data.color, data.path ?? null, columnsConfig ? JSON.stringify(columnsConfig) : null)
-    const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    stmt.run(
+      prepared.id,
+      prepared.name,
+      prepared.color,
+      prepared.path,
+      prepared.columnsConfigJson,
+      prepared.createdAt,
+      prepared.updatedAt
+    )
+    const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(prepared.id) as Record<string, unknown> | undefined
     return parseProject(row)
   })
 

@@ -70,6 +70,9 @@ slay tasks list --status in_progress --project "My Project"
 # Create a task
 slay tasks create "Fix bug" --project "My Project"
 
+# Create a project (path is auto-created if missing)
+slay projects create "My Project" --path .
+
 # Complete or open tasks
 slay tasks done <id>
 slay tasks open <id>
