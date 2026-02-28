@@ -1,5 +1,5 @@
 export { Terminal } from './Terminal'
 export { TerminalStatusPopover } from './TerminalStatusPopover'
-export { PtyProvider, usePty, usePendingPrompts } from './PtyContext'
+export { PtyProvider, usePty, usePendingPrompts, useActiveTaskIds } from './PtyContext'
 export { usePtyStatus } from './usePtyStatus'
 export { markSkipCache } from './terminal-cache'

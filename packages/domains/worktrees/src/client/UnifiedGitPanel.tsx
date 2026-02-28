@@ -16,6 +16,7 @@ const gitDiffShortcut = isMac ? '⌘⇧G' : 'Ctrl+Shift+G'
 
 type UnifiedGitPanelProps = {
   projectPath: string | null
+  completedStatus?: string
   visible: boolean
   pollIntervalMs?: number
   defaultTab?: GitTabId
@@ -40,6 +41,7 @@ export interface UnifiedGitPanelHandle {
 export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanelProps>(function UnifiedGitPanel({
   task,
   projectPath,
+  completedStatus = 'done',
   visible,
   pollIntervalMs,
   defaultTab = 'general',
@@ -88,7 +90,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
     )
 
     if (result.success) {
-      const updated = await onUpdateTask({ id: task.id, status: 'done', mergeState: null, mergeContext: null })
+      const updated = await onUpdateTask({ id: task.id, status: completedStatus, mergeState: null, mergeContext: null })
       onTaskUpdated(updated)
     } else if (result.resolving) {
       const ctx = await window.api.git.getMergeContext(projectPath!)
@@ -101,7 +103,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
     } else if (result.error) {
       throw new Error(result.error)
     }
-  }, [task, projectPath, onUpdateTask, onTaskUpdated])
+  }, [task, projectPath, completedStatus, onUpdateTask, onTaskUpdated])
 
   const handleAbortMerge = useCallback(async () => {
     if (!task) return
@@ -177,6 +179,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
             <GeneralTabContent
               task={task}
               projectPath={projectPath}
+              completedStatus={completedStatus}
               visible={visible && activeTab === 'general'}
               pollIntervalMs={pollIntervalMs}
               onUpdateTask={onUpdateTask}
@@ -208,6 +211,7 @@ export const UnifiedGitPanel = forwardRef<UnifiedGitPanelHandle, UnifiedGitPanel
             <ConflictPhaseContent
               task={task}
               projectPath={projectPath!}
+              completedStatus={completedStatus}
               isRebase={isRebase}
               onUpdateTask={onUpdateTask}
               onTaskUpdated={onTaskUpdated}
@@ -254,9 +258,10 @@ function TabButton({ active, onClick, children, shortcut, badge }: {
 
 // --- Conflict phase (extracted from MergePanel) ---
 
-function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTaskUpdated, onToolbarChange }: {
+function ConflictPhaseContent({ task, projectPath, completedStatus, isRebase, onUpdateTask, onTaskUpdated, onToolbarChange }: {
   task: Task
   projectPath: string
+  completedStatus: string
   isRebase: boolean
   onUpdateTask: (data: UpdateTaskInput) => Promise<Task>
   onTaskUpdated: (task: Task) => void
@@ -313,7 +318,7 @@ function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTas
         `Merge ${sourceBranch ?? 'branch'} into ${task.worktree_parent_branch}`
       )
       const updates: UpdateTaskInput = { id: task.id, mergeState: null, mergeContext: null }
-      if (markDone) updates.status = 'done'
+      if (markDone) updates.status = completedStatus
       const updated = await onUpdateTask(updates)
       onTaskUpdated(updated)
     } catch (err) {
@@ -321,7 +326,7 @@ function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTas
     } finally {
       setCompleting(false)
     }
-  }, [task, projectPath, markDone, onUpdateTask, onTaskUpdated])
+  }, [task, projectPath, completedStatus, markDone, onUpdateTask, onTaskUpdated])
 
   const handleContinueRebase = useCallback(async () => {
     setCompleting(true)
@@ -330,7 +335,7 @@ function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTas
       const result = await window.api.git.continueRebase(projectPath)
       if (result.done) {
         const updates: UpdateTaskInput = { id: task.id, mergeState: null, mergeContext: null }
-        if (markDone) updates.status = 'done'
+        if (markDone) updates.status = completedStatus
         const updated = await onUpdateTask(updates)
         onTaskUpdated(updated)
       } else {
@@ -345,7 +350,7 @@ function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTas
     } finally {
       setCompleting(false)
     }
-  }, [task, projectPath, markDone, onUpdateTask, onTaskUpdated])
+  }, [task, projectPath, completedStatus, markDone, onUpdateTask, onTaskUpdated])
 
   const handleSkipCommit = useCallback(async () => {
     setError(null)
@@ -451,7 +456,7 @@ function ConflictPhaseContent({ task, projectPath, isRebase, onUpdateTask, onTas
       <div className="shrink-0 px-4 py-3 border-t flex items-center justify-between">
         <label className="flex items-center gap-2 text-xs">
           <Checkbox checked={markDone} onCheckedChange={(v) => setMarkDone(!!v)} />
-          Mark task as done
+          Mark task as complete
         </label>
         <Button
           size="sm"

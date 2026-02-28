@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { type FilterState, type ViewConfig, defaultFilterState, defaultCardProperties, defaultBoardConfig, defaultListConfig } from './FilterState'
 
-function getFilterKey(projectId: string | null): string {
-  return projectId ? `filter:${projectId}` : 'filter:all'
+function getFilterKey(projectId: string): string {
+  return projectId ? `filter:${projectId}` : 'filter:none'
 }
 
 function migrateViewConfig(raw: Record<string, unknown>, defaults: ViewConfig, allowListOnly: boolean): ViewConfig {
@@ -68,11 +68,11 @@ function migrateFilterState(raw: Record<string, unknown>): FilterState {
 }
 
 export function useFilterState(
-  projectId: string | null
+  projectId: string
 ): [FilterState, (filter: FilterState) => void] {
   const [filterState, setFilterState] = useState<FilterState>(defaultFilterState)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const prevProjectIdRef = useRef<string | null>(projectId)
+  const prevProjectIdRef = useRef<string>(projectId)
 
   // Load filter from settings on mount and when projectId changes
   useEffect(() => {

@@ -14,6 +14,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import { groupTasksBy, PRIORITY_LABELS, todayISO, type Column } from './kanban'
 import type { ViewConfig, CardProperties } from './FilterState'
@@ -28,6 +30,7 @@ import { useEffect } from 'react'
 
 interface KanbanListViewProps {
   tasks: Task[]
+  columns?: ColumnConfig[] | null
   viewConfig: ViewConfig
   onTaskMove: (taskId: string, newColumnId: string, targetIndex: number) => void
   onTaskReorder: (taskIds: string[]) => void
@@ -105,6 +108,7 @@ function TerminalDot({ taskId }: { taskId: string }): React.JSX.Element | null {
 
 interface ListRowProps {
   task: Task
+  columns?: ColumnConfig[] | null
   cp?: CardProperties
   onClick?: (task: Task, e: { metaKey: boolean }) => void
   project?: Project
@@ -138,6 +142,7 @@ function SortableListRow(props: ListRowProps): React.JSX.Element {
     <TaskContextMenu
       task={task}
       projects={props.allProjects}
+      columns={props.columns}
       onUpdateTask={props.onUpdateTask}
       onArchiveTask={props.onArchiveTask}
       onDeleteTask={props.onDeleteTask}
@@ -157,6 +162,7 @@ function SortableListRow(props: ListRowProps): React.JSX.Element {
 
 function ListRowContent({
   task,
+  columns,
   cp,
   onClick,
   project,
@@ -166,14 +172,14 @@ function ListRowContent({
   isDragging
 }: ListRowProps & { isDragging?: boolean }): React.JSX.Element {
   const today = todayISO()
-  const isOverdue = task.due_date && task.due_date < today && task.status !== 'done'
+  const isOverdue = task.due_date && task.due_date < today && !isTerminalStatus(task.status, columns)
 
   return (
     <div
       className={cn(
         'flex items-center gap-3 px-2.5 py-2.5 rounded-md cursor-pointer select-none transition-colors duration-[400ms] hover:duration-[100ms] hover:bg-muted/30',
         isDragging && 'opacity-50',
-        task.status === 'done' && 'opacity-60'
+        isTerminalStatus(task.status, columns) && 'opacity-60'
       )}
       onClick={(e) => onClick?.(task, e)}
     >
@@ -189,7 +195,7 @@ function ListRowContent({
       {(cp?.priority ?? true) && <PriorityBar priority={task.priority} />}
 
       {/* Title */}
-      <span className={cn('flex-1 text-sm font-medium truncate', task.status === 'done' && 'line-through text-muted-foreground')}>
+      <span className={cn('flex-1 text-sm font-medium truncate', isTerminalStatus(task.status, columns) && 'line-through text-muted-foreground')}>
         {task.title}
       </span>
 
@@ -255,6 +261,7 @@ function ListRowContent({
 
 interface GroupSectionProps {
   column: Column
+  columns?: ColumnConfig[] | null
   collapsed: boolean
   onToggle: () => void
   showHeader?: boolean
@@ -274,6 +281,7 @@ interface GroupSectionProps {
 
 function GroupSection({
   column,
+  columns,
   collapsed,
   onToggle,
   showHeader = true,
@@ -318,6 +326,7 @@ function GroupSection({
               <SortableListRow
                 key={task.id}
                 task={task}
+                columns={columns}
                 cp={cp}
                 onClick={onTaskClick}
                 project={showProjectDot ? projectsMap?.get(task.project_id) : undefined}
@@ -342,6 +351,7 @@ function GroupSection({
 
 export function KanbanListView({
   tasks,
+  columns: projectColumns,
   viewConfig,
   onTaskMove,
   onTaskReorder,
@@ -369,7 +379,7 @@ export function KanbanListView({
   const activeTaskIds = useActiveTaskIds()
 
   const allColumns = useMemo(() => {
-    const base = groupTasksBy(tasks, groupBy, sortBy)
+    const base = groupTasksBy(tasks, groupBy, sortBy, projectColumns)
     if (shouldTrackActive && base.length === 1) {
       const all = base[0].tasks
       const active: Task[] = []
@@ -384,9 +394,9 @@ export function KanbanListView({
       return cols
     }
     return base
-  }, [tasks, groupBy, sortBy, shouldTrackActive, showEmptyColumns, activeTaskIds])
+  }, [tasks, projectColumns, groupBy, sortBy, shouldTrackActive, showEmptyColumns, activeTaskIds])
 
-  const columns = showEmptyColumns ? allColumns : allColumns.filter((c) => c.tasks.length > 0)
+  const visibleColumns = showEmptyColumns ? allColumns : allColumns.filter((c) => c.tasks.length > 0)
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null
 
   const subTaskCounts = useMemo(() => {
@@ -395,11 +405,11 @@ export function KanbanListView({
       if (!t.parent_id) continue
       const entry = counts.get(t.parent_id) ?? { done: 0, total: 0 }
       entry.total++
-      if (t.status === 'done') entry.done++
+      if (isTerminalStatus(t.status, projectColumns)) entry.done++
       counts.set(t.parent_id, entry)
     }
     return counts
-  }, [tasks])
+  }, [tasks, projectColumns])
 
   function toggleGroup(id: string): void {
     setCollapsedGroups((prev) => {
@@ -424,9 +434,10 @@ export function KanbanListView({
     if (taskId === overId) return
 
     // Find source and target columns
-    const sourceColumn = columns.find((c) => c.tasks.some((t) => t.id === taskId))
-    const targetColumn = columns.find((c) => c.tasks.some((t) => t.id === overId))
+    const sourceColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === taskId))
+    const targetColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === overId))
     if (!sourceColumn || !targetColumn) return
+    if (targetColumn.id === '__unknown__') return
 
     if (sourceColumn.id === targetColumn.id) {
       // Reorder within same group
@@ -461,10 +472,11 @@ export function KanbanListView({
       onDragEnd={handleDragEnd}
     >
       <div className="h-full overflow-y-auto space-y-6 pr-2">
-        {columns.map((column) => (
+        {visibleColumns.map((column) => (
           <GroupSection
             key={column.id}
             column={column}
+            columns={projectColumns}
             collapsed={collapsedGroups.has(column.id)}
             onToggle={() => toggleGroup(column.id)}
             showHeader={groupBy !== 'none'}

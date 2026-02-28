@@ -34,6 +34,13 @@ type PromptCallback = (prompt: PromptInfo) => void
 type SessionDetectedCallback = (sessionId: string) => void
 type DevServerCallback = (url: string) => void
 
+const ALIVE_STATES: Set<TerminalState> = new Set(['running', 'attention'])
+
+function taskIdFromSessionId(sessionId: string): string {
+  const idx = sessionId.indexOf(':')
+  return idx >= 0 ? sessionId.substring(0, idx) : sessionId
+}
+
 export function applyExitEvent(
   sessionId: string,
   exitCode: number,
@@ -90,6 +97,7 @@ interface PtyContextValue {
 }
 
 const PtyContext = createContext<PtyContextValue | null>(null)
+const ActiveTaskIdsContext = createContext<Set<string>>(new Set())
 
 export function PtyProvider({ children }: { children: ReactNode }) {
   // Per-sessionId state (metadata only - backend is source of truth for buffer)
@@ -110,6 +118,40 @@ export function PtyProvider({ children }: { children: ReactNode }) {
   // Ref for stable getPendingPromptTaskIds callback
   const pendingPromptTaskIdsRef = useRef(pendingPromptTaskIds)
   pendingPromptTaskIdsRef.current = pendingPromptTaskIds
+
+  // Track task IDs with alive terminals (running or attention)
+  const [activeTaskIds, setActiveTaskIds] = useState<Set<string>>(new Set())
+
+  /** Recompute activeTaskIds from statesRef. Only triggers re-render if the set actually changed. */
+  const refreshActiveTaskIds = useCallback(() => {
+    setActiveTaskIds((prev) => {
+      const next = new Set<string>()
+      for (const [sid, s] of statesRef.current) {
+        if (ALIVE_STATES.has(s.state)) next.add(taskIdFromSessionId(sid))
+      }
+      // Avoid new reference if nothing changed
+      if (next.size === prev.size && [...next].every((id) => prev.has(id))) return prev
+      return next
+    })
+  }, [])
+
+  // Seed from existing PTYs on mount
+  useEffect(() => {
+    window.api.pty.list().then((ptys) => {
+      for (const p of ptys) {
+        if (ALIVE_STATES.has(p.state)) {
+          const sid = p.sessionId
+          const existing = statesRef.current.get(sid)
+          if (existing) {
+            existing.state = p.state
+          } else {
+            statesRef.current.set(sid, { lastSeq: -1, sessionInvalid: false, state: p.state })
+          }
+        }
+      }
+      refreshActiveTaskIds()
+    })
+  }, [refreshActiveTaskIds])
 
   const getOrCreateState = useCallback((sessionId: string): PtyState => {
     let state = statesRef.current.get(sessionId)
@@ -175,6 +217,7 @@ export function PtyProvider({ children }: { children: ReactNode }) {
       promptSubsRef.current.delete(sessionId)
       sessionDetectedSubsRef.current.delete(sessionId)
       devServerSubsRef.current.delete(sessionId)
+      refreshActiveTaskIds()
     })
 
     const unsubSessionNotFound = window.api.pty.onSessionNotFound((sessionId) => {
@@ -206,6 +249,11 @@ export function PtyProvider({ children }: { children: ReactNode }) {
       if (subs) {
         subs.forEach((cb) => cb(newState as TerminalState, oldState as TerminalState))
       }
+
+      // Update active task tracking
+      const wasAlive = ALIVE_STATES.has(oldState as TerminalState)
+      const isAlive = ALIVE_STATES.has(newState as TerminalState)
+      if (wasAlive !== isAlive) refreshActiveTaskIds()
 
       // Clear pending prompt when state changes from attention
       if (oldState === 'attention' && newState !== 'attention') {
@@ -257,7 +305,7 @@ export function PtyProvider({ children }: { children: ReactNode }) {
       unsubSessionDetected()
       unsubDevServer()
     }
-  }, [getOrCreateState])
+  }, [getOrCreateState, refreshActiveTaskIds])
 
   const subscribe = useCallback((sessionId: string, cb: DataCallback): (() => void) => {
     // Ensure state exists so onData doesn't drop data
@@ -338,6 +386,8 @@ export function PtyProvider({ children }: { children: ReactNode }) {
             if (currentSubs) {
               currentSubs.forEach((sub) => sub(backendState, oldState))
             }
+            // Update active task tracking
+            if (ALIVE_STATES.has(backendState)) refreshActiveTaskIds()
           }
         }
       })
@@ -530,7 +580,13 @@ export function PtyProvider({ children }: { children: ReactNode }) {
     clearQuickRunPrompt
   ])
 
-  return <PtyContext.Provider value={value}>{children}</PtyContext.Provider>
+  return (
+    <PtyContext.Provider value={value}>
+      <ActiveTaskIdsContext.Provider value={activeTaskIds}>
+        {children}
+      </ActiveTaskIdsContext.Provider>
+    </PtyContext.Provider>
+  )
 }
 
 export function usePty(): PtyContextValue {
@@ -548,4 +604,13 @@ export function usePty(): PtyContextValue {
 export function usePendingPrompts(): string[] {
   const ctx = usePty()
   return ctx.getPendingPromptTaskIds()
+}
+
+/**
+ * Reactive set of task IDs with alive terminals (running or attention).
+ * Uses a separate context so changes only re-render consumers of this hook,
+ * not all usePty() consumers.
+ */
+export function useActiveTaskIds(): Set<string> {
+  return useContext(ActiveTaskIdsContext)
 }

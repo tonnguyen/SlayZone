@@ -2,6 +2,8 @@ import { motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import { Card, CardContent, Tooltip, TooltipContent, TooltipTrigger, cn, getTerminalStateStyle } from '@slayzone/ui'
 import { useAppearance } from '@slayzone/settings/client'
@@ -12,6 +14,7 @@ import type { CardProperties } from './FilterState'
 
 interface KanbanCardProps {
   task: Task
+  columns?: ColumnConfig[] | null
   isDragging?: boolean
   isFocused?: boolean
   onClick?: (e: React.MouseEvent) => void
@@ -32,6 +35,7 @@ const PRIORITY_BAR_COLORS: Record<number, string> = {
 
 export function KanbanCard({
   task,
+  columns,
   isDragging,
   isFocused,
   onClick,
@@ -43,7 +47,7 @@ export function KanbanCard({
 }: KanbanCardProps): React.JSX.Element {
   const { reduceMotion } = useAppearance()
   const today = todayISO()
-  const isOverdue = task.due_date && task.due_date < today && task.status !== 'done'
+  const isOverdue = task.due_date && task.due_date < today && !isTerminalStatus(task.status, columns)
   const prevStatusRef = useRef(task.status)
   const [justCompleted, setJustCompleted] = useState(false)
 
@@ -58,12 +62,12 @@ export function KanbanCard({
   }, [mainSessionId, getState, subscribeState])
 
   useEffect(() => {
-    if (prevStatusRef.current !== 'done' && task.status === 'done') {
+    if (!isTerminalStatus(prevStatusRef.current, columns) && isTerminalStatus(task.status, columns)) {
       setJustCompleted(true)
       setTimeout(() => setJustCompleted(false), 1000)
     }
     prevStatusRef.current = task.status
-  }, [task.status])
+  }, [task.status, columns])
 
   return (
     <motion.div

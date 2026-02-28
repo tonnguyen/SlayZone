@@ -32,7 +32,7 @@ interface UseTasksDataReturn {
 
   // Project handlers
   updateProject: (project: Project) => void
-  deleteProject: (projectId: string, selectedProjectId: string | null, setSelectedProjectId: (id: string | null) => void) => void
+  deleteProject: (projectId: string, selectedProjectId: string, setSelectedProjectId: (id: string) => void) => void
 }
 
 export function useTasksData(): UseTasksDataReturn {
@@ -206,13 +206,13 @@ export function useTasksData(): UseTasksDataReturn {
   // Delete project and its tasks
   const deleteProject = useCallback((
     projectId: string,
-    selectedProjectId: string | null,
-    setSelectedProjectId: (id: string | null) => void
+    selectedProjectId: string,
+    setSelectedProjectId: (id: string) => void
   ) => {
     setProjects((prev) => {
       const remaining = prev.filter((p) => p.id !== projectId)
       if (selectedProjectId === projectId) {
-        setSelectedProjectId(remaining.length > 0 ? remaining[0].id : null)
+        setSelectedProjectId(remaining.length > 0 ? remaining[0].id : '')
       }
       return remaining
     })

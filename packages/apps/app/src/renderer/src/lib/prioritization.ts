@@ -1,9 +1,11 @@
 import { differenceInDays, parseISO, startOfDay } from 'date-fns'
 import type { Task } from '@slayzone/task/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 
-export function calculatePriorityScore(task: Task): number {
-  // Skip done tasks
-  if (task.status === 'done') return -Infinity
+export function calculatePriorityScore(task: Task, columns?: ColumnConfig[] | null): number {
+  // Skip terminal tasks
+  if (isTerminalStatus(task.status, columns)) return -Infinity
 
   // Base score from priority (Urgent=1000, High=800, Medium=600, Low=400, Someday=200)
   const priorityScore = (6 - task.priority) * 200

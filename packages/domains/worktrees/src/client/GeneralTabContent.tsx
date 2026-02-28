@@ -32,6 +32,7 @@ import {
 interface GeneralTabContentProps {
   task: Task
   projectPath: string | null
+  completedStatus: string
   visible: boolean
   pollIntervalMs?: number
   onUpdateTask: (data: UpdateTaskInput) => Promise<Task>
@@ -42,6 +43,7 @@ interface GeneralTabContentProps {
 export function GeneralTabContent({
   task,
   projectPath,
+  completedStatus,
   visible,
   pollIntervalMs = 5000,
   onUpdateTask,
@@ -238,7 +240,7 @@ export function GeneralTabContent({
       }
       const result = await window.api.git.mergeWithAI(projectPath, task.worktree_path, task.worktree_parent_branch, sourceBranch)
       if (result.success) {
-        const updated = await onUpdateTask({ id: task.id, status: 'done' })
+        const updated = await onUpdateTask({ id: task.id, status: completedStatus })
         onTaskUpdated(updated)
         await window.api.pty.kill(task.id)
         setMergeResult({ success: true, merged: true, conflicted: false })

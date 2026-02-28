@@ -14,6 +14,8 @@ import {
 import { arrayMove } from '@dnd-kit/sortable'
 import { motion } from 'framer-motion'
 import type { Task } from '@slayzone/task/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 import type { Project } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import { groupTasksBy, type Column } from './kanban'
@@ -26,6 +28,7 @@ import { useAppearance } from '@slayzone/settings/client'
 
 interface KanbanBoardProps {
   tasks: Task[]
+  columns?: ColumnConfig[] | null
   viewConfig: ViewConfig
   isActive?: boolean
   onTaskMove: (taskId: string, newColumnId: string, targetIndex: number) => void
@@ -48,6 +51,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   tasks,
+  columns: projectColumns,
   viewConfig,
   isActive = true,
   onTaskMove,
@@ -81,8 +85,8 @@ export function KanbanBoard({
     useSensor(KeyboardSensor)
   )
 
-  const allColumns = groupTasksBy(tasks, groupBy, sortBy)
-  const columns = showEmptyColumns ? allColumns : allColumns.filter((c) => c.tasks.length > 0)
+  const allColumns = groupTasksBy(tasks, groupBy, sortBy, projectColumns)
+  const visibleColumns = showEmptyColumns ? allColumns : allColumns.filter((c) => c.tasks.length > 0)
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null
 
   const subTaskCounts = useMemo(() => {
@@ -91,11 +95,11 @@ export function KanbanBoard({
       if (!t.parent_id) continue
       const entry = counts.get(t.parent_id) ?? { done: 0, total: 0 }
       entry.total++
-      if (t.status === 'done') entry.done++
+      if (isTerminalStatus(t.status, projectColumns)) entry.done++
       counts.set(t.parent_id, entry)
     }
     return counts
-  }, [tasks])
+  }, [tasks, projectColumns])
 
   const {
     focusedTaskId,
@@ -104,7 +108,7 @@ export function KanbanBoard({
     closePickerState,
     cardRefs
   } = useKanbanKeyboard({
-    columns,
+    columns: visibleColumns,
     isActive,
     isDragging: !!activeId,
     onTaskClick,
@@ -115,7 +119,7 @@ export function KanbanBoard({
     const taskId = event.active.id as string
     setActiveId(taskId)
     // Find which column the dragged task belongs to
-    const sourceColumn = columns.find((c) => c.tasks.some((t) => t.id === taskId))
+    const sourceColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === taskId))
     setActiveColumnId(sourceColumn?.id ?? null)
   }
 
@@ -128,10 +132,10 @@ export function KanbanBoard({
 
     const overId = over.id as string
     // Check if over a column directly
-    let targetColumn = columns.find((c) => c.id === overId)
+    let targetColumn = visibleColumns.find((c) => c.id === overId)
     if (!targetColumn) {
       // Over a task - find which column contains it
-      targetColumn = columns.find((c) => c.tasks.some((t) => t.id === overId))
+      targetColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === overId))
     }
     setOverColumnId(targetColumn?.id ?? null)
   }
@@ -148,11 +152,11 @@ export function KanbanBoard({
     const overId = over.id as string
 
     // Find current column containing the dragged task
-    const currentColumn = columns.find((c) => c.tasks.some((t) => t.id === taskId))
+    const currentColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === taskId))
     if (!currentColumn) return
 
     // Determine target column and drop index
-    let targetColumn = columns.find((c) => c.id === overId)
+    let targetColumn = visibleColumns.find((c) => c.id === overId)
     let targetIndex: number
 
     if (targetColumn) {
@@ -160,10 +164,12 @@ export function KanbanBoard({
       targetIndex = targetColumn.tasks.length
     } else {
       // Dropped on a task - find that task's column and index
-      targetColumn = columns.find((c) => c.tasks.some((t) => t.id === overId))
+      targetColumn = visibleColumns.find((c) => c.tasks.some((t) => t.id === overId))
       if (!targetColumn) return
       targetIndex = targetColumn.tasks.findIndex((t) => t.id === overId)
     }
+
+    if (targetColumn.id === '__unknown__') return
 
     const isSameColumn = currentColumn.id === targetColumn.id
 
@@ -209,10 +215,11 @@ export function KanbanBoard({
     >
       <div className="relative h-full min-h-0">
       <div className="flex gap-4 overflow-x-auto pr-16 h-full [&::-webkit-scrollbar]:hidden">
-        {columns.map((column) => (
+        {visibleColumns.map((column) => (
           <KanbanColumn
             key={column.id}
             column={column}
+            columns={projectColumns}
             activeColumnId={activeColumnId}
             overColumnId={overColumnId}
             onTaskClick={onTaskClick}
@@ -248,6 +255,7 @@ export function KanbanBoard({
           >
             <KanbanCard
               task={activeTask}
+              columns={projectColumns}
               isDragging
               project={showProjectDot ? projectsMap?.get(activeTask.project_id) : undefined}
               showProject={showProjectDot}
@@ -261,6 +269,7 @@ export function KanbanBoard({
           onClose={closePickerState}
           onUpdateTask={onUpdateTask}
           tasks={tasks}
+          columns={projectColumns}
           cardRefs={cardRefs}
         />
       )}

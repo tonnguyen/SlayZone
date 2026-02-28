@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Task } from '@slayzone/task/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
   cn,
-  taskStatusOptions,
-  getTaskStatusStyle
+  buildStatusOptions,
+  getColumnStatusStyle
 } from '@slayzone/ui'
 import type { PickerState } from './useKanbanKeyboard'
 import { PRIORITY_LABELS } from './kanban'
@@ -16,6 +17,7 @@ interface KanbanPickerProps {
   onClose: () => void
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void
   tasks: Task[]
+  columns?: ColumnConfig[] | null
   cardRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
 }
 
@@ -24,9 +26,11 @@ export function KanbanPicker({
   onClose,
   onUpdateTask,
   tasks,
+  columns,
   cardRefs
 }: KanbanPickerProps): React.JSX.Element | null {
   const [anchorStyle, setAnchorStyle] = useState<React.CSSProperties>({})
+  const statusOptions = buildStatusOptions(columns)
 
   useEffect(() => {
     if (!pickerState) return
@@ -61,8 +65,8 @@ export function KanbanPicker({
       >
         {pickerState.type === 'status' ? (
           <PickerList
-            items={taskStatusOptions.map((s) => {
-              const style = getTaskStatusStyle(s.value)
+            items={statusOptions.map((s) => {
+              const style = getColumnStatusStyle(s.value, columns)
               return {
                 key: s.value,
                 label: s.label,
@@ -70,9 +74,9 @@ export function KanbanPicker({
                 isCurrent: task.status === s.value
               }
             })}
-            initialIndex={taskStatusOptions.findIndex((s) => s.value === task.status)}
+            initialIndex={statusOptions.findIndex((s) => s.value === task.status)}
             onSelect={(index) => {
-              onUpdateTask(task.id, { status: taskStatusOptions[index].value as Task['status'] })
+              onUpdateTask(task.id, { status: statusOptions[index].value as Task['status'] })
               onClose()
             }}
             onClose={onClose}

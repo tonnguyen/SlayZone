@@ -5,9 +5,12 @@ export { useAppearance, AppearanceContext, type AppearanceSettings } from './App
 export { getTerminalStateStyle, type TerminalStateStyle } from './terminal-state'
 export {
   getTaskStatusStyle,
+  getColumnStatusStyle,
+  buildStatusOptions,
   TASK_STATUS_ORDER,
   taskStatusOptions,
-  type TaskStatusStyle
+  type TaskStatusStyle,
+  type ColumnStatusConfig
 } from './task-status'
 
 // Components

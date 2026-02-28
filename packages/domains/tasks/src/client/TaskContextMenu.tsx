@@ -10,7 +10,7 @@ import {
   ContextMenuTrigger,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
-  taskStatusOptions
+  buildStatusOptions
 } from '@slayzone/ui'
 import {
   AlertDialog,
@@ -24,10 +24,12 @@ import {
 } from '@slayzone/ui'
 import type { Task, TaskStatus } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
 
 interface TaskContextMenuProps {
   task: Task
   projects: Project[]
+  columns?: ColumnConfig[] | null
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void
   onArchiveTask: (taskId: string) => void
   onDeleteTask: (taskId: string) => void
@@ -45,6 +47,7 @@ const PRIORITY_LABELS: Record<number, string> = {
 export function TaskContextMenu({
   task,
   projects,
+  columns,
   onUpdateTask,
   onArchiveTask,
   onDeleteTask,
@@ -52,6 +55,7 @@ export function TaskContextMenu({
 }: TaskContextMenuProps): React.JSX.Element {
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const statusOptions = buildStatusOptions(columns)
 
   const handleStatusChange = (status: string): void => {
     onUpdateTask(task.id, { status: status as TaskStatus })
@@ -93,7 +97,7 @@ export function TaskContextMenu({
             <ContextMenuSubTrigger>Status</ContextMenuSubTrigger>
             <ContextMenuSubContent>
               <ContextMenuRadioGroup value={task.status} onValueChange={handleStatusChange}>
-                {taskStatusOptions.map((s) => (
+                {statusOptions.map((s) => (
                   <ContextMenuRadioItem key={s.value} value={s.value}>
                     {s.label}
                   </ContextMenuRadioItem>
