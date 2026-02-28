@@ -66,9 +66,9 @@
   footer a:hover { color: #1a1a2e; }
 
   /* Scroll fade hint */
-  .cg-scroll { position: relative; }
-  .cg-scroll::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 32px; background: linear-gradient(to right, transparent, #fff); pointer-events: none; z-index: 2; transition: opacity 0.3s; }
-  .cg-scroll.scrolled-end::after { opacity: 0; }
+  .cg-frame { position: relative; }
+  .cg-frame::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 32px; background: linear-gradient(to right, transparent, #fff); pointer-events: none; z-index: 2; transition: opacity 0.3s; }
+  .cg-frame.scrolled-end::after { opacity: 0; }
 
   @media (max-width: 640px) {
     nav { padding: 20px 0; }
@@ -97,6 +97,7 @@
   <h1>Super unbiased comparison</h1>
   <p class="subtitle">An <span style="background: linear-gradient(135deg, var(--accent), #e8850f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 500;">as-honest-as-I-can</span> look at SlayZone vs the field.</p>
 
+  <div class="cg-frame">
   <div class="cg-scroll">
   <table class="cg">
     <thead><tr>
@@ -129,6 +130,7 @@
     </tbody>
   </table>
   </div>
+  </div>
 
   <footer>
     <div class="left">slay.zone — made with 🤖 in Stockholm</div>
@@ -137,10 +139,16 @@
 </div>
 <script>
 var scroll = document.querySelector('.cg-scroll');
-scroll.addEventListener('scroll', function() {
-  this.classList.toggle('scrolled', this.scrollLeft > 0);
-  this.classList.toggle('scrolled-end', this.scrollLeft + this.clientWidth >= this.scrollWidth - 2);
-});
+var frame = document.querySelector('.cg-frame');
+if (scroll) {
+  var syncScrollState = function() {
+    var atEnd = scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 2;
+    scroll.classList.toggle('scrolled', scroll.scrollLeft > 0);
+    if (frame) frame.classList.toggle('scrolled-end', atEnd);
+  };
+  scroll.addEventListener('scroll', syncScrollState);
+  syncScrollState();
+}
 function toggleExpand(btn) {
   var c = document.querySelector('.container');
   var expanded = c.classList.toggle('expanded');
