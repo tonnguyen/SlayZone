@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Theme, ThemePreference } from '@slayzone/settings/shared'
 
 interface ThemeContextValue {
@@ -10,15 +10,61 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Hardcoded dark theme
+  const [theme, setTheme] = useState<Theme>('dark')
+  const [preference, setPreferenceState] = useState<ThemePreference>('system')
+
+  const applyTheme = (nextTheme: Theme) => {
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark')
+  }
+
   useEffect(() => {
-    document.documentElement.classList.add('dark')
+    let disposed = false
+
+    const initialize = async () => {
+      const [effective, source] = await Promise.all([
+        window.api.theme.getEffective(),
+        window.api.theme.getSource(),
+      ])
+      if (disposed) return
+      setTheme(effective)
+      setPreferenceState(source)
+      applyTheme(effective)
+    }
+
+    initialize().catch(() => {
+      if (disposed) return
+      setTheme('dark')
+      setPreferenceState('dark')
+      applyTheme('dark')
+    })
+
+    const unsubscribe = window.api.theme.onChange((effective) => {
+      if (disposed) return
+      setTheme(effective)
+      applyTheme(effective)
+    })
+
+    return () => {
+      disposed = true
+      unsubscribe()
+    }
   }, [])
 
-  const setPreference = async () => {}
+  const setPreference = async (nextPreference: ThemePreference) => {
+    const effective = await window.api.theme.set(nextPreference)
+    setPreferenceState(nextPreference)
+    setTheme(effective)
+    applyTheme(effective)
+  }
+
+  const value = useMemo<ThemeContextValue>(() => ({
+    theme,
+    preference,
+    setPreference,
+  }), [theme, preference])
 
   return (
-    <ThemeContext.Provider value={{ theme: 'dark', preference: 'dark', setPreference }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   )
