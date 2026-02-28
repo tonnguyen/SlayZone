@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SlayZone — Comparison</title>
+<meta name="description" content="How SlayZone compares to Cursor, VibeKanban, Devin, and others.">
+<meta property="og:title" content="SlayZone — Super Unbiased Comparison">
+<meta property="og:description" content="An honest look at SlayZone vs the field of AI coding agents and task managers.">
+<meta property="og:image" content="https://slay.zone/assets/og-preview.jpg">
+<meta property="og:url" content="https://slay.zone/comparison.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SlayZone — Super Unbiased Comparison">
+<meta name="twitter:description" content="An honest look at SlayZone vs the field.">
+<meta name="twitter:image" content="https://slay.zone/assets/og-preview.jpg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,9 +30,17 @@
   .container { max-width: 960px; margin: 0 auto; padding: 0 24px; transition: max-width 0.3s ease; min-height: 100vh; display: flex; flex-direction: column; }
   .container.expanded { max-width: calc(100vw - 48px); }
 
-  nav { padding: 28px 0; display: flex; align-items: center; justify-content: center; position: relative; }
-  .logo { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: #1a1a2e; }
+  nav { padding: 28px 0; display: flex; align-items: center; justify-content: space-between; position: relative; }
+  .logo { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: #1a1a2e; white-space: nowrap; }
   .logo .slash { color: var(--accent); }
+  .nav-right { display: flex; align-items: center; gap: 40px; }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a { color: #888; text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+  .nav-links a:hover { color: #1a1a2e; }
+  .social-links { display: flex; gap: 20px; align-items: center; }
+  .social-links a { display: inline-flex; align-items: center; justify-content: center; color: #888; text-decoration: none; transition: color 0.2s; }
+  .social-links a:hover { color: #1a1a2e; }
+  .social-links svg { display: block; width: 16px; height: 16px; }
 
   h1 { font-size: 36px; font-weight: 700; letter-spacing: -1.5px; text-align: center; margin: 60px 0 8px; }
   .subtitle { text-align: center; color: #888; font-size: 16px; margin-bottom: 60px; }
@@ -63,9 +81,8 @@
 
   footer { padding: 40px 0; border-top: 1px solid #e0e0e8; display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
   footer .left { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #999; }
-  footer .right { display: flex; gap: 20px; }
-  footer a { color: #888; text-decoration: none; font-size: 13px; transition: color 0.2s; }
-  footer a:hover { color: #1a1a2e; }
+  footer .social-links a { color: #888; }
+  footer .social-links a:hover { color: #1a1a2e; }
 
   /* Scroll fade hint */
   .cg-frame { position: relative; }
@@ -75,6 +92,8 @@
   @media (max-width: 640px) {
     nav { padding: 20px 0; }
     .back-link { position: absolute; left: 0; top: 20px; }
+    .social-links-header { gap: 12px; }
+    .social-links-header svg { width: 14px; height: 14px; }
     .back-label-mobile { display: inline; }
     .back-label-desktop { display: none; }
     h1 { font-size: 26px; margin: 32px 0 8px; }
@@ -94,11 +113,23 @@
 <body>
 <div class="container">
   <nav>
-    <a href="index.html" class="back-link">
-      <span class="back-label-mobile">Back</span>
-      <span class="back-label-desktop">← Back to slayzone</span>
-    </a>
     <a href="index.html" class="logo">Slay<span class="slash">/</span>Zone</a>
+    <div class="nav-right">
+      <ul class="nav-links">
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+      <div class="social-links social-links-header">
+        <a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+          <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+        </a>
+        <a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+        <a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+      </a>
+    </div>
   </nav>
 
   <h1>Super unbiased comparison</h1>
@@ -133,7 +164,7 @@
       <tr><td><span class="feature-label">Embedded browser<span class="info-wrap"><svg class="info-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v3.6M8 5.2v.4"/></svg><span class="feature-tip">Built-in Chromium browser per task for docs, PRs, and live previews.</span></span></span></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="no">✗</td><td class="no">✗</td></tr>
       <tr><td><span class="feature-label">Code editor<span class="info-wrap"><svg class="info-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v3.6M8 5.2v.4"/></svg><span class="feature-tip">Integrated code editor with syntax highlighting for reviewing agent changes.</span></span></span></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="no">✗</td><td class="check">✓</td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="no">✗</td><td class="no">✗</td></tr>
       <tr><td><span class="feature-label">Git worktree isolation<span class="info-wrap"><svg class="info-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v3.6M8 5.2v.4"/></svg><span class="feature-tip">Each task gets its own git worktree — isolated branches, no conflicts between parallel tasks.</span></span></span></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="no">✗</td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="no">✗</td><td class="no">✗</td><td class="check">✓</td></tr>
-      <tr><td><span class="feature-label">Multi-provider AI agents<span class="info-wrap"><svg class="info-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v3.6M8 5.2v.4"/></svg><span class="feature-tip">Run Claude Code, Codex, Gemini CLI, Aider, and more — pick the best agent per task.</span></span></span></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="no">✗</td><td class="check">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="check">✓</td></tr>
+      <tr><td><span class="feature-label">Multi-provider AI agents<span class="info-wrap"><svg class="info-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v3.6M8 5.2v.4"/></svg><span class="feature-tip">Run Claude Code, Codex, Gemini CLI, and more — pick the best agent per task.</span></span></span></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="check">✓</td><td class="partial"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="13" x2="8" y2="8" stroke="#d4a017"/><line x1="8" y1="8" x2="13" y2="3" stroke="#d4a017"/></svg></td><td class="no">✗</td><td class="check">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="check">✓</td></tr>
     </tbody>
   </table>
   </div>
@@ -141,7 +172,18 @@
 
   <footer>
     <div class="left">slay.zone — made with 🤖 in Stockholm</div>
-    <div class="right"><a href="https://github.com/debuglebowski/SlayZone" target="_blank"><svg width="16" height="16" viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg></a><a href="https://x.com/debuglebowski" target="_blank"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a></div>
+    <div class="social-links">
+      <a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+        <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+        </a>
+        <a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+        <a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+        </a>
+      </div>
+    </div>
   </footer>
 </div>
 <script>

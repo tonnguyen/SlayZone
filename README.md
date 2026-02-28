@@ -21,8 +21,6 @@
 ### Get started
 
 1. Download the app for your platform above and run the installer.
-   - **macOS:** Right-click **SlayZone.app** after the installer runs → **Open** → **Open** again to bypass Gatekeeper (unsigned app, one-time only).
-   - **If that doesn't work:** System Settings → Privacy & Security → **Open Anyway**.
 2. Create a project — click **+** in the sidebar and point it to a folder on your machine.
 3. Add a task — click **+** inside the project, then open the card to access the terminal, browser, and git panels.
 
@@ -65,11 +63,19 @@ Your agents run locally on your machine — SlayZone is just the interface.
 Manage tasks from any terminal without opening the app. The app live-updates when you make changes. Requires Node 24+.
 
 ```bash
+# List tasks
 slay tasks list
 slay tasks list --status in_progress --project "My Project"
-slay tasks list --done
-slay tasks create --project "My Project" --title "Fix bug"
+
+# Create a task
+slay tasks create "Fix bug" --project "My Project"
+
+# Complete or open tasks
 slay tasks done <id>
+slay tasks open <id>
+
+# Control the embedded browser (inside task terminals)
+slay tasks browser navigate "https://localhost:3000"
 ```
 
 Install via **SlayZone → Settings → About → Install**, or manually:
@@ -84,7 +90,6 @@ sudo ln -sf /Applications/SlayZone.app/Contents/Resources/bin/slay /usr/local/bi
 
 - Terminal sync works perfectly 99% of the time. Cmd+R is a current workaround for the other situations.
 - Auto-status tracking only fully works for Claude Code — Codex, Cursor, and OpenCode adapters are partial
-- macOS Gatekeeper blocks first launch — right-click → Open to bypass
 - Large kanban boards (100+ cards) can feel sluggish during drag-and-drop
 
 ---

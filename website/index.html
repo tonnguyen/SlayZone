@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SlayZone — Scale Your AI Coding Agents</title>
+<meta name="description" content="Kanban with terminals. Every card hides a terminal, a browser, and a git worktree. Local-first agent management.">
+<meta property="og:title" content="SlayZone — Scale Your AI Coding Agents">
+<meta property="og:description" content="Kanban with terminals. Every card hides a terminal, a browser, and a git worktree. Local-first agent management.">
+<meta property="og:image" content="https://slay.zone/assets/og-preview.jpg">
+<meta property="og:url" content="https://slay.zone">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SlayZone — Scale Your AI Coding Agents">
+<meta name="twitter:description" content="Kanban with terminals. Local-first agent management for humans.">
+<meta name="twitter:image" content="https://slay.zone/assets/og-preview.jpg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,13 +29,19 @@
   body { background: #ffffff; color: var(--text); font-family: 'Outfit', sans-serif; font-weight: 300; line-height: 1.6; overflow-x: hidden; }
   .hero-bow::before { content: ''; position: absolute; inset: 0; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; z-index: 1; }
   .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-  nav { padding: 28px 0; display: flex; align-items: center; justify-content: center; }
-  .logo { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
-  .logo-icon { border-radius: 6px; }
+  nav { padding: 28px 0; display: flex; align-items: center; justify-content: space-between; position: relative; }
+  .logo { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; white-space: nowrap; }
   .logo .slash { color: var(--accent); }
+  .nav-right { display: flex; align-items: center; gap: 40px; }
   .nav-links { display: flex; gap: 28px; list-style: none; }
   .nav-links a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
   .nav-links a:hover { color: #fff; }
+  .social-links { display: flex; gap: 20px; align-items: center; }
+  .social-links a { display: inline-flex; align-items: center; justify-content: center; color: var(--text-dim); text-decoration: none; transition: color 0.2s; }
+  .social-links a:hover { color: var(--text); }
+  .social-links svg { display: block; width: 16px; height: 16px; }
+  .hero-wrap .social-links a { color: rgba(255,255,255,0.65); }
+  .hero-wrap .social-links a:hover { color: #fff; }
 
   .hero { padding: 100px 0 40px; text-align: center; }
   .hero-logo { height: 180px; margin-bottom: 48px; animation: fadeIn 0.6s ease both; filter: drop-shadow(0 8px 30px rgba(244,104,23,0.25)); }
@@ -266,13 +282,21 @@
   .feature p { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
   footer { padding: 40px 0; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   footer .left { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-dim); }
-  footer .right { display: flex; gap: 20px; }
-  footer a { color: var(--text-dim); text-decoration: none; font-size: 13px; transition: color 0.2s; }
-  footer a:hover { color: var(--text); }
+  footer .social-links a { color: var(--text-dim); }
+  footer .social-links a:hover { color: var(--text); }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes blink { 50% { opacity: 0; } }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* FAQ SECTION */
+  .faq { padding: 100px 0 20px; max-width: 720px; margin: 0 auto; }
+  .faq h2 { font-size: 28px; font-weight: 700; letter-spacing: -1px; margin-bottom: 48px; text-align: center; color: #1a1a2e; }
+  .faq-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+  .faq-item h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #1a1a2e; display: flex; align-items: flex-start; gap: 12px; }
+  .faq-item h3::before { content: 'Q:'; color: var(--accent); font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+  .faq-item p { font-size: 15px; color: #555; line-height: 1.7; padding-left: 32px; }
+  .faq-item strong { color: #1a1a2e; font-weight: 500; }
 
   /* COMPARISON GRID */
   .comparison { padding: 80px 0; margin: 160px -24px 80px; padding-left: 24px; padding-right: 24px; background: #fafafa; border-radius: 0; overflow: hidden; }
@@ -297,7 +321,7 @@
   .cg-punchline .no { font-size: 22px; }
 
   @media (max-width: 800px) { .features-grid { grid-template-columns: 1fr; } .comparison-table { font-size: 12px; } .comparison-table th, .comparison-table td { padding: 10px 8px; } }
-  @media (max-width: 500px) { .cta-group { flex-direction: column; align-items: center; } .hero { padding: 64px 0 32px; } .nav-links { display: none; } footer { flex-direction: column; gap: 16px; text-align: center; }
+  @media (max-width: 500px) { .cta-group { flex-direction: column; align-items: center; } .hero { padding: 64px 0 32px; } .nav-links { display: none; } .social-links-header { gap: 12px; } .social-links-header svg { width: 14px; height: 14px; } footer { flex-direction: column; gap: 16px; text-align: center; }
     h1 { line-height: 1.2; }
     h1 .highlight { display: flex; flex-direction: column; align-items: center; gap: 0; margin-top: 12px; }
     h1 .arrow-right { display: none; }
@@ -316,7 +340,24 @@
     </div>
 
   <nav>
-    <div class="logo">Slay<span class="slash">/</span>Zone</div>
+    <a href="index.html" class="logo">Slay<span class="slash">/</span>Zone</a>
+    <div class="nav-right">
+      <ul class="nav-links">
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+      <div class="social-links social-links-header">
+        <a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+          <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+        </a>
+        <a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+        <a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+        </a>
+      </div>
+    </div>
   </nav>
 
   <section class="hero">
@@ -517,7 +558,7 @@
   </section>
 
   <section class="comparison">
-    <h2>Super unbiased comparison</h2>
+    <h2>Super useful comparison</h2>
     <div class="cg-wrap">
     <div class="cg">
       <div class="cg-head"><span></span><span class="col-slayzone">SlayZone</span><span>Cursor</span><span>VibeKanban</span><span>Superset.sh</span><span>Conductor</span><span>Linear</span><span>Lovable</span></div>
@@ -542,7 +583,17 @@
 
   <footer>
     <div class="left">slay.zone — made with 🤖 in Stockholm</div>
-    <div class="right"><a href="https://github.com/debuglebowski/SlayZone" target="_blank"><svg width="16" height="16" viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg></a><a href="https://x.com/debuglebowski" target="_blank"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a></div>
+    <div class="social-links">
+      <a href="https://github.com/debuglebowski/SlayZone" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+        <svg viewBox="0 0 98 96" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/></svg>
+      </a>
+      <a href="https://x.com/debuglebowski" target="_blank" rel="noopener noreferrer" aria-label="X">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <a href="https://discord.gg/g7xPHXaU98" target="_blank" rel="noopener noreferrer" aria-label="Discord">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+      </a>
+    </div>
   </footer>
 </div><!-- end container -->
 </div><!-- end bottom-section -->

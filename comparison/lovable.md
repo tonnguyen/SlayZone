@@ -160,7 +160,7 @@ There is a critical distinction between two different things:
 
 **Local models:** Not supported. All AI traffic routes through Lovable's servers.
 
-This is fundamentally different from SlayZone, which lets you run Claude Code, Codex, Gemini CLI, Aider, and more — picking the best agent per task with your own API keys.
+This is fundamentally different from SlayZone, which lets you run Claude Code, Codex, Gemini CLI, and more — picking the best agent per task with your own API keys.
 
 ---
 

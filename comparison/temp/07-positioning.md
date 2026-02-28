@@ -41,4 +41,4 @@
 5. **License fragmentation.** Apache 2.0 (VibeKanban), MIT (Zeroshot, AutoMaker), AGPL (Maestro, Hephaestus), ELv2 (Superset.sh), BSL 1.1 (AGOR), Proprietary (Conductor). Clear strategic choices.
 6. **PM tools racing to add AI agents.** Linear deep-links to coding agents, Jira added assignable AI agents (Feb 2026), Shortcut built MCP server. But none have terminals.
 7. **Devin price collapse.** From $500/mo to $20/mo individual. Commoditizing "autonomous agent" but still cloud-only.
-8. **CLI agents all going OSS.** Codex CLI, Gemini CLI, Aider, SWE-agent all open source. Value shifts from agent to orchestration layer.
+8. **CLI agents all going OSS.** Codex CLI, Gemini CLI, SWE-agent all open source. Value shifts from agent to orchestration layer.

@@ -7,7 +7,7 @@
 > License: AGPL-3.0
 
 ## Summary
-Maestro is an Electron desktop orchestrator for coding agents (Claude Code, Codex, Gemini CLI, Aider, OpenCode, Goose, and others) with real PTY terminals, session tabs, and git worktree workflows. It is strong for multi-agent execution and local control, but it is not a project/task manager and does not offer SlayZone-style per-task isolation with embedded browser + task board primitives. ([GitHub repo](https://github.com/RunMaestro/Maestro), [Quick Start](https://docs.runmaestro.ai/guides/quick-start))
+Maestro is an Electron desktop orchestrator for coding agents (Claude Code, Codex, Gemini CLI, OpenCode, Goose, and others) with real PTY terminals, session tabs, and git worktree workflows. It is strong for multi-agent execution and local control, but it is not a project/task manager and does not offer SlayZone-style per-task isolation with embedded browser + task board primitives. ([GitHub repo](https://github.com/RunMaestro/Maestro), [Quick Start](https://docs.runmaestro.ai/guides/quick-start))
 
 ## Datapoint Evaluation
 
@@ -107,7 +107,7 @@ The system is practical for parallel coding and branch hygiene, but merge-back o
 Relative to SlayZone, Maestro is strong on worktree mechanics but not on attaching that isolation to canonical task objects with board-level visibility and metadata history.
 
 ### Multi-Provider AI Agents
-Maestro supports a broad mode roster across multiple agent ecosystems (Claude Code, Codex, Gemini CLI, OpenCode, Crush, Aider, Amp, Qwen Code, Goose, Cursor Agent, Grok Code Fast, Grok Code). Provider notes and shared mode config show explicit mode metadata and key requirements. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes), [mode config](https://github.com/RunMaestro/Maestro/blob/main/src/shared/mode-config.ts))
+Maestro supports a broad mode roster across multiple agent ecosystems (Claude Code, Codex, Gemini CLI, OpenCode, Crush, Amp, Qwen Code, Goose, Cursor Agent, Grok Code Fast, Grok Code). Provider notes and shared mode config show explicit mode metadata and key requirements. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes), [mode config](https://github.com/RunMaestro/Maestro/blob/main/src/shared/mode-config.ts))
 
 BYOK is mode-specific, not uniform. Some modes require provider API keys, some are optional, and some rely on local app auth or account linking. Configuration supports per-mode env vars and default args, which enables custom gateways, provider routing, and “dangerous” auto-run flags where the underlying CLI permits it. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes), [configuration](https://docs.runmaestro.ai/advanced/configuration))
 
@@ -120,7 +120,6 @@ Data path depends on selected mode: Maestro orchestrates and displays sessions l
 | Claude Code | Claude Sonnet 4 | Provider key (`ANTHROPIC_API_KEY`) | Alt model: Claude Opus 4. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
 | Codex | GPT-5-Codex | Provider key (`OPENAI_API_KEY`) | Alt model: GPT-5. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
 | Gemini CLI | Gemini 2.5 Pro | Provider key (`GEMINI_API_KEY`) | Google auth flow. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
-| Aider | Claude Sonnet 4 (default in docs) | Provider-optional | Also supports GPT-5, DeepSeek in docs. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
 | Qwen Code | `qwen3-coder-plus` | Provider key (`QWEN_CODE_API_KEY`) | Alternatives listed in docs. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
 | Goose | `claude-sonnet-4` | Provider-optional | Anthropic-first setup in docs. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |
 | Cursor Agent | Cursor account auth | No standalone provider key in Maestro | Requires Cursor app login/state. ([provider notes](https://docs.runmaestro.ai/advanced/provider-notes)) |

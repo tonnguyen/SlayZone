@@ -23,7 +23,7 @@ Closest architectural match to SlayZone — Electron + xterm.js + Monaco + SQLit
 | Embedded browser | ✓ | Electron Chromium webview. Workspace-scoped. Port forwarding integration (20 reserved ports per workspace). No DevTools, no mobile emulation, no agent control. |
 | Code editor | ✓ | Monaco 0.55.1. Side-by-side/inline diffs. Hunk-level staging. File editing + discard. Positioned as review/staging tool, not IDE replacement. |
 | Git worktree isolation | ✓ | Automatic on workspace creation (~2s). Configurable base dirs. Setup/teardown scripts. Port allocation per worktree. No hard capacity limit. |
-| Multi-provider AI agents | ✓ | 8+ CLI agents: Claude Code, Codex, Gemini CLI, Cursor Agent, GitHub Copilot, OpenCode, Aider, Mastra Code. Plus built-in Mastra chat (Anthropic/OpenAI). All BYOK. |
+| Multi-provider AI agents | ✓ | 7+ CLI agents: Claude Code, Codex, Gemini CLI, Cursor Agent, GitHub Copilot, OpenCode, Mastra Code. Plus built-in Mastra chat (Anthropic/OpenAI). All BYOK. |
 | All per task | ✗ | Features are per-workspace (= per worktree/branch), not per task card. No task-scoped isolation concept. |
 
 ---
@@ -199,7 +199,6 @@ Built-in Chromium browser pane using Electron's webview. Toggle in **Settings > 
 | Gemini CLI | Added with `-y` defaults |
 | GitHub Copilot | Added v0.0.81+ |
 | OpenCode | Supports 75+ providers including Ollama |
-| Aider | Supported |
 | Mastra Code | Added v1.0.1 |
 
 **Built-in Mastra Chat**: Separate built-in chat powered by [Mastra](https://mastra.ai) framework:
@@ -213,9 +212,9 @@ The Mastra chat is backed by a **Streams service on Fly.io** with durable sessio
 
 **BYOK**: Yes for Mastra chat (provide Anthropic/OpenAI keys). CLI agents inherently BYOK. *"You use your own API keys directly with whatever AI providers you choose."* No routing through Superset servers for CLI agents. Mastra Streams on Fly.io does proxy for chat.
 
-**Local models**: Not directly in Superset chat, but OpenCode (Ollama) and Aider (local models) work inside terminals.
+**Local models**: Not directly in Superset chat, but OpenCode (Ollama) work inside terminals.
 
-**vs SlayZone**: Both support multiple CLI agents with BYOK. SlayZone integrates providers as first-class terminal modes (claude-code, codex, gemini, aider, cursor, opencode, grok) with per-task provider config, persistent flags, and conversation IDs. Superset uses terminal presets — simpler but less integrated.
+**vs SlayZone**: Both support multiple CLI agents with BYOK. SlayZone integrates providers as first-class terminal modes (claude-code, codex, gemini, cursor, opencode, grok) with per-task provider config, persistent flags, and conversation IDs. Superset uses terminal presets — simpler but less integrated.
 
 ---
 

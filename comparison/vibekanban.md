@@ -189,7 +189,7 @@ VibeKanban supports **10 coding agents**:
 
 **No local model support**: All supported agents are cloud-based CLI tools. No direct Ollama/llama.cpp integration (though agents like OpenCode may support local models independently).
 
-This is the broadest agent support in the orchestrator category. SlayZone currently supports fewer agents (Claude Code, Codex, Gemini CLI, Aider, OpenCode, Cursor, Grok) but both tools are BYOK and don't proxy API calls.
+This is the broadest agent support in the orchestrator category. SlayZone currently supports fewer agents (Claude Code, Codex, Gemini CLI, OpenCode, Cursor, Grok) but both tools are BYOK and don't proxy API calls.
 
 Sources: [vibekanban.com/docs/supported-coding-agents.md](https://vibekanban.com/docs/supported-coding-agents.md), [vibekanban.com/docs/settings/agent-configurations.md](https://vibekanban.com/docs/settings/agent-configurations.md)
 
