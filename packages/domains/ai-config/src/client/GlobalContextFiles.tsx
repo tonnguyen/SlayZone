@@ -12,7 +12,7 @@ export function GlobalContextFiles() {
   const [originalContent, setOriginalContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [creatingFile, setCreatingFile] = useState<{ provider: CliProvider; category: 'skill' | 'command' } | null>(null)
+  const [creatingFile, setCreatingFile] = useState<{ provider: CliProvider; category: 'skill' } | null>(null)
   const [newFileName, setNewFileName] = useState('')
 
   const loadFiles = useCallback(async () => {
@@ -140,7 +140,6 @@ export function GlobalContextFiles() {
               .sort((a, b) => a.name.localeCompare(b.name))
             const instructions = files.filter((f) => f.category === 'instructions')
             const skills = files.filter((f) => f.category === 'skill')
-            const commands = files.filter((f) => f.category === 'command')
 
             return (
               <div key={provider} data-testid={`global-files-provider-${provider}`}>
@@ -169,25 +168,10 @@ export function GlobalContextFiles() {
                       ))}
                     </div>
                   )}
-                  {commands.length > 0 && (
-                    <div className="mt-1">
-                      <p className="px-1 py-0.5 text-[10px] text-muted-foreground">Commands</p>
-                      {commands.map((entry) => (
-                        <FileRow
-                          key={entry.path}
-                          entry={entry}
-                          selected={selectedPath === entry.path}
-                          onClick={() => openFile(entry)}
-                          onDelete={() => deleteFile(entry)}
-                          indent
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {instructions.length === 0 && skills.length === 0 && commands.length === 0 && (
+                  {instructions.length === 0 && skills.length === 0 && (
                     <p className="px-1 py-0.5 text-[10px] text-muted-foreground">No files yet</p>
                   )}
-                  {/* Add buttons for providers with skills/commands dirs */}
+                  {/* Add button for providers with skills dir */}
                   <div className="flex gap-1 pt-1">
                     {spec.skillsDir && (
                       <Button
@@ -198,17 +182,6 @@ export function GlobalContextFiles() {
                         onClick={() => { setCreatingFile({ provider: provider as CliProvider, category: 'skill' }); setNewFileName('') }}
                       >
                         <FilePlus className="mr-0.5 size-3" /> Skill
-                      </Button>
-                    )}
-                    {spec.commandsDir && (
-                      <Button
-                        data-testid={`global-files-add-command-${provider}`}
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-[10px]"
-                        onClick={() => { setCreatingFile({ provider: provider as CliProvider, category: 'command' }); setNewFileName('') }}
-                      >
-                        <FilePlus className="mr-0.5 size-3" /> Command
                       </Button>
                     )}
                   </div>

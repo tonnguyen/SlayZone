@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent } from 'react'
 import {
   Check, AlertCircle, ChevronDown, ChevronRight,
-  Plus, RefreshCw, Sparkles, Wrench, X
+  Plus, RefreshCw, Sparkles, X
 } from 'lucide-react'
 import { Button, Checkbox, Input, Label, Textarea, cn, toast } from '@slayzone/ui'
 import type {
@@ -21,9 +21,8 @@ interface ItemSectionProps {
   onChanged: () => void
 }
 
-function providerSupportsType(provider: CliProvider, type: AiConfigItemType): boolean {
-  const paths = PROVIDER_PATHS[provider]
-  return type === 'skill' ? !!paths?.skillsDir : !!paths?.commandsDir
+function providerSupportsType(provider: CliProvider): boolean {
+  return !!PROVIDER_PATHS[provider]?.skillsDir
 }
 
 function aggregateStatus(
@@ -48,6 +47,46 @@ function SyncBadge({ status }: { status: ProviderSyncStatus }) {
       {status === 'out_of_sync' && <><AlertCircle className="size-2.5" /> stale</>}
       {status === 'not_synced' && 'not synced'}
     </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Per-provider file paths in expanded view
+// ---------------------------------------------------------------------------
+
+function ProviderFilePaths({
+  providers,
+  enabledProviders,
+  slug,
+}: {
+  providers: Partial<Record<CliProvider, { path: string; status: ProviderSyncStatus }>>
+  enabledProviders: CliProvider[]
+  slug: string
+}) {
+  const rows = enabledProviders
+    .filter(p => providerSupportsType(p))
+    .map(p => {
+      const info = providers[p]
+      const path = info?.path ?? `${PROVIDER_PATHS[p]?.skillsDir}/${slug}/SKILL.md`
+      const status = info?.status ?? 'not_synced'
+      return { provider: p, path, status }
+    })
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="space-y-0.5">
+      <span className="text-[11px] font-medium text-muted-foreground">Provider files</span>
+      {rows.map(({ provider, path, status }) => (
+        <div key={provider} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          {status === 'synced' && <Check className="size-2.5 text-green-600 dark:text-green-400" />}
+          {status === 'out_of_sync' && <AlertCircle className="size-2.5 text-amber-600 dark:text-amber-400" />}
+          {status === 'not_synced' && <span className="size-2.5 rounded-full border border-dashed border-muted-foreground" />}
+          <span className="font-mono">{path}</span>
+          <span className="text-muted-foreground/60">({PROVIDER_LABELS[provider]?.split(' ')[0]})</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -141,8 +180,8 @@ export function ItemSection({
   const [showPicker, setShowPicker] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
 
-  const label = type === 'skill' ? 'Skills' : 'Commands'
-  const Icon = type === 'skill' ? Sparkles : Wrench
+  const label = 'Skills'
+  const Icon = Sparkles
   const allItems = [
     ...localItems.map(item => ({ item, providers: {} as ProjectSkillStatus['providers'], isLocal: true })),
     ...linkedItems.map(s => ({ item: s.item, providers: s.providers, isLocal: false }))
@@ -255,9 +294,7 @@ export function ItemSection({
                       <SyncBadge status={status} />
                     </div>
                     {enabledProviders.map(p => {
-                      const supported = providerSupportsType(p, type)
-                      if (!supported) {
-                        // Not applicable — invisible spacer to keep alignment
+                      if (!providerSupportsType(p)) {
                         return <span key={p} className="w-16" />
                       }
                       if (isLocal) {
@@ -307,13 +344,22 @@ export function ItemSection({
                 </div>
 
                 {isExpanded && (
-                  <InlineEditor
-                    key={item.id}
-                    item={item}
-                    isLocal={isLocal}
-                    onSave={patch => handleUpdateItem(item.id, patch)}
-                    onRevert={!isLocal ? () => handleRevert(item) : undefined}
-                  />
+                  <>
+                    <InlineEditor
+                      key={item.id}
+                      item={item}
+                      isLocal={isLocal}
+                      onSave={patch => handleUpdateItem(item.id, patch)}
+                      onRevert={!isLocal ? () => handleRevert(item) : undefined}
+                    />
+                    <div className="mt-1 rounded-lg border bg-muted/20 px-4 py-2">
+                      <ProviderFilePaths
+                        providers={providers}
+                        enabledProviders={enabledProviders}
+                        slug={item.slug}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             )
@@ -328,7 +374,7 @@ export function ItemSection({
         onClick={() => setShowPicker(true)}
       >
         <Plus className="size-3 shrink-0" />
-        <span className="text-xs">Add {type === 'skill' ? 'skill' : 'command'}</span>
+        <span className="text-xs">Add skill</span>
       </div>
 
       <AddItemPicker

@@ -360,8 +360,16 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('ai-config:save-global-instructions', content),
     getRootInstructions: (projectId, projectPath) =>
       ipcRenderer.invoke('ai-config:get-root-instructions', projectId, projectPath),
+    saveInstructionsContent: (projectId, projectPath, content) =>
+      ipcRenderer.invoke('ai-config:save-instructions-content', projectId, projectPath, content),
     saveRootInstructions: (projectId, projectPath, content) =>
       ipcRenderer.invoke('ai-config:save-root-instructions', projectId, projectPath, content),
+    readProviderInstructions: (projectPath, provider) =>
+      ipcRenderer.invoke('ai-config:read-provider-instructions', projectPath, provider),
+    pushProviderInstructions: (projectId, projectPath, provider, content) =>
+      ipcRenderer.invoke('ai-config:push-provider-instructions', projectId, projectPath, provider, content),
+    pullProviderInstructions: (projectId, projectPath, provider) =>
+      ipcRenderer.invoke('ai-config:pull-provider-instructions', projectId, projectPath, provider),
     getProjectSkillsStatus: (projectId, projectPath) =>
       ipcRenderer.invoke('ai-config:get-project-skills-status', projectId, projectPath),
     getGlobalFiles: () => ipcRenderer.invoke('ai-config:get-global-files')
@@ -434,14 +442,14 @@ const api: ElectronAPI = {
     import: () => ipcRenderer.invoke('export-import:import')
   },
   processes: {
-    create: (taskId, label, command, cwd, autoRestart) =>
-      ipcRenderer.invoke('processes:create', taskId, label, command, cwd, autoRestart),
-    spawn: (taskId, label, command, cwd, autoRestart) =>
-      ipcRenderer.invoke('processes:spawn', taskId, label, command, cwd, autoRestart),
+    create: (projectId, taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:create', projectId, taskId, label, command, cwd, autoRestart),
+    spawn: (projectId, taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:spawn', projectId, taskId, label, command, cwd, autoRestart),
     update: (processId, updates) => ipcRenderer.invoke('processes:update', processId, updates),
     kill: (processId) => ipcRenderer.invoke('processes:kill', processId),
     restart: (processId) => ipcRenderer.invoke('processes:restart', processId),
-    listForTask: (taskId) => ipcRenderer.invoke('processes:listForTask', taskId),
+    listForTask: (taskId, projectId) => ipcRenderer.invoke('processes:listForTask', taskId, projectId),
     listAll: () => ipcRenderer.invoke('processes:listAll'),
     killTask: (taskId) => ipcRenderer.invoke('processes:killTask', taskId),
     onLog: (cb) => {

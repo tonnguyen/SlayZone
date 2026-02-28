@@ -15,9 +15,8 @@ interface AddItemPickerProps {
   onAdded: () => void
 }
 
-function providerSupportsType(provider: CliProvider, type: AiConfigItemType): boolean {
-  const paths = PROVIDER_PATHS[provider]
-  return type === 'skill' ? !!paths?.skillsDir : !!paths?.commandsDir
+function providerSupportsType(provider: CliProvider): boolean {
+  return !!PROVIDER_PATHS[provider]?.skillsDir
 }
 
 function nextAvailableSlug(base: string, existingSlugs: Set<string>): string {
@@ -50,8 +49,8 @@ export function AddItemPicker({
   }, [globalItems, search])
 
   const compatibleProviders = useMemo(
-    () => enabledProviders.filter((provider) => providerSupportsType(provider, type)),
-    [enabledProviders, type]
+    () => enabledProviders.filter((provider) => providerSupportsType(provider)),
+    [enabledProviders]
   )
   const canLinkFromLibrary = compatibleProviders.length > 0
 
@@ -82,10 +81,8 @@ export function AddItemPicker({
         type
       })
       const existingSlugs = new Set(existingItems.map((item) => item.slug))
-      const slug = nextAvailableSlug(`new-${type}`, existingSlugs)
-      const defaultContent = type === 'skill'
-        ? '---\ndescription: \ntrigger: auto\n---\n\n'
-        : '---\ndescription: \nshortcut: \n---\n\n'
+      const slug = nextAvailableSlug('new-skill', existingSlugs)
+      const defaultContent = '---\ndescription: \ntrigger: auto\n---\n\n'
       await window.api.aiConfig.createItem({
         type,
         scope: 'project',
@@ -100,7 +97,7 @@ export function AddItemPicker({
     }
   }
 
-  const label = type === 'skill' ? 'Skill' : 'Command'
+  const label = 'Skill'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,7 +109,7 @@ export function AddItemPicker({
         <div className="space-y-3">
           {!canLinkFromLibrary && (
             <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
-              No enabled providers support {type === 'skill' ? 'skills' : 'commands'} yet.
+              No enabled providers support skills yet.
               Enable a compatible provider first to link from the global library.
             </p>
           )}

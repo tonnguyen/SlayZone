@@ -1,4 +1,4 @@
-export type AiConfigItemType = 'skill' | 'command' | 'doc' | 'root_instructions'
+export type AiConfigItemType = 'skill' | 'doc' | 'root_instructions'
 export type AiConfigScope = 'global' | 'project'
 
 export interface AiConfigItem {
@@ -83,7 +83,7 @@ export interface ContextTreeEntry {
   path: string
   relativePath: string
   exists: boolean
-  category: ContextFileCategory | 'skill' | 'command'
+  category: ContextFileCategory | 'skill'
   provider?: CliProvider
   linkedItemId: string | null
   syncStatus: ContextFileSyncStatus
@@ -100,7 +100,6 @@ export interface LoadGlobalItemInput {
 export interface ProviderPathMapping {
   rootInstructions: string | null
   skillsDir: string | null
-  commandsDir: string | null
 }
 
 export interface SyncAllInput {
@@ -112,7 +111,7 @@ export interface SyncAllInput {
 
 export interface SyncResult {
   written: { path: string; provider: CliProvider }[]
-  deleted: { path: string; provider: CliProvider; kind: 'skill' | 'command' | 'instruction' | 'mcp' }[]
+  deleted: { path: string; provider: CliProvider; kind: 'skill' | 'instruction' | 'mcp' }[]
   conflicts: SyncConflict[]
 }
 
@@ -131,6 +130,12 @@ export interface RootInstructionsResult {
   providerStatus: Partial<Record<CliProvider, ProviderSyncStatus>>
 }
 
+export interface ProviderFileContent {
+  provider: CliProvider
+  content: string
+  exists: boolean
+}
+
 export interface ProjectSkillStatus {
   item: AiConfigItem
   providers: Partial<Record<CliProvider, { path: string; status: ProviderSyncStatus }>>
@@ -141,7 +146,7 @@ export interface GlobalFileEntry {
   path: string
   name: string
   provider: string
-  category: 'instructions' | 'skill' | 'command'
+  category: 'instructions' | 'skill'
   exists: boolean
 }
 

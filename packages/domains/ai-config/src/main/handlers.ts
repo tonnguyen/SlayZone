@@ -19,6 +19,7 @@ import type {
   McpTarget,
   McpServerConfig,
   ProjectSkillStatus,
+  ProviderFileContent,
   ProviderSyncStatus,
   RootInstructionsResult,
   SetAiConfigProjectSelectionInput,
@@ -77,11 +78,6 @@ function getSkillPath(provider: CliProvider, slug: string): string | null {
   return `${mapping.skillsDir}/${slug}/SKILL.md`
 }
 
-function getCommandPath(provider: CliProvider, slug: string): string | null {
-  const mapping = PROVIDER_PATHS[provider]
-  if (!mapping.commandsDir) return null
-  return `${mapping.commandsDir}/${slug}.md`
-}
 
 function getLegacySkillPath(provider: CliProvider, itemType: string, itemSlug: string): string | null {
   if (itemType !== 'skill') return null
@@ -432,24 +428,6 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         }
       }
 
-      // Commands directory
-      if (spec.commandsDir) {
-        const dir = path.join(baseDir, spec.commandsDir)
-        if (fs.existsSync(dir)) {
-          try {
-            for (const file of fs.readdirSync(dir)) {
-              if (!file.endsWith('.md')) continue
-              entries.push({
-                path: path.join(dir, file),
-                name: `~/${spec.baseDir}/${spec.commandsDir}/${file}`,
-                provider,
-                category: 'command',
-                exists: true
-              })
-            }
-          } catch { /* ignore permission errors */ }
-        }
-      }
     }
 
     return entries
@@ -478,15 +456,15 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
   ipcMain.handle('ai-config:create-global-file', (
     _event,
     provider: CliProvider,
-    category: 'skill' | 'command',
+    category: 'skill',
     slugInput: string
   ): GlobalFileEntry => {
     if (!isConfigurableCliProvider(provider)) throw new Error(`Provider ${provider} is not configurable`)
     const spec = GLOBAL_PROVIDER_PATHS[provider]
     if (!spec) throw new Error(`Provider ${provider} does not support global file management`)
 
-    const dirSegment = category === 'skill' ? spec.skillsDir : spec.commandsDir
-    if (!dirSegment) throw new Error(`${spec.label} does not support ${category}s`)
+    const dirSegment = spec.skillsDir
+    if (!dirSegment) throw new Error(`${spec.label} does not support skills`)
 
     const slug = normalizeSlug(slugInput)
     const fileName = `${slug}.md`
@@ -538,9 +516,8 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       syncStatus: 'local_only'
     })
 
-    // 2. Scan skill/command directories for .md files
-    const scanDirs: Array<{ dir: string; relDir: string; category: 'skill' | 'command'; provider?: CliProvider }> = [
-      { dir: path.join(resolvedProject, '.claude', 'commands'), relDir: '.claude/commands', category: 'command', provider: 'claude' },
+    // 2. Scan skill directories for .md files
+    const scanDirs: Array<{ dir: string; relDir: string; category: 'skill'; provider?: CliProvider }> = [
       { dir: path.join(resolvedProject, '.claude', 'skills'), relDir: '.claude/skills', category: 'skill', provider: 'claude' },
       { dir: path.join(resolvedProject, '.agents', 'skills'), relDir: '.agents/skills', category: 'skill', provider: 'codex' },
       // Backward compatibility with early local experiments.
@@ -640,7 +617,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
 
       entries.push({
         path: filePath, relativePath: input.manualPath, exists: true,
-        category: item.type === 'skill' ? 'skill' : 'command',
+        category: 'skill',
         linkedItemId: item.id, syncStatus: 'synced'
       })
       return entries[0]
@@ -648,9 +625,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
 
     // Write to each selected provider
     for (const provider of filterConfigurableCliProviders(input.providers)) {
-      const relativePath = item.type === 'skill'
-        ? getSkillPath(provider, item.slug)
-        : getCommandPath(provider, item.slug)
+      const relativePath = getSkillPath(provider, item.slug)
       if (!relativePath) continue
 
       const filePath = path.join(resolvedProject, relativePath)
@@ -671,7 +646,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
 
       entries.push({
         path: filePath, relativePath, exists: true,
-        category: item.type === 'skill' ? 'skill' : 'command',
+        category: 'skill',
         provider,
         linkedItemId: item.id, syncStatus: 'synced'
       })
@@ -716,7 +691,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       const isProjectLocalItem = localItem
         && localItem.scope === 'project'
         && localItem.project_id === projectId
-        && (localItem.type === 'skill' || localItem.type === 'command')
+        && localItem.type === 'skill'
       if (!isProjectLocalItem) throw new Error('Selection not found')
 
       const providersToSync = provider
@@ -725,9 +700,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
 
       let firstEntry: ContextTreeEntry | null = null
       for (const providerId of providersToSync) {
-        const relativePath = localItem.type === 'skill'
-          ? getSkillPath(providerId, localItem.slug)
-          : getCommandPath(providerId, localItem.slug)
+        const relativePath = getSkillPath(providerId, localItem.slug)
         if (!relativePath) continue
 
         const syncedContent = getSyncedItemContent(providerId, localItem.type, localItem.slug, relativePath, localItem.content)
@@ -751,7 +724,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
             path: filePath,
             relativePath,
             exists: true,
-            category: localItem.type === 'skill' ? 'skill' : 'command',
+            category: 'skill',
             provider: providerId,
             linkedItemId: localItem.id,
             syncStatus: 'synced'
@@ -808,7 +781,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
           path: filePath,
           relativePath: effectiveTargetPath,
           exists: true,
-          category: sel.item_type === 'skill' ? 'skill' : 'command',
+          category: 'skill',
           linkedItemId: sel.item_id,
           syncStatus: 'synced'
         }
@@ -867,7 +840,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
     return filterConfigurableCliProviders(active.map(p => p.kind))
   }
 
-  ipcMain.handle('ai-config:get-root-instructions', (_event, projectId: string, projectPath: string) => {
+  function recomputeInstructionsResult(projectId: string, projectPath: string): RootInstructionsResult {
     const item = db.prepare(
       "SELECT * FROM ai_config_items WHERE type = 'root_instructions' AND scope = 'project' AND project_id = ?"
     ).get(projectId) as AiConfigItem | undefined
@@ -893,11 +866,11 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       providerStatus[provider] = diskHash === itemHash ? 'synced' : 'out_of_sync'
     }
 
-    const result: RootInstructionsResult = {
-      content: item?.content ?? '',
-      providerStatus
-    }
-    return result
+    return { content: item?.content ?? '', providerStatus }
+  }
+
+  ipcMain.handle('ai-config:get-root-instructions', (_event, projectId: string, projectPath: string) => {
+    return recomputeInstructionsResult(projectId, projectPath)
   })
 
   ipcMain.handle('ai-config:get-global-instructions', () => {
@@ -921,6 +894,25 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         VALUES (?, 'root_instructions', 'global', NULL, 'root_instructions', 'root_instructions', ?, '{}', datetime('now'), datetime('now'))
       `).run(crypto.randomUUID(), content)
     }
+  })
+
+  ipcMain.handle('ai-config:save-instructions-content', (_event, projectId: string, projectPath: string, content: string): RootInstructionsResult => {
+    const existing = db.prepare(
+      "SELECT id FROM ai_config_items WHERE type = 'root_instructions' AND scope = 'project' AND project_id = ?"
+    ).get(projectId) as { id: string } | undefined
+
+    if (existing) {
+      db.prepare("UPDATE ai_config_items SET content = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(content, existing.id)
+    } else {
+      const id = crypto.randomUUID()
+      db.prepare(`
+        INSERT INTO ai_config_items (id, type, scope, project_id, name, slug, content, metadata_json, created_at, updated_at)
+        VALUES (?, 'root_instructions', 'project', ?, 'root_instructions', 'root_instructions', ?, '{}', datetime('now'), datetime('now'))
+      `).run(id, projectId, content)
+    }
+
+    return recomputeInstructionsResult(projectId, projectPath)
   })
 
   ipcMain.handle('ai-config:save-root-instructions', (_event, projectId: string, projectPath: string, content: string) => {
@@ -971,6 +963,69 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
     return result
   })
 
+  ipcMain.handle('ai-config:read-provider-instructions', (_event, projectPath: string, provider: CliProvider): ProviderFileContent => {
+    const rootPath = PROVIDER_PATHS[provider]?.rootInstructions
+    if (!rootPath) return { provider, content: '', exists: false }
+    const filePath = path.join(path.resolve(projectPath), rootPath)
+    if (!isPathAllowed(filePath, projectPath)) return { provider, content: '', exists: false }
+    if (!fs.existsSync(filePath)) return { provider, content: '', exists: false }
+    return { provider, content: fs.readFileSync(filePath, 'utf-8'), exists: true }
+  })
+
+  ipcMain.handle('ai-config:push-provider-instructions', (_event, projectId: string, projectPath: string, provider: CliProvider, content: string): RootInstructionsResult => {
+    const rootPath = PROVIDER_PATHS[provider]?.rootInstructions
+    if (!rootPath) throw new Error(`No root instructions path for ${provider}`)
+    const resolvedProject = path.resolve(projectPath)
+    const filePath = path.join(resolvedProject, rootPath)
+    if (!isPathAllowed(filePath, projectPath)) throw new Error('Path not allowed')
+
+    const item = db.prepare(
+      "SELECT * FROM ai_config_items WHERE type = 'root_instructions' AND scope = 'project' AND project_id = ?"
+    ).get(projectId) as AiConfigItem | undefined
+    if (!item) throw new Error('No instructions to push')
+
+    const dir = path.dirname(filePath)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(filePath, content, 'utf-8')
+
+    const hash = contentHash(content)
+    db.prepare(`
+      INSERT INTO ai_config_project_selections (id, project_id, item_id, provider, target_path, content_hash, selected_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(project_id, item_id, provider) DO UPDATE SET
+        target_path = excluded.target_path, content_hash = excluded.content_hash, selected_at = datetime('now')
+    `).run(crypto.randomUUID(), projectId, item.id, provider, rootPath, hash)
+
+    return recomputeInstructionsResult(projectId, projectPath)
+  })
+
+  ipcMain.handle('ai-config:pull-provider-instructions', (_event, projectId: string, projectPath: string, provider: CliProvider): RootInstructionsResult => {
+    const rootPath = PROVIDER_PATHS[provider]?.rootInstructions
+    if (!rootPath) throw new Error(`No root instructions path for ${provider}`)
+    const filePath = path.join(path.resolve(projectPath), rootPath)
+    if (!isPathAllowed(filePath, projectPath)) throw new Error('Path not allowed')
+    if (!fs.existsSync(filePath)) throw new Error('Provider file does not exist')
+
+    const diskContent = fs.readFileSync(filePath, 'utf-8')
+
+    const existing = db.prepare(
+      "SELECT id FROM ai_config_items WHERE type = 'root_instructions' AND scope = 'project' AND project_id = ?"
+    ).get(projectId) as { id: string } | undefined
+
+    if (existing) {
+      db.prepare("UPDATE ai_config_items SET content = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(diskContent, existing.id)
+    } else {
+      const id = crypto.randomUUID()
+      db.prepare(`
+        INSERT INTO ai_config_items (id, type, scope, project_id, name, slug, content, metadata_json, created_at, updated_at)
+        VALUES (?, 'root_instructions', 'project', ?, 'root_instructions', 'root_instructions', ?, '{}', datetime('now'), datetime('now'))
+      `).run(id, projectId, diskContent)
+    }
+
+    return recomputeInstructionsResult(projectId, projectPath)
+  })
+
   ipcMain.handle('ai-config:get-project-skills-status', (_event, projectId: string, projectPath: string) => {
     const providers = getEnabledProviders(projectId)
     const resolvedProject = path.resolve(projectPath)
@@ -981,7 +1036,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
              i.created_at as item_created, i.updated_at as item_updated
       FROM ai_config_project_selections ps
       JOIN ai_config_items i ON i.id = ps.item_id
-      WHERE ps.project_id = ? AND i.type IN ('skill', 'command')
+      WHERE ps.project_id = ? AND i.type = 'skill'
     `).all(projectId) as Array<AiConfigProjectSelection & {
       item_content: string; item_type: string; item_slug: string
       item_name: string; item_scope: string; item_metadata: string
@@ -1098,12 +1153,12 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
       }
     }
 
-    // Check skills/commands
+    // Check skills
     const selections = db.prepare(`
       SELECT ps.provider, ps.target_path, ps.content_hash, i.content as item_content, i.type as item_type, i.slug as item_slug
       FROM ai_config_project_selections ps
       JOIN ai_config_items i ON i.id = ps.item_id
-      WHERE ps.project_id = ? AND i.type IN ('skill', 'command')
+      WHERE ps.project_id = ? AND i.type = 'skill'
     `).all(projectId) as Array<{
       provider: string
       target_path: string
@@ -1190,7 +1245,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         : path.join(resolvedProject, effectiveTargetPath)
       if (!isPathAllowed(filePath, input.projectPath)) continue
 
-      if (sel.item_type === 'skill' || sel.item_type === 'command') {
+      if (sel.item_type === 'skill') {
         keepPathsByProvider.get(provider)?.add(path.resolve(filePath))
       }
 
@@ -1233,14 +1288,12 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
     const localItems = db.prepare(`
       SELECT id, slug, content, type
       FROM ai_config_items
-      WHERE scope = 'project' AND project_id = ? AND type IN ('skill', 'command')
-    `).all(input.projectId) as Array<{ id: string; slug: string; content: string; type: 'skill' | 'command' }>
+      WHERE scope = 'project' AND project_id = ? AND type = 'skill'
+    `).all(input.projectId) as Array<{ id: string; slug: string; content: string; type: 'skill' }>
 
     for (const item of localItems) {
       for (const provider of providers) {
-        const relativePath = item.type === 'skill'
-          ? getSkillPath(provider, item.slug)
-          : getCommandPath(provider, item.slug)
+        const relativePath = getSkillPath(provider, item.slug)
         if (!relativePath) continue
 
         const filePath = path.join(resolvedProject, relativePath)
@@ -1288,17 +1341,14 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
         })
       }
 
-      // Prune unmanaged skill/command markdown files from known provider directories.
+      // Prune unmanaged skill markdown files from known provider directories.
       for (const provider of keepPathsByProvider.keys()) {
         const mapping = PROVIDER_PATHS[provider]
         const keep = enabledSet.has(provider) ? (keepPathsByProvider.get(provider) ?? new Set<string>()) : new Set<string>()
 
-        for (const [kind, dirRel] of [
-          ['skill', mapping.skillsDir],
-          ['command', mapping.commandsDir]
-        ] as const) {
-          if (!dirRel) continue
-          const dirPath = path.join(resolvedProject, dirRel)
+        const skillsDir = mapping.skillsDir
+        if (skillsDir) {
+          const dirPath = path.join(resolvedProject, skillsDir)
           for (const markdownFile of collectMarkdownFilesRecursive(dirPath)) {
             const resolvedFile = path.resolve(markdownFile)
             if (keep.has(resolvedFile)) continue
@@ -1307,7 +1357,7 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
             result.deleted.push({
               path: toProjectRelativePath(resolvedProject, resolvedFile),
               provider,
-              kind
+              kind: 'skill'
             })
           }
         }

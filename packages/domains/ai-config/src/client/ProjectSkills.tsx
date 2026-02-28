@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, AlertCircle, Trash2, Sparkles, Wrench } from 'lucide-react'
+import { Check, AlertCircle, Trash2, Sparkles } from 'lucide-react'
 import { cn } from '@slayzone/ui'
 import type { AiConfigItem, AiConfigItemType, CliProvider, ProjectSkillStatus, ProviderSyncStatus, UpdateAiConfigItemInput } from '../shared'
 import { PROVIDER_LABELS } from '../shared/provider-registry'
@@ -79,15 +79,12 @@ export function ProjectSkills({ projectId, projectPath, type, openPickerTrigger,
   }
 
   const handleCreate = async () => {
-    const itemType = type ?? 'skill'
-    const defaultContent = itemType === 'skill'
-      ? '---\ndescription: \ntrigger: auto\n---\n\n'
-      : '---\ndescription: \nshortcut: \n---\n\n'
+    const defaultContent = '---\ndescription: \ntrigger: auto\n---\n\n'
     const created = await window.api.aiConfig.createItem({
-      type: itemType,
+      type: 'skill',
       scope: 'project',
       projectId,
-      slug: itemType === 'skill' ? 'new-skill' : 'new-command',
+      slug: 'new-skill',
       content: defaultContent
     })
     setLocalItems(prev => [created, ...prev])
@@ -118,17 +115,12 @@ export function ProjectSkills({ projectId, projectPath, type, openPickerTrigger,
         <p className="text-sm text-muted-foreground">Loading...</p>
       ) : skills.length === 0 && filteredLocal.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-          {type === 'command'
-            ? <Wrench className="size-8 text-muted-foreground/40" />
-            : <Sparkles className="size-8 text-muted-foreground/40" />
-          }
+          <Sparkles className="size-8 text-muted-foreground/40" />
           <p className="mt-3 text-sm font-medium text-foreground">
-            No {type === 'command' ? 'commands' : 'skills'} yet
+            No skills yet
           </p>
           <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-            {type === 'command'
-              ? 'Create a project-specific command or add one from your global library.'
-              : 'Create a project-specific skill or add one from your global library.'}
+            Create a project-specific skill or add one from your global library.
           </p>
         </div>
       ) : (
@@ -192,7 +184,7 @@ export function ProjectSkills({ projectId, projectPath, type, openPickerTrigger,
           projectId={projectId}
           projectPath={projectPath}
           existingLinks={skills.map(s => s.item.id)}
-          type={type === 'skill' || type === 'command' ? type : undefined}
+          type={type === 'skill' ? type : undefined}
           onLoaded={handleItemLoaded}
           onClose={() => setShowPicker(false)}
         />

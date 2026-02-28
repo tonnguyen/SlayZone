@@ -61,9 +61,6 @@ export function ProviderChips({ projectId, layout = 'panel', onChange }: Provide
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Choose which providers this project syncs to. Defaults inherited from global settings.
-      </p>
       {allProviders.map(provider => {
         const active = enabled.includes(provider.kind as CliProvider)
         return (

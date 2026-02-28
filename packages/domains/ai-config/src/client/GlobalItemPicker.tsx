@@ -7,7 +7,7 @@ interface GlobalItemPickerProps {
   projectId: string
   projectPath: string
   existingLinks: string[]
-  type?: 'skill' | 'command'
+  type?: 'skill'
   onLoaded: () => void
   onClose: () => void
 }
@@ -23,12 +23,11 @@ export function GlobalItemPicker({ projectId, projectPath, existingLinks, type, 
 
   useEffect(() => {
     void (async () => {
-      const [skills, commands, providers] = await Promise.all([
-        !type || type === 'skill' ? window.api.aiConfig.listItems({ scope: 'global', type: 'skill' }) : Promise.resolve([]),
-        !type || type === 'command' ? window.api.aiConfig.listItems({ scope: 'global', type: 'command' }) : Promise.resolve([]),
+      const [skills, providers] = await Promise.all([
+        window.api.aiConfig.listItems({ scope: 'global', type: 'skill' }),
         window.api.aiConfig.getProjectProviders(projectId)
       ])
-      setItems([...skills, ...commands])
+      setItems(skills)
       setEnabledProviders(providers)
       setSelectedProviders(providers)
     })()
@@ -76,7 +75,7 @@ export function GlobalItemPicker({ projectId, projectPath, existingLinks, type, 
             <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-1">
               {items.length === 0 ? (
                 <p className="p-3 text-center text-sm text-muted-foreground">
-                  No global skills or commands yet. Create them in User Settings.
+                  No global skills yet. Create them in User Settings.
                 </p>
               ) : (
                 items.map((item) => {

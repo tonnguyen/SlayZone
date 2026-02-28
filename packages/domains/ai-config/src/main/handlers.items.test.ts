@@ -31,7 +31,7 @@ describe('ai-config:create-item', () => {
 
   test('creates project-scoped item', () => {
     const item = h.invoke('ai-config:create-item', {
-      type: 'command', scope: 'project', projectId, slug: 'deploy', content: 'run deploy'
+      type: 'skill', scope: 'project', projectId, slug: 'deploy', content: 'run deploy'
     }) as { id: string; project_id: string; scope: string }
     expect(item.scope).toBe('project')
     expect(item.project_id).toBe(projectId)
@@ -63,7 +63,7 @@ describe('ai-config:create-item', () => {
 
   test('rejects duplicate project slug for same project and type', () => {
     expect(() => h.invoke('ai-config:create-item', {
-      type: 'command',
+      type: 'skill',
       scope: 'project',
       projectId,
       slug: 'deploy',

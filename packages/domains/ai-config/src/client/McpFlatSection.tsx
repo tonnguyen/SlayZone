@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, Server, X, Search } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Plus, Server, X, Search } from 'lucide-react'
 import { Button, Checkbox, cn, Dialog, DialogContent, DialogHeader, DialogTitle, Input, toast } from '@slayzone/ui'
 import type { CliProvider, McpConfigFileResult, McpServerConfig, McpTarget } from '../shared'
 import { CURATED_MCP_SERVERS, type CuratedMcpServer } from '../shared/mcp-registry'
+
+const MCP_CONFIG_PATHS: Partial<Record<McpTarget, string>> = {
+  claude: '.mcp.json',
+  cursor: '.cursor/mcp.json',
+  gemini: '.gemini/settings.json',
+  opencode: 'opencode.json',
+}
 
 interface MergedServer {
   key: string
@@ -244,6 +251,24 @@ export function McpFlatSection({ projectPath, enabledProviders, onChanged }: Mcp
                     {server.description && (
                       <p className="text-xs text-muted-foreground">{server.description}</p>
                     )}
+                    <div className="space-y-0.5 pt-1 border-t border-border/50">
+                      <span className="text-[11px] font-medium text-muted-foreground">Config files</span>
+                      {enabledProviders.map(p => {
+                        const configPath = MCP_CONFIG_PATHS[p]
+                        if (!configPath) return null
+                        const isPresent = server.providers.includes(p)
+                        return (
+                          <div key={p} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {isPresent
+                              ? <Check className="size-2.5 text-green-600 dark:text-green-400" />
+                              : <span className="size-2.5 rounded-full border border-dashed border-muted-foreground" />
+                            }
+                            <span className="font-mono">{configPath}</span>
+                            <span className="text-muted-foreground/60">({p})</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

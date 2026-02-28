@@ -76,7 +76,7 @@ describe('ai-config:create-global-file', () => {
   })
 
   test('rejects unsupported categories for provider', () => {
-    expect(() => h.invoke('ai-config:create-global-file', 'codex', 'command', 'nope')).toThrow()
+    expect(() => h.invoke('ai-config:create-global-file', 'codex', 'skill', 'nope')).toThrow()
   })
 })
 
@@ -116,14 +116,14 @@ describe('ai-config:sync-linked-file', () => {
   test('re-syncs item content to disk', () => {
     // Create item + selection
     const item = h.invoke('ai-config:create-item', {
-      type: 'command', scope: 'global', slug: 'sync-test', content: 'original'
+      type: 'skill', scope: 'global', slug: 'sync-test', content: 'original'
     }) as { id: string }
     h.invoke('ai-config:load-global-item', {
       projectId, projectPath: root, itemId: item.id,
-      providers: ['claude'], manualPath: '.claude/commands/sync-test.md'
+      providers: ['claude'], manualPath: '.claude/skills/manual/sync-test.md'
     })
     // Modify file externally
-    fs.writeFileSync(path.join(root, '.claude/commands/sync-test.md'), 'modified')
+    fs.writeFileSync(path.join(root, '.claude/skills/manual/sync-test.md'), 'modified')
     // Update item content in DB
     h.invoke('ai-config:update-item', { id: item.id, content: 'updated content' })
 
@@ -131,7 +131,7 @@ describe('ai-config:sync-linked-file', () => {
       syncStatus: string
     }
     expect(result.syncStatus).toBe('synced')
-    expect(fs.readFileSync(path.join(root, '.claude/commands/sync-test.md'), 'utf-8')).toBe('updated content')
+    expect(fs.readFileSync(path.join(root, '.claude/skills/manual/sync-test.md'), 'utf-8')).toBe('updated content')
   })
 
   test('syncs all provider links for an item', () => {
@@ -511,14 +511,6 @@ describe('ai-config:sync-all', () => {
       slug: 'local-project-skill',
       content: '# local project skill'
     })
-    h.invoke('ai-config:create-item', {
-      type: 'command',
-      scope: 'project',
-      projectId: fixture.projectId,
-      slug: 'local-project-command',
-      content: 'echo local project command'
-    })
-
     const legacyLocalPath = path.join(fixture.projectPath, '.claude/skills/local-project-skill.md')
     fs.mkdirSync(path.dirname(legacyLocalPath), { recursive: true })
     fs.writeFileSync(legacyLocalPath, '# legacy local path')
@@ -534,16 +526,12 @@ describe('ai-config:sync-all', () => {
       .toBe(true)
     expect(fs.readFileSync(path.join(fixture.projectPath, '.cursor/skills/local-project-skill/SKILL.md'), 'utf-8'))
       .toBe('# local project skill')
-    expect(fs.readFileSync(path.join(fixture.projectPath, '.claude/commands/local-project-command.md'), 'utf-8'))
-      .toBe('echo local project command')
     expect(fs.existsSync(legacyLocalPath)).toBe(false)
 
     expect(result.written.some((entry) =>
       entry.provider === 'claude' && entry.path === '.claude/skills/local-project-skill/SKILL.md')).toBe(true)
     expect(result.written.some((entry) =>
       entry.provider === 'cursor' && entry.path === '.cursor/skills/local-project-skill/SKILL.md')).toBe(true)
-    expect(result.written.some((entry) =>
-      entry.provider === 'claude' && entry.path === '.claude/commands/local-project-command.md')).toBe(true)
   })
 
   test('does not recreate removed per-item provider links', () => {
@@ -612,7 +600,7 @@ describe('ai-config:sync-all', () => {
     expect(result.written.some((entry) => entry.provider === 'claude')).toBe(true)
   })
 
-  test('prunes unmanaged skills, commands, and disabled-provider MCP configs when enabled', () => {
+  test('prunes unmanaged skills and disabled-provider MCP configs when enabled', () => {
     const fixture = createProjectFixture('sync-all-prune-unmanaged')
     h.invoke('ai-config:set-project-providers', fixture.projectId, ['claude'])
     h.invoke('ai-config:save-root-instructions', fixture.projectId, fixture.projectPath, '# managed instructions')
@@ -643,19 +631,16 @@ describe('ai-config:sync-all', () => {
     const managedInstructionPath = path.join(fixture.projectPath, 'CLAUDE.md')
     const unmanagedInstructionPath = path.join(fixture.projectPath, 'AGENTS.md')
     const unmanagedSkillPath = path.join(fixture.projectPath, '.claude/skills/remove-me.md')
-    const unmanagedCommandPath = path.join(fixture.projectPath, '.claude/commands/remove-command.md')
     const unmanagedCodexSkillPath = path.join(fixture.projectPath, '.agents/skills/remove-codex/SKILL.md')
     const unmanagedEmptyEnabledMcpPath = path.join(fixture.projectPath, '.mcp.json')
     const disabledProviderMcpPath = path.join(fixture.projectPath, '.cursor/mcp.json')
 
     fs.writeFileSync(unmanagedInstructionPath, '# remove unmanaged instruction')
     fs.mkdirSync(path.dirname(unmanagedSkillPath), { recursive: true })
-    fs.mkdirSync(path.dirname(unmanagedCommandPath), { recursive: true })
     fs.mkdirSync(path.dirname(unmanagedCodexSkillPath), { recursive: true })
     fs.mkdirSync(path.dirname(disabledProviderMcpPath), { recursive: true })
 
     fs.writeFileSync(unmanagedSkillPath, '# remove')
-    fs.writeFileSync(unmanagedCommandPath, 'echo remove')
     fs.writeFileSync(unmanagedCodexSkillPath, '# remove codex')
     fs.writeFileSync(unmanagedEmptyEnabledMcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
     fs.writeFileSync(disabledProviderMcpPath, JSON.stringify({ mcpServers: { orphan: { command: 'npx', args: ['x'] } } }, null, 2))
@@ -674,7 +659,6 @@ describe('ai-config:sync-all', () => {
     expect(fs.existsSync(managedInstructionPath)).toBe(true)
     expect(fs.existsSync(unmanagedInstructionPath)).toBe(false)
     expect(fs.existsSync(unmanagedSkillPath)).toBe(false)
-    expect(fs.existsSync(unmanagedCommandPath)).toBe(false)
     expect(fs.existsSync(unmanagedCodexSkillPath)).toBe(false)
     expect(fs.existsSync(unmanagedEmptyEnabledMcpPath)).toBe(false)
     expect(fs.existsSync(disabledProviderMcpPath)).toBe(false)
@@ -682,7 +666,6 @@ describe('ai-config:sync-all', () => {
     expect(result.written.some((entry) => entry.provider === 'claude')).toBe(true)
     expect(result.deleted.some((entry) => entry.kind === 'instruction' && entry.provider === 'codex')).toBe(true)
     expect(result.deleted.some((entry) => entry.kind === 'skill' && entry.provider === 'claude')).toBe(true)
-    expect(result.deleted.some((entry) => entry.kind === 'command' && entry.provider === 'claude')).toBe(true)
     expect(result.deleted.some((entry) => entry.kind === 'mcp' && entry.provider === 'claude')).toBe(true)
     expect(result.deleted.some((entry) => entry.kind === 'mcp' && entry.provider === 'cursor')).toBe(true)
   })

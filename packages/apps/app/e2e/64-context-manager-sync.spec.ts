@@ -10,17 +10,11 @@ const skillContentV1 = '# E2E context skill v1\n'
 const skillContentV2 = '# E2E context skill v2\n'
 const localSkillSlug = 'e2e-local-project-skill'
 const localSkillContent = '# E2E local project skill\n'
-const commandSlug = 'e2e-context-sync-command'
-const commandContentV1 = 'echo e2e context command v1\n'
-const commandContentV2 = 'echo e2e context command v2\n'
-
 const settingsDialog = (mainWindow: Page): Locator => mainWindow.getByRole('dialog').last()
 const claudeSkillPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'skills', skillSlug, 'SKILL.md')
 const codexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', skillSlug, 'SKILL.md')
 const localClaudeSkillPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'skills', localSkillSlug, 'SKILL.md')
 const localCodexSkillPath = () => path.join(TEST_PROJECT_PATH, '.agents', 'skills', localSkillSlug, 'SKILL.md')
-const claudeCommandPath = () => path.join(TEST_PROJECT_PATH, '.claude', 'commands', `${commandSlug}.md`)
-
 async function closeTopDialog(mainWindow: Page): Promise<void> {
   const openDialogs = mainWindow.locator('[role="dialog"][data-state="open"]')
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -61,6 +55,26 @@ async function openProjectContextManager(mainWindow: Page): Promise<Locator> {
   await dialog.getByTestId('settings-tab-ai-config').click()
   await expect(dialog.getByRole('heading', { name: 'Context Manager' })).toBeVisible({ timeout: 5_000 })
   await dialog.getByRole('tab', { name: 'Config', exact: true }).click()
+  const backToOverview = dialog.getByRole('button', { name: 'Overview' })
+  if (await backToOverview.count()) {
+    await backToOverview.click()
+  }
+  await expect(dialog.getByTestId('project-context-overview-providers')).toBeVisible({ timeout: 5_000 })
+  return dialog
+}
+
+async function openProjectContextSection(
+  mainWindow: Page,
+  section: 'providers' | 'instructions' | 'skills' | 'mcp'
+): Promise<Locator> {
+  const dialog = await openProjectContextManager(mainWindow)
+  const sectionTestIdMap = {
+    providers: 'project-context-overview-providers',
+    instructions: 'project-context-overview-instructions',
+    skills: 'project-context-overview-skills',
+    mcp: 'project-context-overview-mcp',
+  } as const
+  await dialog.getByTestId(sectionTestIdMap[section]).click()
   return dialog
 }
 
@@ -88,36 +102,6 @@ async function upsertGlobalSkill(mainWindow: Page, content: string): Promise<voi
       const match = skills.find((item) => item.slug === slug)
       return match?.content ?? null
     }, skillSlug)
-  }).toBe(content)
-
-  await dialog.getByTestId('context-item-editor-close').click()
-  await closeTopDialog(mainWindow)
-}
-
-async function upsertGlobalCommand(mainWindow: Page, content: string): Promise<void> {
-  const dialog = await openGlobalContextManager(mainWindow)
-  await dialog.getByTestId('context-overview-commands').click()
-  await expect(dialog.getByTestId('context-new-command')).toBeVisible({ timeout: 5_000 })
-
-  const existing = dialog.getByTestId(`context-global-item-${commandSlug}`)
-  if (await existing.count()) {
-    await existing.first().click()
-  } else {
-    await dialog.getByTestId('context-new-command').click()
-    await expect(dialog.getByTestId('context-item-editor-slug')).toBeVisible({ timeout: 5_000 })
-    await dialog.getByTestId('context-item-editor-slug').fill(commandSlug)
-    await dialog.getByTestId('context-item-editor-slug').blur()
-  }
-
-  await dialog.getByTestId('context-item-editor-content').fill(content)
-  await dialog.getByTestId('context-item-editor-content').blur()
-
-  await expect.poll(async () => {
-    return await mainWindow.evaluate(async (slug) => {
-      const commands = await window.api.aiConfig.listItems({ scope: 'global', type: 'command' })
-      const match = commands.find((item) => item.slug === slug)
-      return match?.content ?? null
-    }, commandSlug)
   }).toBe(content)
 
   await dialog.getByTestId('context-item-editor-close').click()
@@ -183,7 +167,7 @@ test.describe('Context manager sync flow', () => {
       return window.api.aiConfig.setProjectProviders(id, ['claude', 'codex'])
     }, { id: projectId })
 
-    const projectDialog = await openProjectContextManager(mainWindow)
+    const projectDialog = await openProjectContextSection(mainWindow, 'mcp')
 
     await expect(projectDialog.getByTestId('project-context-mcp-provider-claude')).toHaveCount(0)
     await expect(projectDialog.getByTestId('project-context-mcp-provider-codex')).toHaveCount(0)
@@ -202,7 +186,7 @@ test.describe('Context manager sync flow', () => {
   test('global skill can be linked to project and re-synced after global edits', async ({ mainWindow }) => {
     await upsertGlobalSkill(mainWindow, skillContentV1)
 
-    const projectDialog = await openProjectContextManager(mainWindow)
+    const projectDialog = await openProjectContextSection(mainWindow, 'skills')
 
     await projectDialog.getByTestId('project-context-add-skill').click()
     const addDialog = mainWindow.getByRole('dialog').filter({ hasText: 'Add Skill' }).last()
@@ -230,10 +214,11 @@ test.describe('Context manager sync flow', () => {
     await closeTopDialog(mainWindow)
     await upsertGlobalSkill(mainWindow, skillContentV2)
 
-    const resyncDialog = await openProjectContextManager(mainWindow)
+    const resyncDialog = await openProjectContextSection(mainWindow, 'skills')
     const skillRow = resyncDialog.getByTestId(`project-context-item-skill-${skillSlug}`)
     await expect(skillRow).toContainText('stale', { timeout: 5_000 })
 
+    await resyncDialog.getByRole('button', { name: 'Overview' }).click()
     await resyncDialog.getByTestId('project-context-sync-all').click()
 
     await expect.poll(() => {
@@ -278,7 +263,7 @@ test.describe('Context manager sync flow', () => {
       })
     }, { id: projectId, slug: localSkillSlug, content: localSkillContent })
 
-    const projectDialog = await openProjectContextManager(mainWindow)
+    const projectDialog = await openProjectContextSection(mainWindow, 'skills')
     const syncButton = projectDialog.getByTestId(`project-context-sync-skill-${localSkillSlug}`)
     await expect(syncButton).toBeVisible({ timeout: 5_000 })
     await syncButton.click()
@@ -304,48 +289,4 @@ test.describe('Context manager sync flow', () => {
     await closeTopDialog(mainWindow)
   })
 
-  test('global command can be linked to project and re-synced after global edits', async ({ mainWindow }) => {
-    await upsertGlobalCommand(mainWindow, commandContentV1)
-
-    const projectDialog = await openProjectContextManager(mainWindow)
-    await projectDialog.getByTestId('project-context-add-command').click()
-
-    const addDialog = mainWindow.getByRole('dialog').filter({ hasText: 'Add Command' }).last()
-    await expect(addDialog).toBeVisible({ timeout: 5_000 })
-    await addDialog.getByTestId(`add-item-option-${commandSlug}`).click()
-
-    await expect.poll(() => fs.existsSync(claudeCommandPath())).toBe(true)
-    await expect.poll(() => {
-      try {
-        return fs.readFileSync(claudeCommandPath(), 'utf-8')
-      } catch {
-        return ''
-      }
-    }).toBe(commandContentV1)
-
-    await closeTopDialog(mainWindow)
-    await upsertGlobalCommand(mainWindow, commandContentV2)
-
-    const resyncDialog = await openProjectContextManager(mainWindow)
-    const commandRow = resyncDialog.getByTestId(`project-context-item-command-${commandSlug}`)
-    await expect(commandRow).toContainText('stale', { timeout: 5_000 })
-
-    await resyncDialog.getByTestId('project-context-sync-all').click()
-
-    await expect.poll(() => {
-      try {
-        return fs.readFileSync(claudeCommandPath(), 'utf-8')
-      } catch {
-        return ''
-      }
-    }).toBe(commandContentV2)
-
-    await expect.poll(async () => {
-      return await mainWindow.evaluate(async ({ id, projectPath }) => {
-        return window.api.aiConfig.needsSync(id, projectPath)
-      }, { id: projectId, projectPath: TEST_PROJECT_PATH })
-    }).toBe(false)
-
-    await closeTopDialog(mainWindow)
-  })
 })

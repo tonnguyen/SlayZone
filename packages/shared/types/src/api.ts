@@ -18,6 +18,7 @@ import type {
   LoadGlobalItemInput,
   McpConfigFileResult,
   ProjectSkillStatus,
+  ProviderFileContent,
   RootInstructionsResult,
   SetAiConfigProjectSelectionInput,
   SyncAllInput,
@@ -61,6 +62,7 @@ export type ProcessStatus = 'running' | 'stopped' | 'completed' | 'error'
 export interface ProcessInfo {
   id: string
   taskId: string | null
+  projectId: string | null
   label: string
   command: string
   cwd: string
@@ -346,7 +348,7 @@ export interface ElectronAPI {
     renameContextFile: (oldPath: string, newPath: string, projectPath: string) => Promise<void>
     deleteContextFile: (filePath: string, projectPath: string, projectId: string) => Promise<void>
     deleteGlobalFile: (filePath: string) => Promise<void>
-    createGlobalFile: (provider: CliProvider, category: 'skill' | 'command', slug: string) => Promise<GlobalFileEntry>
+    createGlobalFile: (provider: CliProvider, category: 'skill', slug: string) => Promise<GlobalFileEntry>
     discoverMcpConfigs: (projectPath: string) => Promise<McpConfigFileResult[]>
     writeMcpServer: (input: WriteMcpServerInput) => Promise<void>
     removeMcpServer: (input: RemoveMcpServerInput) => Promise<void>
@@ -360,7 +362,11 @@ export interface ElectronAPI {
     getGlobalInstructions: () => Promise<string>
     saveGlobalInstructions: (content: string) => Promise<void>
     getRootInstructions: (projectId: string, projectPath: string) => Promise<RootInstructionsResult>
+    saveInstructionsContent: (projectId: string, projectPath: string, content: string) => Promise<RootInstructionsResult>
     saveRootInstructions: (projectId: string, projectPath: string, content: string) => Promise<RootInstructionsResult>
+    readProviderInstructions: (projectPath: string, provider: CliProvider) => Promise<ProviderFileContent>
+    pushProviderInstructions: (projectId: string, projectPath: string, provider: CliProvider, content: string) => Promise<RootInstructionsResult>
+    pullProviderInstructions: (projectId: string, projectPath: string, provider: CliProvider) => Promise<RootInstructionsResult>
     getProjectSkillsStatus: (projectId: string, projectPath: string) => Promise<ProjectSkillStatus[]>
     getGlobalFiles: () => Promise<GlobalFileEntry[]>
   }
@@ -449,12 +455,12 @@ export interface ElectronAPI {
     import: () => Promise<{ success: boolean; canceled?: boolean; projectCount?: number; taskCount?: number; importedProjects?: Array<{ id: string; name: string }>; error?: string }>
   }
   processes: {
-    create: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
-    spawn: (taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
-    update: (processId: string, updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId'>>) => Promise<boolean>
+    create: (projectId: string | null, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    spawn: (projectId: string | null, taskId: string | null, label: string, command: string, cwd: string, autoRestart: boolean) => Promise<string>
+    update: (processId: string, updates: Partial<Pick<ProcessInfo, 'label' | 'command' | 'cwd' | 'autoRestart' | 'taskId' | 'projectId'>>) => Promise<boolean>
     kill: (processId: string) => Promise<boolean>
     restart: (processId: string) => Promise<boolean>
-    listForTask: (taskId: string | null) => Promise<ProcessInfo[]>
+    listForTask: (taskId: string | null, projectId: string | null) => Promise<ProcessInfo[]>
     listAll: () => Promise<ProcessInfo[]>
     killTask: (taskId: string) => Promise<void>
     onLog: (cb: (processId: string, line: string) => void) => () => void

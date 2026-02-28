@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import Database from 'better-sqlite3'
 
 interface Migration {
@@ -933,6 +934,40 @@ const migrations: Migration[] = [
           ON ai_config_items(project_id, type, slug)
           WHERE scope = 'project';
       `)
+    }
+  },
+  {
+    version: 48,
+    up: (db) => {
+      // Remove legacy 'command' items and orphaned selections
+      db.exec(`
+        DELETE FROM ai_config_project_selections
+          WHERE item_id IN (SELECT id FROM ai_config_items WHERE type = 'command');
+        DELETE FROM ai_config_items WHERE type = 'command';
+      `)
+    }
+  },
+  {
+    version: 49,
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE processes ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE CASCADE;
+        CREATE INDEX IF NOT EXISTS idx_processes_project ON processes(project_id);
+      `)
+      // Copy each global process to every project, then delete the originals
+      const globals = db.prepare(`SELECT id, label, command, cwd, auto_restart FROM processes WHERE task_id IS NULL`).all() as Array<{
+        id: string; label: string; command: string; cwd: string; auto_restart: number
+      }>
+      if (globals.length > 0) {
+        const projects = db.prepare(`SELECT id FROM projects`).all() as Array<{ id: string }>
+        const insert = db.prepare(`INSERT INTO processes (id, project_id, task_id, label, command, cwd, auto_restart) VALUES (?, ?, NULL, ?, ?, ?, ?)`)
+        for (const g of globals) {
+          for (const p of projects) {
+            insert.run(randomUUID(), p.id, g.label, g.command, g.cwd, g.auto_restart)
+          }
+        }
+        db.prepare(`DELETE FROM processes WHERE task_id IS NULL AND project_id IS NULL`).run()
+      }
     }
   }
 ]

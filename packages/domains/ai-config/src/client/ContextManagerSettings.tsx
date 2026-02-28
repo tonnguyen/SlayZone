@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  ArrowLeft, Check, ChevronRight,
-  Plus, Sparkles, Wrench, Server, FileText, FolderTree, Settings2
+  ArrowLeft, ChevronRight,
+  Plus, Sparkles, Server, FileText, FolderTree, Settings2,
+  type LucideIcon
 } from 'lucide-react'
 import { Button, cn, Switch } from '@slayzone/ui'
 import type {
-  AiConfigItem, AiConfigItemType, AiConfigScope, CliProvider,
+  AiConfigItem, AiConfigScope, CliProvider,
   CliProviderInfo, UpdateAiConfigItemInput
 } from '../shared'
 import { PROVIDER_LABELS } from '../shared/provider-registry'
@@ -16,7 +17,7 @@ import { ProjectContextFlat } from './ProjectContextFlat'
 import { ProjectContextFilesView } from './ProjectContextFilesView'
 import { ProjectInstructions } from './ProjectInstructions'
 
-type Section = 'providers' | 'instructions' | 'skill' | 'command' | 'mcp' | 'files'
+type Section = 'providers' | 'instructions' | 'skill' | 'mcp' | 'files'
 
 interface ContextManagerSettingsProps {
   scope: AiConfigScope
@@ -42,13 +43,39 @@ function nextAvailableSlug(base: string, existingSlugs: Set<string>): string {
 }
 
 // ---------------------------------------------------------------------------
+// Shared overview card
+// ---------------------------------------------------------------------------
+
+function OverviewCard({ testId, icon: Icon, label, detail, onClick }: {
+  testId: string
+  icon: LucideIcon
+  label: string
+  detail?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      data-testid={testId}
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
+    >
+      <Icon className="size-5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+      {detail && <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">{detail}</span>}
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Overview panel — global scope only
 // ---------------------------------------------------------------------------
 
 interface OverviewData {
   instructions: { content: string } | null
   skills: AiConfigItem[]
-  commands: AiConfigItem[]
   providers: CliProviderInfo[]
 }
 
@@ -65,17 +92,15 @@ function OverviewPanel({
     let stale = false
     void (async () => {
       try {
-        const [instrContent, skills, commands, providers] = await Promise.all([
+        const [instrContent, skills, providers] = await Promise.all([
           window.api.aiConfig.getGlobalInstructions(),
           window.api.aiConfig.listItems({ scope: 'global', type: 'skill' }),
-          window.api.aiConfig.listItems({ scope: 'global', type: 'command' }),
           window.api.aiConfig.listProviders()
         ])
         if (stale) return
         setData({
           instructions: { content: instrContent },
           skills,
-          commands,
           providers,
         })
       } catch {
@@ -96,136 +121,16 @@ function OverviewPanel({
   }
 
   const skillCount = data.skills.length
-  const commandCount = data.commands.length
   const enabledProviders = data.providers.filter(p => p.enabled)
   const hasContent = !!data.instructions?.content
 
   return (
     <div className="space-y-2.5">
-      {/* Providers */}
-      <button
-        onClick={() => onNavigate('providers')}
-        data-testid="context-overview-providers"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <Settings2 className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Providers</span>
-            <div className="flex items-center gap-2">
-              {enabledProviders.map(p => (
-                <span key={p.id} className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <div className="size-2 rounded-full bg-green-500" />
-                  {PROVIDER_LABELS[p.kind as CliProvider] ?? p.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {/* Instructions */}
-      <button
-        onClick={() => onNavigate('instructions')}
-        data-testid="context-overview-instructions"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <FileText className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Instructions</span>
-            {hasContent && (
-              <span className="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                <Check className="size-2.5" /> Saved
-              </span>
-            )}
-          </div>
-          {hasContent && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-              {data.instructions!.content.slice(0, 120)}
-            </p>
-          )}
-          {!hasContent && (
-            <p className="mt-0.5 text-xs text-muted-foreground">No instructions yet</p>
-          )}
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {/* Skills */}
-      <button
-        onClick={() => onNavigate('skill')}
-        data-testid="context-overview-skills"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <Sparkles className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Skills</span>
-            <span className="text-xs text-muted-foreground">{skillCount} defined</span>
-          </div>
-          {skillCount > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {data.skills.slice(0, 5).map((s, i) => (
-                <span key={i} className="rounded border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px]">{s.slug}</span>
-              ))}
-              {skillCount > 5 && <span className="text-[11px] text-muted-foreground">+{skillCount - 5} more</span>}
-            </div>
-          )}
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {/* Commands */}
-      <button
-        onClick={() => onNavigate('command')}
-        data-testid="context-overview-commands"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <Wrench className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Commands</span>
-            <span className="text-xs text-muted-foreground">{commandCount} defined</span>
-          </div>
-          {commandCount > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {data.commands.slice(0, 5).map((s, i) => (
-                <span key={i} className="rounded border bg-muted/30 px-1.5 py-0.5 font-mono text-[11px]">{s.slug}</span>
-              ))}
-            </div>
-          )}
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {/* MCP Servers */}
-      <button
-        onClick={() => onNavigate('mcp')}
-        data-testid="context-overview-mcp"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <Server className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium">MCP Servers</span>
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {/* Files */}
-      <button
-        onClick={() => onNavigate('files')}
-        data-testid="context-overview-files"
-        className="flex w-full items-center gap-3 rounded-lg border p-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        <FolderTree className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium">Files</span>
-          <p className="mt-0.5 text-xs text-muted-foreground">Global config files across all providers</p>
-        </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
+      <OverviewCard testId="context-overview-providers" icon={Settings2} label="Providers" detail={`${enabledProviders.length} enabled`} onClick={() => onNavigate('providers')} />
+      <OverviewCard testId="context-overview-instructions" icon={FileText} label="Instructions" detail={hasContent ? 'Saved' : 'Empty'} onClick={() => onNavigate('instructions')} />
+      <OverviewCard testId="context-overview-skills" icon={Sparkles} label="Skills" detail={`${skillCount} defined`} onClick={() => onNavigate('skill')} />
+      <OverviewCard testId="context-overview-mcp" icon={Server} label="MCP Servers" onClick={() => onNavigate('mcp')} />
+      <OverviewCard testId="context-overview-files" icon={FolderTree} label="Files" onClick={() => onNavigate('files')} />
     </div>
   )
 }
@@ -334,7 +239,7 @@ function GlobalContextManager() {
   const [providerVersion] = useState(0)
   const [syncCheckVersion] = useState(0)
 
-  const isItemSection = section === 'skill' || section === 'command'
+  const isItemSection = section === 'skill'
 
   const loadItems = useCallback(async () => {
     if (!isItemSection) return
@@ -342,7 +247,7 @@ function GlobalContextManager() {
     try {
       const rows = await window.api.aiConfig.listItems({
         scope: 'global',
-        type: section as AiConfigItemType
+        type: 'skill'
       })
       setItems(rows)
     } finally {
@@ -357,17 +262,13 @@ function GlobalContextManager() {
 
   const handleCreate = async () => {
     if (!isItemSection) return
-    const type = section as AiConfigItemType
     const existingSlugs = new Set(items.map((item) => item.slug))
-    const slug = nextAvailableSlug(type === 'skill' ? 'new-skill' : 'new-command', existingSlugs)
-    const defaultContent = type === 'skill'
-      ? '---\ndescription: \ntrigger: auto\n---\n\n'
-      : '---\ndescription: \nshortcut: \n---\n\n'
+    const slug = nextAvailableSlug('new-skill', existingSlugs)
     const created = await window.api.aiConfig.createItem({
-      type,
+      type: 'skill',
       scope: 'global',
       slug,
-      content: defaultContent
+      content: '---\ndescription: \ntrigger: auto\n---\n\n'
     })
     setItems((prev) => [created, ...prev])
     setEditingId(created.id)
@@ -419,7 +320,6 @@ function GlobalContextManager() {
           {section === 'providers' && 'Choose which AI coding tools to sync content to.'}
           {section === 'instructions' && 'Global instructions stored in the database. Not synced to any file.'}
           {section === 'skill' && 'Global skills shared across all projects. Synced to enabled providers.'}
-          {section === 'command' && 'Global commands shared across all projects. Invoked via /command-name.'}
           {section === 'mcp' && 'Browse and favorite MCP servers from the curated catalog.'}
           {section === 'files' && 'Global config files across all provider directories.'}
         </p>
@@ -446,21 +346,14 @@ function GlobalContextManager() {
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-                {section === 'skill'
-                  ? <Sparkles className="size-8 text-muted-foreground/40" />
-                  : <Wrench className="size-8 text-muted-foreground/40" />
-                }
-                <p className="mt-3 text-sm font-medium text-foreground">
-                  No {section === 'skill' ? 'skills' : 'commands'} yet
-                </p>
+                <Sparkles className="size-8 text-muted-foreground/40" />
+                <p className="mt-3 text-sm font-medium text-foreground">No skills yet</p>
                 <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  {section === 'skill'
-                    ? 'Skills give AI assistants reusable capabilities. Create one to get started.'
-                    : 'Commands are shortcuts you can invoke from any provider. Create one to get started.'}
+                  Skills give AI assistants reusable capabilities. Create one to get started.
                 </p>
                 <Button size="sm" className="mt-4" onClick={handleCreate}>
                   <Plus className="mr-1 size-3.5" />
-                  Create {section === 'skill' ? 'skill' : 'command'}
+                  Create skill
                 </Button>
               </div>
             ) : (

@@ -12,7 +12,7 @@ registerAiConfigHandlers(h.ipcMain as never, h.db)
 const projectId = crypto.randomUUID()
 h.db.prepare('INSERT INTO projects (id, name, color, path) VALUES (?, ?, ?, ?)').run(projectId, 'P', '#000', '/tmp/test-proj')
 const item = h.invoke('ai-config:create-item', { type: 'skill', scope: 'global', slug: 'sel-test', content: 'x' }) as { id: string }
-const item2 = h.invoke('ai-config:create-item', { type: 'command', scope: 'global', slug: 'sel-test-2', content: 'y' }) as { id: string }
+const item2 = h.invoke('ai-config:create-item', { type: 'skill', scope: 'global', slug: 'sel-test-2', content: 'y' }) as { id: string }
 
 // --- Selections ---
 
@@ -34,7 +34,7 @@ describe('ai-config:set-project-selection', () => {
   })
 
   test('allows multiple items per project', () => {
-    h.invoke('ai-config:set-project-selection', { projectId, itemId: item2.id, targetPath: '.claude/commands/test.md' })
+    h.invoke('ai-config:set-project-selection', { projectId, itemId: item2.id, targetPath: '.claude/skills/test.md' })
     const sels = h.invoke('ai-config:list-project-selections', projectId) as unknown[]
     expect(sels.length).toBeGreaterThan(1)
   })
