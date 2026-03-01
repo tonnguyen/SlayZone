@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --outfile=dist/slay.js --banner:js='#!/usr/bin/env node' --external:node:sqlite",
+    "build": "node build.mjs",
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
