@@ -81,6 +81,15 @@ export interface TerminalAdapter {
   detectPrompt(data: string): PromptInfo | null
 
   /**
+   * Detect the session/conversation ID from the CLI's local files on disk.
+   * Called after first output so the ID can be persisted without injecting
+   * commands into the terminal. Returns null if not found.
+   * @param spawnedAt - timestamp (ms) when the PTY was created
+   * @param cwd - working directory the CLI was launched in (for disambiguation)
+   */
+  detectSessionFromDisk?(spawnedAt: number, cwd: string): Promise<string | null>
+
+  /**
    * Validate that the CLI binary and dependencies are available.
    * Returns a list of check results with fix instructions for failed checks.
    */

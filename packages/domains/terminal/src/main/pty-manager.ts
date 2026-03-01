@@ -107,6 +107,7 @@ interface PtySession {
   watchingForSessionId: boolean
   statusOutputBuffer: string
   statusWatchTimeout?: NodeJS.Timeout
+  sessionIdAutoDetectTimer?: NodeJS.Timeout
   // Dev server URL dedup
   detectedDevUrls: Set<string>
   // Pending partial escape sequence from previous onData chunk
@@ -135,6 +136,8 @@ const IDLE_CHECK_INTERVAL_MS = 10 * 1000
 const STARTUP_TIMEOUT_MS = 10 * 1000
 const FAST_EXIT_FALLBACK_WINDOW_MS = 2000
 const SESSION_ID_WATCH_TIMEOUT_MS = 5000
+// Delay after first PTY output before auto-sending session detection command
+const SESSION_ID_AUTO_DETECT_DELAY_MS = 3000
 
 // Reference to main window for sending idle events
 let mainWindow: BrowserWindow | null = null
@@ -492,6 +495,11 @@ export async function createPty(
     const finalizeSessionExit = (exitCode: number): void => {
       clearStartupTimeout()
       clearEarlyExitWatchdog()
+      // Clear auto-detect timer if pending
+      const exitSession = sessions.get(sessionId)
+      if (exitSession?.sessionIdAutoDetectTimer) {
+        clearTimeout(exitSession.sessionIdAutoDetectTimer)
+      }
       dismissNotification(sessionId)
       transitionState(sessionId, 'dead')
       recordDiagnosticEvent({
@@ -587,6 +595,44 @@ export async function createPty(
               shellArgs: usedArgs
             }
           })
+
+          // Auto-detect session ID from disk for providers that support it.
+          // Avoids injecting commands into the terminal — reads session files
+          // that the CLI creates on startup (e.g. ~/.codex/sessions/).
+          if (adapter.detectSessionFromDisk && !resuming) {
+            const timer = setTimeout(async () => {
+              const sess = sessions.get(sessionId)
+              if (!sess || sess.pty !== target) return
+
+              try {
+                const detected = await adapter.detectSessionFromDisk!(createStartedAt, cwd)
+                if (!detected) return
+                const liveSess = sessions.get(sessionId)
+                if (!liveSess || liveSess.pty !== target) return
+
+                recordDiagnosticEvent({
+                  level: 'info',
+                  source: 'pty',
+                  event: 'pty.conversation_detected',
+                  sessionId,
+                  taskId: taskIdFromSessionId(sessionId),
+                  payload: { conversationId: detected, method: 'disk' }
+                })
+                if (!win.isDestroyed()) {
+                  try {
+                    win.webContents.send('pty:session-detected', sessionId, detected)
+                  } catch {
+                    // Window destroyed, ignore
+                  }
+                }
+              } catch {
+                // Filesystem detection failed — banner fallback still available
+              }
+            }, SESSION_ID_AUTO_DETECT_DELAY_MS)
+
+            const sess = sessions.get(sessionId)
+            if (sess) sess.sessionIdAutoDetectTimer = timer
+          }
         }
         // Only process if session still exists (prevents data leaking after kill)
         const session = sessions.get(sessionId)
@@ -961,9 +1007,12 @@ export function killPty(sessionId: string): boolean {
     sessionId,
     taskId: session.taskId
   })
-  // Clear any pending timeout to prevent orphaned callbacks
+  // Clear any pending timeouts to prevent orphaned callbacks
   if (session.statusWatchTimeout) {
     clearTimeout(session.statusWatchTimeout)
+  }
+  if (session.sessionIdAutoDetectTimer) {
+    clearTimeout(session.sessionIdAutoDetectTimer)
   }
   // Clear state debounce timer
   stateMachine.unregister(sessionId)
