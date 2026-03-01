@@ -14,6 +14,7 @@ const TIMEOUT_MS = 10_000
 interface ProviderMeta { id: string; label: string; cli: string; vendor: string }
 const CLAUDE: ProviderMeta = { id: 'claude', label: 'Claude', cli: 'claude', vendor: 'Anthropic' }
 const CODEX: ProviderMeta = { id: 'codex', label: 'Codex', cli: 'codex', vendor: 'OpenAI' }
+const GLM: ProviderMeta = { id: 'glm', label: 'GLM (Z.AI)', cli: 'glm', vendor: 'Z.AI' }
 
 // ── Error helpers ────────────────────────────────────────────────────
 
@@ -161,10 +162,7 @@ export function registerUsageHandlers(ipcMain: IpcMain): void {
     const fetchers = [
       fetchClaudeUsage().catch((e): ProviderUsage => usageError(CLAUDE, friendlyError(e))),
       fetchCodexUsage().catch((e): ProviderUsage => usageError(CODEX, friendlyError(e))),
-      fetchGlmUsage().catch((e): ProviderUsage => {
-        const GLM: ProviderMeta = { id: 'glm', label: 'GLM (Z.AI)', cli: 'glm', vendor: 'Z.AI' }
-        return usageError(GLM, friendlyError(e))
-      })
+      fetchGlmUsage().catch((e): ProviderUsage => usageError(GLM, friendlyError(e)))
     ]
     return Promise.all(fetchers)
   })
