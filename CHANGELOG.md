@@ -1,9 +1,91 @@
 # Changelog
 
 
-## v0.1.68...main
+## v0.2.0
 
-[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.68...main)
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.69...v0.2.0)
+
+### 🚀 Enhancements
+
+- Auto-switch project when activating task tab ([bbeb01e](https://github.com/debuglebowski/SlayZone/commit/bbeb01e))
+- Cmd+R reloads browser webview when focused ([2579a57](https://github.com/debuglebowski/SlayZone/commit/2579a57))
+- **cli:** Browser control via `slay tasks browser` commands ([bf89238](https://github.com/debuglebowski/SlayZone/commit/bf89238))
+- Implement customizable task status workflows ([c7d059e](https://github.com/debuglebowski/SlayZone/commit/c7d059e))
+- Stage/unstage folders in git diff panel ([6933377](https://github.com/debuglebowski/SlayZone/commit/6933377))
+- Add discard button to unstaged folder rows ([78822fc](https://github.com/debuglebowski/SlayZone/commit/78822fc))
+- Allow discarding untracked files via git clean ([26bcbd0](https://github.com/debuglebowski/SlayZone/commit/26bcbd0))
+- **website:** Comparison page, glitter waterfall, mobile responsive ([6ecfd4e](https://github.com/debuglebowski/SlayZone/commit/6ecfd4e))
+- Gate context manager behind dev flag ([d084346](https://github.com/debuglebowski/SlayZone/commit/d084346))
+- **ai-config:** Harden sync behavior and provider capabilities ([c0318b2](https://github.com/debuglebowski/SlayZone/commit/c0318b2))
+- **ai-config:** Add flat project context manager and files view ([4b117e2](https://github.com/debuglebowski/SlayZone/commit/4b117e2))
+- **tasks:** Support project-defined status semantics ([0f7d246](https://github.com/debuglebowski/SlayZone/commit/0f7d246))
+- **notifications:** Group attention tasks by project status labels ([2dd25e2](https://github.com/debuglebowski/SlayZone/commit/2dd25e2))
+- **settings:** Load and persist renderer theme preference ([7e6cef4](https://github.com/debuglebowski/SlayZone/commit/7e6cef4))
+- **website:** Easter eggs + 404 terminal page ([c776524](https://github.com/debuglebowski/SlayZone/commit/c776524))
+- **cli:** Add projects create with auto path creation ([288a2d0](https://github.com/debuglebowski/SlayZone/commit/288a2d0))
+- **website:** Developer Suffering Index benchmark section ([373c386](https://github.com/debuglebowski/SlayZone/commit/373c386))
+- **ai-config:** Context manager overhaul — remove commands, inline diff, manual sync ([4323c9a](https://github.com/debuglebowski/SlayZone/commit/4323c9a))
+- **processes:** Scope processes per project instead of global ([4bf0a6e](https://github.com/debuglebowski/SlayZone/commit/4bf0a6e))
+- **worktrees:** Confirmation modals for git diff destructive actions ([53382d6](https://github.com/debuglebowski/SlayZone/commit/53382d6))
+- **ai-config:** Per-provider skill file sync + e2e tests ([deeca01](https://github.com/debuglebowski/SlayZone/commit/deeca01))
+
+### 🩹 Fixes
+
+- **usage:** Actionable error messages in rate-limit popover ([4ce4da3](https://github.com/debuglebowski/SlayZone/commit/4ce4da3))
+- Cmd+R reloads app when browser panel not focused ([73065ad](https://github.com/debuglebowski/SlayZone/commit/73065ad))
+- Align kanban status order with workflow categories ([269c884](https://github.com/debuglebowski/SlayZone/commit/269c884))
+- **main:** Support node runtime fallbacks for credentials and diagnostics ([2b74e52](https://github.com/debuglebowski/SlayZone/commit/2b74e52))
+- **ai-config:** Normalize skill sync paths across providers ([36c2d92](https://github.com/debuglebowski/SlayZone/commit/36c2d92))
+- Add vite/client and node types to tsconfig.base ([42ad28a](https://github.com/debuglebowski/SlayZone/commit/42ad28a))
+- **leaderboard:** Guard useQuery behind ConvexProvider check ([083ed01](https://github.com/debuglebowski/SlayZone/commit/083ed01))
+- **website:** Move benchmark footnote below card ([2714bf2](https://github.com/debuglebowski/SlayZone/commit/2714bf2))
+- **processes:** Ignore stale exit events on restart ([d2e6999](https://github.com/debuglebowski/SlayZone/commit/d2e6999))
+- **browser:** Stale ref race losing non-main tab URLs ([8c97b62](https://github.com/debuglebowski/SlayZone/commit/8c97b62))
+- **terminal:** Auto-detect Codex session ID from disk ([c83aa6b](https://github.com/debuglebowski/SlayZone/commit/c83aa6b))
+
+### 💅 Refactors
+
+- **settings:** Reorder global settings tabs by usage frequency ([cac7cf4](https://github.com/debuglebowski/SlayZone/commit/cac7cf4))
+- **tasks:** Per-view-mode filter/display persistence ([053e6fa](https://github.com/debuglebowski/SlayZone/commit/053e6fa))
+- **tasks:** Remove filter pills, auto-width filter popover ([58c73d6](https://github.com/debuglebowski/SlayZone/commit/58c73d6))
+- **website:** Partials build system to eliminate HTML duplication ([06cc10f](https://github.com/debuglebowski/SlayZone/commit/06cc10f))
+
+### 📖 Documentation
+
+- Branch tab concept for git panel ([2db6631](https://github.com/debuglebowski/SlayZone/commit/2db6631))
+- **comparison:** Expand devin research and update matrix ([8a2db1d](https://github.com/debuglebowski/SlayZone/commit/8a2db1d))
+- **comparison:** Expand competitor evaluations and update website matrix ([5a53a58](https://github.com/debuglebowski/SlayZone/commit/5a53a58))
+- Overhaul website and comprehensive usage guide ([6c3b0e9](https://github.com/debuglebowski/SlayZone/commit/6c3b0e9))
+
+### 🏡 Chore
+
+- Update pnpm-lock.yaml ([25f46dc](https://github.com/debuglebowski/SlayZone/commit/25f46dc))
+- Add skills, remove stale config files ([c5a0ba3](https://github.com/debuglebowski/SlayZone/commit/c5a0ba3))
+- Pin packageManager, refresh lockfile ([b6ad7cc](https://github.com/debuglebowski/SlayZone/commit/b6ad7cc))
+- **settings:** Add tab titles and concise descriptions ([43698c7](https://github.com/debuglebowski/SlayZone/commit/43698c7))
+- **db:** Add ai-config migrations and slug migration test ([1f8aa8f](https://github.com/debuglebowski/SlayZone/commit/1f8aa8f))
+- **labels:** Remove CLI suffix from codex and gemini names ([c79e667](https://github.com/debuglebowski/SlayZone/commit/c79e667))
+- Tidy minor comments and dependency ordering ([9ad3d10](https://github.com/debuglebowski/SlayZone/commit/9ad3d10))
+- **ui:** Add diff dependency ([e6c14c8](https://github.com/debuglebowski/SlayZone/commit/e6c14c8))
+
+### ✅ Tests
+
+- **e2e:** Cover context manager sync workflows ([7e0c4ec](https://github.com/debuglebowski/SlayZone/commit/7e0c4ec))
+- **e2e:** Align project flows with single-project selection ([29d36fe](https://github.com/debuglebowski/SlayZone/commit/29d36fe))
+- **worktrees:** Replace hardcoded user paths with generic fixtures ([4c47cac](https://github.com/debuglebowski/SlayZone/commit/4c47cac))
+
+### 🎨 Styles
+
+- Polish task statuses settings visuals ([7232b35](https://github.com/debuglebowski/SlayZone/commit/7232b35))
+- Change panel focus shadow from orange to white ([63e2813](https://github.com/debuglebowski/SlayZone/commit/63e2813))
+
+### ❤️ Contributors
+
+- Debuglebowski
+
+## v0.1.69
+
+[compare changes](https://github.com/debuglebowski/SlayZone/compare/v0.1.68...v0.1.69)
 
 ### 🚀 Enhancements
 
