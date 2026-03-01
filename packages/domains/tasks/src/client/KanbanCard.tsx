@@ -2,15 +2,19 @@ import { motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 import type { TerminalState } from '@slayzone/terminal/shared'
 import { Card, CardContent, Tooltip, TooltipContent, TooltipTrigger, cn, getTerminalStateStyle } from '@slayzone/ui'
 import { useAppearance } from '@slayzone/settings/client'
 import { todayISO, PRIORITY_LABELS } from './kanban'
 import { AlertCircle, Check, GitMerge, Link2 } from 'lucide-react'
 import { usePty } from '@slayzone/terminal'
+import type { CardProperties } from './FilterState'
 
 interface KanbanCardProps {
   task: Task
+  columns?: ColumnConfig[] | null
   isDragging?: boolean
   isFocused?: boolean
   onClick?: (e: React.MouseEvent) => void
@@ -18,6 +22,7 @@ interface KanbanCardProps {
   showProject?: boolean
   isBlocked?: boolean
   subTaskCount?: { done: number; total: number }
+  cardProperties?: CardProperties
 }
 
 const PRIORITY_BAR_COLORS: Record<number, string> = {
@@ -30,17 +35,19 @@ const PRIORITY_BAR_COLORS: Record<number, string> = {
 
 export function KanbanCard({
   task,
+  columns,
   isDragging,
   isFocused,
   onClick,
   project,
   showProject,
   isBlocked,
-  subTaskCount
+  subTaskCount,
+  cardProperties: cp
 }: KanbanCardProps): React.JSX.Element {
   const { reduceMotion } = useAppearance()
   const today = todayISO()
-  const isOverdue = task.due_date && task.due_date < today && task.status !== 'done'
+  const isOverdue = task.due_date && task.due_date < today && !isTerminalStatus(task.status, columns)
   const prevStatusRef = useRef(task.status)
   const [justCompleted, setJustCompleted] = useState(false)
 
@@ -55,12 +62,12 @@ export function KanbanCard({
   }, [mainSessionId, getState, subscribeState])
 
   useEffect(() => {
-    if (prevStatusRef.current !== 'done' && task.status === 'done') {
+    if (!isTerminalStatus(prevStatusRef.current, columns) && isTerminalStatus(task.status, columns)) {
       setJustCompleted(true)
       setTimeout(() => setJustCompleted(false), 1000)
     }
     prevStatusRef.current = task.status
-  }, [task.status])
+  }, [task.status, columns])
 
   return (
     <motion.div
@@ -103,6 +110,7 @@ export function KanbanCard({
           ) : null}
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-3">
+              {(cp?.priority ?? true) && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="flex items-end gap-[1.5px] shrink-0 mt-0.5">
@@ -122,10 +130,11 @@ export function KanbanCard({
                 </TooltipTrigger>
                 <TooltipContent>{PRIORITY_LABELS[task.priority]}</TooltipContent>
               </Tooltip>
+              )}
               <p className="text-xs font-medium line-clamp-3 flex-1 leading-tight whitespace-pre-wrap break-words">{task.title}</p>
               <div className="flex items-start gap-1.5 shrink-0">
               {/* Terminal state indicator - hide when starting */}
-              {(() => {
+              {(cp?.terminal ?? true) && (() => {
                 const stateStyle = terminalState !== 'starting' ? getTerminalStateStyle(terminalState) : null
                 return stateStyle ? (
                   <Tooltip>
@@ -136,7 +145,7 @@ export function KanbanCard({
                   </Tooltip>
                 ) : null
               })()}
-              {task.merge_state && (
+              {(cp?.merge ?? true) && task.merge_state && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="shrink-0">
@@ -146,7 +155,7 @@ export function KanbanCard({
                   <TooltipContent>Merging</TooltipContent>
                 </Tooltip>
               )}
-              {task.linear_url && (
+              {(cp?.linear ?? true) && task.linear_url && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="shrink-0 h-2 w-2 rounded-full bg-indigo-500" />
@@ -154,22 +163,22 @@ export function KanbanCard({
                   <TooltipContent>Linked to Linear</TooltipContent>
                 </Tooltip>
               )}
-              {isBlocked && (
+              {(cp?.blocked ?? true) && isBlocked && (
                 <span className="flex items-center text-amber-500 shrink-0" title="Blocked">
                   <Link2 className="h-2.5 w-2.5" />
                 </span>
               )}
-              {isOverdue && (
+              {(cp?.dueDate ?? true) && isOverdue && (
                 <span className="flex items-center text-destructive shrink-0">
                   <AlertCircle className="h-2 w-2" />
                 </span>
               )}
               {/* Due date */}
-              {task.due_date && !isOverdue && (
+              {(cp?.dueDate ?? true) && task.due_date && !isOverdue && (
                 <span className="text-muted-foreground text-[9px] shrink-0">{task.due_date}</span>
               )}
               {/* Sub-task count */}
-              {subTaskCount && subTaskCount.total > 0 && (
+              {(cp?.subtasks ?? true) && subTaskCount && subTaskCount.total > 0 && (
                 <span className={cn(
                   "flex items-center gap-0.5 text-[9px] shrink-0",
                   subTaskCount.done === subTaskCount.total ? "text-green-500" : "text-muted-foreground"

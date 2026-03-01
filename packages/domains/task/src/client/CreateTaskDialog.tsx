@@ -5,11 +5,12 @@ import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Tag } from '@slayzone/tags/shared'
+import type { Project } from '@slayzone/projects/shared'
+import { getDefaultStatus } from '@slayzone/projects/shared'
 import { SuccessToast } from '@slayzone/ui'
 import {
   createTaskSchema,
   type CreateTaskFormData,
-  statusOptions,
   priorityOptions
 } from '@slayzone/task/shared'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@slayzone/ui'
@@ -35,7 +36,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@slayzone/ui'
 import { Calendar } from '@slayzone/ui'
 import { Checkbox } from '@slayzone/ui'
 import { ProjectSelect } from '@slayzone/projects'
-import { cn } from '@slayzone/ui'
+import { buildStatusOptions, cn } from '@slayzone/ui'
 
 interface CreateTaskDialogProps {
   open: boolean
@@ -64,6 +65,7 @@ export function CreateTaskDialog({
 }: CreateTaskDialogProps): React.JSX.Element {
   const [newTagName, setNewTagName] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
   const form = useForm<CreateTaskFormData>({
     resolver: zodResolver(createTaskSchema),
     defaultValues: {
@@ -91,6 +93,22 @@ export function CreateTaskDialog({
       })
     }
   }, [open, defaultProjectId, defaultStatus, defaultPriority, defaultDueDate, form])
+
+  useEffect(() => {
+    if (!open) return
+    window.api.db.getProjects().then((list) => setProjects(list))
+  }, [open])
+
+  const selectedProjectId = form.watch('projectId')
+  const selectedProject = projects.find((project) => project.id === selectedProjectId)
+  const projectStatusOptions = buildStatusOptions(selectedProject?.columns_config)
+
+  useEffect(() => {
+    const currentStatus = form.getValues('status')
+    if (!projectStatusOptions.some((option) => option.value === currentStatus)) {
+      form.setValue('status', getDefaultStatus(selectedProject?.columns_config))
+    }
+  }, [projectStatusOptions, selectedProject, form])
 
   const createTask = async (
     data: CreateTaskFormData,
@@ -218,7 +236,7 @@ export function CreateTaskDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {statusOptions.map((opt) => (
+                        {projectStatusOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>

@@ -1,4 +1,4 @@
-export type AiConfigItemType = 'skill' | 'command' | 'doc' | 'root_instructions'
+export type AiConfigItemType = 'skill' | 'doc' | 'root_instructions'
 export type AiConfigScope = 'global' | 'project'
 
 export interface AiConfigItem {
@@ -51,6 +51,7 @@ export interface SetAiConfigProjectSelectionInput {
   projectId: string
   itemId: string
   targetPath: string
+  provider?: CliProvider
 }
 
 export type ContextFileCategory = 'claude' | 'codex' | 'agents' | 'mcp' | 'custom'
@@ -82,7 +83,7 @@ export interface ContextTreeEntry {
   path: string
   relativePath: string
   exists: boolean
-  category: ContextFileCategory | 'skill' | 'command'
+  category: ContextFileCategory | 'skill'
   provider?: CliProvider
   linkedItemId: string | null
   syncStatus: ContextFileSyncStatus
@@ -99,17 +100,18 @@ export interface LoadGlobalItemInput {
 export interface ProviderPathMapping {
   rootInstructions: string | null
   skillsDir: string | null
-  commandsDir: string | null
 }
 
 export interface SyncAllInput {
   projectId: string
   projectPath: string
   providers?: CliProvider[]
+  pruneUnmanaged?: boolean
 }
 
 export interface SyncResult {
   written: { path: string; provider: CliProvider }[]
+  deleted: { path: string; provider: CliProvider; kind: 'skill' | 'instruction' | 'mcp' }[]
   conflicts: SyncConflict[]
 }
 
@@ -128,6 +130,12 @@ export interface RootInstructionsResult {
   providerStatus: Partial<Record<CliProvider, ProviderSyncStatus>>
 }
 
+export interface ProviderFileContent {
+  provider: CliProvider
+  content: string
+  exists: boolean
+}
+
 export interface ProjectSkillStatus {
   item: AiConfigItem
   providers: Partial<Record<CliProvider, { path: string; status: ProviderSyncStatus }>>
@@ -138,12 +146,12 @@ export interface GlobalFileEntry {
   path: string
   name: string
   provider: string
-  category: 'instructions' | 'skill' | 'command'
+  category: 'instructions' | 'skill'
   exists: boolean
 }
 
 // MCP server management
-export type McpProvider = 'claude' | 'cursor' | 'vscode'
+export type McpTarget = CliProvider
 
 export interface McpServerConfig {
   command: string
@@ -153,8 +161,9 @@ export interface McpServerConfig {
 }
 
 export interface McpConfigFileResult {
-  provider: McpProvider
+  provider: McpTarget
   exists: boolean
+  writable: boolean
   servers: Record<string, McpServerConfig>
 }
 
@@ -163,19 +172,19 @@ export interface ProjectMcpServer {
   name: string
   config: McpServerConfig
   curated: boolean
-  providers: McpProvider[]
+  providers: McpTarget[]
   category?: string
 }
 
 export interface WriteMcpServerInput {
   projectPath: string
-  provider: McpProvider
+  provider: McpTarget
   serverKey: string
   config: McpServerConfig
 }
 
 export interface RemoveMcpServerInput {
   projectPath: string
-  provider: McpProvider
+  provider: McpTarget
   serverKey: string
 }

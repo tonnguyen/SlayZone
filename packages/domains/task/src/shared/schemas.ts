@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { taskStatusOptions as sharedStatusOptions, TASK_STATUS_ORDER } from '@slayzone/ui'
+import { taskStatusOptions as sharedStatusOptions } from '@slayzone/ui'
 import type { TaskStatus } from './types'
 
-// Task status enum matching database
-export const taskStatusEnum = z.enum(TASK_STATUS_ORDER)
+// Status keys are project-defined at runtime.
+export const taskStatusEnum = z.string().min(1)
 
 // Priority 1-5
 export const prioritySchema = z.number().int().min(1).max(5)

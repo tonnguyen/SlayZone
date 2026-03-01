@@ -1,6 +1,10 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Plus, Minus, Undo2, ChevronRight, GitMerge, CheckCircle2, FileDiff } from 'lucide-react'
-import { Button, FileTree, buildFileTree, flattenFileTree, fileTreeIndent, cn } from '@slayzone/ui'
+import {
+  Button, FileTree, buildFileTree, flattenFileTree, fileTreeIndent, cn, buttonVariants,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@slayzone/ui'
 import type { Task, MergeState } from '@slayzone/task/shared'
 import type { GitDiffSnapshot } from '../shared/types'
 import { parseUnifiedDiff } from './parse-diff'
@@ -40,6 +44,14 @@ interface FileEntry {
   path: string
   status: 'M' | 'A' | 'D' | '?'
   source: 'unstaged' | 'staged'
+}
+
+interface ConfirmAction {
+  title: string
+  description: string
+  actionLabel: string
+  destructive?: boolean
+  onConfirm: () => Promise<void> | void
 }
 
 function deriveStatus(path: string, diffs: FileDiffType[]): 'M' | 'A' | 'D' {
@@ -196,6 +208,9 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   const [committing, setCommitting] = useState(false)
   const [stagedCollapsed, setStagedCollapsed] = useState(false)
   const [unstagedCollapsed, setUnstagedCollapsed] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const confirmActionRef = useRef<ConfirmAction | null>(null)
+  if (confirmAction) confirmActionRef.current = confirmAction
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const fileListRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLDivElement>(null)
@@ -412,10 +427,24 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
     }
   }, [targetPath])
 
-  const handleDiscardFile = useCallback(async (filePath: string) => {
+  const handleDiscardFile = useCallback(async (filePath: string, untracked?: boolean) => {
     if (!targetPath) return
     try {
-      await window.api.git.discardFile(targetPath, filePath)
+      await window.api.git.discardFile(targetPath, filePath, untracked)
+      await fetchDiff()
+    } catch {
+      // silently fail — next poll will correct state
+    }
+  }, [targetPath])
+
+  const handleStageFolderAction = useCallback(async (folderPath: string, source: 'unstaged' | 'staged') => {
+    if (!targetPath) return
+    try {
+      if (source === 'unstaged') {
+        await window.api.git.stageFile(targetPath, folderPath)
+      } else {
+        await window.api.git.unstageFile(targetPath, folderPath)
+      }
       await fetchDiff()
     } catch {
       // silently fail — next poll will correct state
@@ -485,7 +514,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
   const renderFileItem = useCallback((entry: FileEntry, { name, depth }: { name: string; depth: number }) => {
     const diff = getDiffForEntry(entry)
     const selected = isSelected(entry)
-    const canDiscard = entry.source === 'unstaged' && entry.status !== '?'
+    const canDiscard = entry.source === 'unstaged'
     return (
       <FileListItem
         entry={entry}
@@ -495,12 +524,53 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
         deletions={diff?.deletions}
         onClick={() => handleSelectFile(entry.path, entry.source)}
         onAction={() => handleStageAction(entry.path, entry.source)}
-        onDiscard={canDiscard ? () => handleDiscardFile(entry.path) : undefined}
+        onDiscard={canDiscard ? () => setConfirmAction({
+          title: 'Discard Changes',
+          description: `Discard all changes to "${entry.path}"? This cannot be undone.`,
+          actionLabel: 'Discard',
+          destructive: true,
+          onConfirm: () => handleDiscardFile(entry.path, entry.status === '?')
+        }) : undefined}
         itemRef={selected ? selectedItemRef : undefined}
         depth={depth}
       />
     )
   }, [getDiffForEntry, selectedFile, handleSelectFile, handleStageAction, handleDiscardFile])
+
+  const stagedFolderActions = useCallback((folder: { name: string; path: string }) => (
+    <span
+      className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+      onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'staged') }}
+      title="Unstage folder"
+    >
+      <Minus className="size-3.5" />
+    </span>
+  ), [handleStageFolderAction])
+
+  const unstagedFolderActions = useCallback((folder: { name: string; path: string }) => (
+    <>
+      <span
+        className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+        onClick={(e) => { e.stopPropagation(); setConfirmAction({
+          title: 'Discard Folder Changes',
+          description: `Discard all changes in "${folder.name}"? This cannot be undone.`,
+          actionLabel: 'Discard',
+          destructive: true,
+          onConfirm: () => handleDiscardFile(folder.path)
+        }) }}
+        title="Discard folder changes"
+      >
+        <Undo2 className="size-3.5" />
+      </span>
+      <span
+        className="shrink-0 opacity-0 group-hover/folder:opacity-100 hover:text-foreground text-muted-foreground transition-opacity p-0.5 rounded hover:bg-accent"
+        onClick={(e) => { e.stopPropagation(); handleStageFolderAction(folder.path, 'unstaged') }}
+        title="Stage folder"
+      >
+        <Plus className="size-3.5" />
+      </span>
+    </>
+  ), [handleStageFolderAction, handleDiscardFile])
 
   return (
     <div data-testid="git-diff-panel" className="h-full flex flex-col">
@@ -513,7 +583,13 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
           </div>
           <div className="flex items-center gap-1.5">
             {onAbortMerge && (
-              <Button variant="outline" size="sm" className="h-6 text-xs" onClick={onAbortMerge}>
+              <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setConfirmAction({
+                title: 'Abort Merge',
+                description: 'Abort the current merge? All merge progress will be lost.',
+                actionLabel: 'Abort',
+                destructive: true,
+                onConfirm: onAbortMerge
+              })}>
                 Cancel
               </Button>
             )}
@@ -575,7 +651,12 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                   </span>
                   <button
                     className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
-                    onClick={(e) => { e.stopPropagation(); handleBulkAction('unstageAll') }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmAction({
+                      title: 'Unstage All',
+                      description: `Unstage all ${stagedEntries.length} files?`,
+                      actionLabel: 'Unstage All',
+                      onConfirm: () => handleBulkAction('unstageAll')
+                    }) }}
                     title="Unstage all"
                   >
                     <Minus className="size-3.5" />
@@ -589,6 +670,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                     expandedFolders={expandedFolders}
                     onToggleFolder={toggleFolder}
                     renderFile={renderFileItem}
+                    folderActions={stagedFolderActions}
                   />
                 )}
               </div>
@@ -607,7 +689,12 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                   </span>
                   <button
                     className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
-                    onClick={(e) => { e.stopPropagation(); handleBulkAction('stageAll') }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmAction({
+                      title: 'Stage All',
+                      description: `Stage all ${unstagedEntries.length} files?`,
+                      actionLabel: 'Stage All',
+                      onConfirm: () => handleBulkAction('stageAll')
+                    }) }}
                     title="Stage all"
                   >
                     <Plus className="size-3.5" />
@@ -621,6 +708,7 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
                     expandedFolders={expandedFolders}
                     onToggleFolder={toggleFolder}
                     renderFile={renderFileItem}
+                    folderActions={unstagedFolderActions}
                   />
                 )}
               </div>
@@ -706,6 +794,25 @@ export const GitDiffPanel = forwardRef<GitDiffPanelHandle, GitDiffPanelProps>(fu
           </div>
         </div>
       )}
+
+      {/* Confirmation dialog for destructive actions */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmActionRef.current?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmActionRef.current?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={confirmActionRef.current?.destructive ? buttonVariants({ variant: 'destructive' }) : undefined}
+              onClick={() => confirmActionRef.current?.onConfirm()}
+            >
+              {confirmActionRef.current?.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 })

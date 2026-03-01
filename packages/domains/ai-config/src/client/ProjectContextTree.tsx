@@ -7,14 +7,14 @@ import { GlobalItemPicker } from './GlobalItemPicker'
 function SyncBadge({ status }: { status: ContextTreeEntry['syncStatus'] }) {
   if (status === 'synced') {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400">
+      <span className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400" title="Synced with source" aria-label="Synced with source">
         <Check className="size-3" />
       </span>
     )
   }
   if (status === 'out_of_sync') {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400" title="Out of sync with source" aria-label="Out of sync with source">
         <AlertCircle className="size-3" />
       </span>
     )
@@ -25,7 +25,11 @@ function SyncBadge({ status }: { status: ContextTreeEntry['syncStatus'] }) {
 function ProviderBadge({ provider }: { provider?: CliProvider }) {
   if (!provider) return null
   return (
-    <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
+    <span
+      className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium uppercase text-muted-foreground"
+      title={`Provider: ${provider}`}
+      aria-label={`Provider: ${provider}`}
+    >
       {provider}
     </span>
   )
@@ -227,14 +231,27 @@ export function ProjectContextTree({ projectPath, projectId }: ProjectContextTre
             style={{ paddingLeft: fileTreeIndent(depth) }}
           >
             <button className="flex min-w-0 flex-1 items-center gap-1.5" onClick={() => openFile(entry)}>
-              {entry.exists ? <File className="size-3.5 shrink-0" /> : <FilePlus className="size-3.5 shrink-0" />}
+              {entry.exists
+                ? (
+                  <span title="File exists on disk" aria-label="File exists on disk">
+                    <File className="size-3.5 shrink-0" />
+                  </span>
+                  )
+                : (
+                  <span title="File is not created on disk" aria-label="File is not created on disk">
+                    <FilePlus className="size-3.5 shrink-0" />
+                  </span>
+                  )
+              }
               <span className="min-w-0 truncate font-mono">{name}</span>
             </button>
             <div className="flex shrink-0 items-center gap-1">
               <ProviderBadge provider={entry.provider} />
               {entry.linkedItemId && (
                 <>
-                  <Link className="size-3 text-muted-foreground" />
+                  <span title="Linked to global item" aria-label="Linked to global item">
+                    <Link className="size-3 text-muted-foreground" />
+                  </span>
                   <SyncBadge status={entry.syncStatus} />
                   {entry.syncStatus === 'out_of_sync' && (
                     <button

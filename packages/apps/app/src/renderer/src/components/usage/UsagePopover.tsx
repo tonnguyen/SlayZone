@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Circle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Circle, RefreshCw } from 'lucide-react'
 import {
   cn,
   Popover,
@@ -117,7 +117,10 @@ function ProviderSection({
     return (
       <div className="space-y-1">
         <div className="text-xs font-medium">{usage.label}</div>
-        <div className="text-xs text-muted-foreground">{usage.error}</div>
+        <div className="flex items-start gap-1.5 text-xs text-yellow-500">
+          <AlertTriangle className="size-3 shrink-0 mt-0.5" />
+          <span>{usage.error}</span>
+        </div>
       </div>
     )
   }

@@ -137,6 +137,35 @@ test.describe('CLI: slay', () => {
     })
   })
 
+  // --- slay projects create ---
+
+  test.describe('slay projects create', () => {
+    test('creates project with path and color', () => {
+      const name = `CLI project ${Date.now()}`
+      const projectPath = path.join(TEST_PROJECT_PATH, `cli-project-${Date.now()}`)
+
+      const createdResult = runCli('projects', 'create', name, '--path', projectPath, '--color', '#22c55e', '--json')
+      expect(createdResult.status).toBe(0)
+      const created = JSON.parse(createdResult.stdout) as { name: string; color: string; path: string | null }
+
+      expect(created.name).toBe(name)
+      expect(created.color).toBe('#22c55e')
+      expect(created.path).toBe(projectPath)
+      expect(fs.existsSync(projectPath)).toBe(true)
+      expect(fs.statSync(projectPath).isDirectory()).toBe(true)
+
+      const listResult = runCli('projects', 'list', '--json')
+      const projects = JSON.parse(listResult.stdout) as Array<{ name: string }>
+      expect(projects.some((p) => p.name === name)).toBe(true)
+    })
+
+    test('exits non-zero for invalid color value', () => {
+      const r = runCli('projects', 'create', `Invalid color ${Date.now()}`, '--color', '#0f0')
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toContain('Expected format: #RRGGBB')
+    })
+  })
+
   // --- slay tasks update ---
 
   test.describe('slay tasks update', () => {

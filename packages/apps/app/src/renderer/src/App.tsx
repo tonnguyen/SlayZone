@@ -3,14 +3,17 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { AlertTriangle, LayoutGrid, TerminalSquare, GitBranch, FileCode, Cpu, Kanban } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import { getDefaultStatus, getDoneStatus } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 // Domains
 import {
   KanbanBoard,
+  KanbanListView,
   FilterBar,
   useTasksData,
   useFilterState,
   applyFilters,
+  getViewConfig,
   type Column
 } from '@slayzone/tasks'
 import { CreateTaskDialog, EditTaskDialog, DeleteTaskDialog, TaskDetailPage, ProcessesPanel, ResizeHandle, usePanelSizes } from '@slayzone/task'
@@ -208,7 +211,7 @@ function App(): React.JSX.Element {
     notificationState.filterCurrentProject ? selectedProjectId : null
   )
 
-  const previousProjectRef = useRef<string | null>(selectedProjectId)
+  const previousProjectRef = useRef<string>(selectedProjectId)
   const previousActiveTabRef = useRef<string>('home')
   const previousNotificationLockedRef = useRef(notificationState.isLocked)
   const previousNotificationProjectFilterRef = useRef(notificationState.filterCurrentProject)
@@ -240,6 +243,25 @@ function App(): React.JSX.Element {
     () => projects.find((p) => p.id === selectedProjectId) ?? null,
     [projects, selectedProjectId]
   )
+
+  useEffect(() => {
+    if (projects.length === 0) return
+    if (!selectedProjectId || !projects.some((project) => project.id === selectedProjectId)) {
+      setSelectedProjectId(projects[0].id)
+    }
+  }, [projects, selectedProjectId, setSelectedProjectId])
+
+  // Auto-switch project when activating a task tab
+  const activeTab = tabs[activeTabIndex]
+  const activeTaskProjectId =
+    activeTab?.type === 'task'
+      ? tasks.find((t) => t.id === activeTab.taskId)?.project_id
+      : undefined
+  useEffect(() => {
+    if (activeTaskProjectId && activeTaskProjectId !== selectedProjectId) {
+      setSelectedProjectId(activeTaskProjectId)
+    }
+  }, [activeTaskProjectId, selectedProjectId, setSelectedProjectId])
 
   // Map of taskId → project color for tab tinting
   const taskProjectColors = useMemo(() => {
@@ -504,8 +526,8 @@ function App(): React.JSX.Element {
   // Computed values
   const projectTasks = selectedProjectId
     ? tasks.filter((t) => t.project_id === selectedProjectId)
-    : tasks
-  const displayTasks = applyFilters(projectTasks, filter, taskTags)
+    : []
+  const displayTasks = applyFilters(projectTasks, filter, taskTags, selectedProject?.columns_config)
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
 
   useEffect(() => {
@@ -807,8 +829,12 @@ function App(): React.JSX.Element {
     const activeTab = tabs[activeTabIndex]
     if (activeTab.type !== 'task') return
 
-    await window.api.db.updateTask({ id: activeTab.taskId, status: 'done' })
-    updateTask({ ...tasks.find((t) => t.id === activeTab.taskId)!, status: 'done' })
+    const task = tasks.find((item) => item.id === activeTab.taskId)
+    if (!task) return
+    const project = projects.find((item) => item.id === task.project_id)
+    const doneStatus = getDoneStatus(project?.columns_config)
+    await window.api.db.updateTask({ id: activeTab.taskId, status: doneStatus })
+    updateTask({ ...task, status: doneStatus })
     closeTab(activeTabIndex)
     setCompleteTaskDialogOpen(false)
   }
@@ -823,16 +849,30 @@ function App(): React.JSX.Element {
       .filter(Boolean)
       .map((m) => parseInt(m![1], 10))
     const next = existing.length > 0 ? Math.max(...existing) + 1 : 1
+    const status = getDefaultStatus(selectedProject?.columns_config)
     const task = await window.api.db.createTask({
       projectId: selectedProjectId,
       title: `Terminal ${next}`,
-      status: 'in_progress',
+      status,
       isTemporary: true
     })
     setTasks((prev) => [task, ...prev])
     openTask(task.id)
 
-  }, [selectedProjectId, tasks, setTasks, openTask])
+  }, [selectedProjectId, selectedProject, tasks, setTasks, openTask])
+
+  // Cmd+R: reload browser webview if focused, else reload app
+  useEffect(() => {
+    return window.api.app.onReloadBrowser(() => {
+      const el = document.activeElement as HTMLElement | null
+      const webview = el?.closest('[data-browser-panel]')?.querySelector('webview') as any
+      if (webview?.reload) {
+        webview.reload()
+      } else {
+        window.location.reload()
+      }
+    })
+  }, [])
 
   useEffect(() => {
     return window.api.app.onNewTemporaryTask(() => {
@@ -858,12 +898,15 @@ function App(): React.JSX.Element {
 
   const handleCreateTaskFromColumn = (column: Column): void => {
     const defaults: typeof createTaskDefaults = {}
-    if (filter.groupBy === 'status') {
-      defaults.status = column.id as Task['status']
-    } else if (filter.groupBy === 'priority') {
+    const vc = getViewConfig(filter)
+    if (vc.groupBy === 'status') {
+      if (column.id !== '__unknown__') {
+        defaults.status = column.id as Task['status']
+      }
+    } else if (vc.groupBy === 'priority') {
       const priority = parseInt(column.id.slice(1), 10)
       if (!isNaN(priority)) defaults.priority = priority
-    } else if (filter.groupBy === 'due_date') {
+    } else if (vc.groupBy === 'due_date') {
       const today = new Date().toISOString().split('T')[0]
       if (column.id === 'today') {
         defaults.dueDate = today
@@ -887,10 +930,11 @@ function App(): React.JSX.Element {
   }
 
   const handleConvertTask = async (task: Task): Promise<Task> => {
+    const project = projects.find((item) => item.id === task.project_id)
     const converted = await window.api.db.updateTask({
       id: task.id,
       title: 'Untitled task',
-      status: 'in_progress',
+      status: getDefaultStatus(project?.columns_config),
       isTemporary: false
     })
     updateTask(converted)
@@ -913,7 +957,7 @@ function App(): React.JSX.Element {
   }
 
   const handleTaskMove = (taskId: string, newColumnId: string, targetIndex: number): void => {
-    moveTask(taskId, newColumnId, targetIndex, filter.groupBy)
+    moveTask(taskId, newColumnId, targetIndex, getViewConfig(filter).groupBy)
   }
 
   // Project handlers
@@ -988,7 +1032,7 @@ function App(): React.JSX.Element {
     }
   }
 
-  const handleSidebarSelectProject = (projectId: string | null): void => {
+  const handleSidebarSelectProject = (projectId: string): void => {
     setSelectedProjectId(projectId)
     setActiveTabIndex(0)
   }
@@ -1130,16 +1174,16 @@ function App(): React.JSX.Element {
                             <div className="flex items-center gap-4">
                               <div className="flex-shrink-0">
                                 <textarea
-                                  ref={selectedProjectId ? projectNameInputRef : undefined}
-                                  value={selectedProjectId ? projectNameValue : 'All Tasks'}
-                                  readOnly={!selectedProjectId}
-                                  tabIndex={selectedProjectId ? undefined : -1}
-                                  onChange={selectedProjectId ? (e) => setProjectNameValue(e.target.value) : undefined}
-                                  onBlur={selectedProjectId ? handleProjectNameSave : undefined}
-                                  onKeyDown={selectedProjectId ? handleProjectNameKeyDown : undefined}
+                                  ref={selectedProject ? projectNameInputRef : undefined}
+                                  value={selectedProject ? projectNameValue : 'No project selected'}
+                                  readOnly={!selectedProject}
+                                  tabIndex={selectedProject ? undefined : -1}
+                                  onChange={selectedProject ? (e) => setProjectNameValue(e.target.value) : undefined}
+                                  onBlur={selectedProject ? handleProjectNameSave : undefined}
+                                  onKeyDown={selectedProject ? handleProjectNameKeyDown : undefined}
                                   className={cn(
                                     'text-2xl font-bold bg-transparent border-none outline-none resize-none p-0',
-                                    selectedProjectId ? 'cursor-text' : 'cursor-default select-none'
+                                    selectedProject ? 'cursor-text' : 'cursor-default select-none'
                                   )}
                                   style={{ caretColor: 'currentColor', fieldSizing: 'content' } as React.CSSProperties}
                                   rows={1}
@@ -1195,19 +1239,19 @@ function App(): React.JSX.Element {
                                       />
                                     )}
                                     <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : cn('bg-background', id === 'kanban' ? 'p-3' : ''))} style={{ width: w }}>
-                                      {id === 'kanban' && (
+                                      {id === 'kanban' && filter.viewMode !== 'list' && (
                                         <KanbanBoard
                                           tasks={displayTasks}
-                                          groupBy={filter.groupBy}
-                                          sortBy={filter.sortBy}
+                                          columns={selectedProject?.columns_config}
+                                          viewConfig={getViewConfig(filter)}
                                           isActive={tabs[activeTabIndex]?.type === 'home'}
                                           onTaskMove={handleTaskMove}
                                           onTaskReorder={reorderTasks}
                                           onTaskClick={handleTaskClick}
                                           onCreateTask={handleCreateTaskFromColumn}
                                           projectsMap={projectsMap}
-                                          showProjectDot={selectedProjectId === null}
-                                          disableDrag={filter.groupBy === 'due_date'}
+                                          showProjectDot={false}
+                                          cardProperties={filter.cardProperties}
                                           taskTags={taskTags}
                                           tags={tags}
                                           blockedTaskIds={blockedTaskIds}
@@ -1218,9 +1262,28 @@ function App(): React.JSX.Element {
                                           onArchiveAllTasks={archiveTasks}
                                         />
                                       )}
+                                      {id === 'kanban' && filter.viewMode === 'list' && (
+                                        <KanbanListView
+                                          tasks={displayTasks}
+                                          columns={selectedProject?.columns_config}
+                                          viewConfig={getViewConfig(filter)}
+                                          onTaskMove={handleTaskMove}
+                                          onTaskReorder={reorderTasks}
+                                          onTaskClick={handleTaskClick}
+                                          onCreateTask={handleCreateTaskFromColumn}
+                                          projectsMap={projectsMap}
+                                          showProjectDot={false}
+                                          cardProperties={filter.cardProperties}
+                                          blockedTaskIds={blockedTaskIds}
+                                          allProjects={projects}
+                                          onUpdateTask={contextMenuUpdate}
+                                          onArchiveTask={archiveTask}
+                                          onDeleteTask={deleteTask}
+                                        />
+                                      )}
                                       {id === 'git' && <UnifiedGitPanel ref={homeGitPanelRef} projectPath={projectPath} visible={true} defaultTab={homeGitDefaultTab} />}
                                       {id === 'editor' && <FileEditorView ref={homeEditorRefCallback} projectPath={projectPath ?? ''} />}
-                                      {id === 'processes' && <ProcessesPanel taskId={null} cwd={projectPath} />}
+                                      {id === 'processes' && <ProcessesPanel taskId={null} projectId={selectedProjectId} cwd={projectPath} />}
                                     </div>
                                   </React.Fragment>
                                 )
@@ -1295,7 +1358,7 @@ function App(): React.JSX.Element {
           onOpenChange={setCreateOpen}
           onCreated={handleTaskCreated}
           onCreatedAndOpen={handleTaskCreatedAndOpen}
-          defaultProjectId={selectedProjectId ?? projects[0]?.id}
+          defaultProjectId={selectedProjectId || projects[0]?.id}
           defaultStatus={createTaskDefaults.status}
           defaultPriority={createTaskDefaults.priority}
           defaultDueDate={createTaskDefaults.dueDate}
@@ -1373,7 +1436,7 @@ function App(): React.JSX.Element {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Complete Task</AlertDialogTitle>
-              <AlertDialogDescription>Mark as done and close tab?</AlertDialogDescription>
+              <AlertDialogDescription>Mark as complete and close tab?</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>

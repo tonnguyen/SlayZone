@@ -4,8 +4,6 @@ Desktop task management app with integrated AI coding assistants (Claude Code, C
 
 ## Quick Start
 
-
-
 ```bash
 pnpm install
 ```
@@ -79,6 +77,22 @@ domain/
 | `pnpm build:mac` | Build macOS .app |
 | `pnpm typecheck` | Typecheck all packages |
 
+## Commit Messages
+
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+| Prefix | Use for |
+|--------|---------|
+| `feat:` | New features |
+| `fix:` | Bug fixes |
+| `chore:` | Deps, CI, build, config |
+| `refactor:` | Code restructuring (no behavior change) |
+| `docs:` | Documentation |
+| `test:` | Tests |
+| `release:` | Version bumps (auto-generated) |
+
+Scope optional: `feat(terminal): ...`
+
 ## Key Files
 
 | File | Purpose |
@@ -97,3 +111,9 @@ domain/
 ## Database
 
 SQLite in user data. Schema: `packages/apps/app/src/main/db/migrations.ts`
+
+## E2E Testing Rules
+
+- **TDD**: Always run tests FIRST to see them fail, then fix code. Never write tests alongside code and assume they pass.
+- **useRef + useEffect for DOM measurement**: If a component has early returns (loading/null guards) before the measured element, `useEffect([], [])` runs when the ref is still null. Use a **callback ref** instead.
+- **Hook lifecycle across tabs**: Hooks' `useEffect` only runs on mount. Tabs stay mounted with `display: none` — seeding settings and navigating doesn't re-trigger effects. Test by opening a NEW task (fresh hook mount).

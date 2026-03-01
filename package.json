@@ -21,6 +21,9 @@
     "build": "pnpm --filter @slayzone/app build",
     "build:mac": "pnpm --filter @slayzone/app build:mac",
     "build:win": "pnpm --filter @slayzone/app build:win",
+    "build:win:x64": "pnpm --filter @slayzone/app build:win:x64",
+    "build:win:arm64": "pnpm --filter @slayzone/app build:win:arm64",
+    "build:win:all": "pnpm --filter @slayzone/app build:win:all",
     "build:linux": "pnpm --filter @slayzone/app build:linux",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
@@ -33,7 +36,9 @@
     "release:patch": "pnpm --filter @slayzone/app exec npm version patch && pnpm release:tag",
     "release:minor": "pnpm --filter @slayzone/app exec npm version minor && pnpm release:tag",
     "release:major": "pnpm --filter @slayzone/app exec npm version major && pnpm release:tag",
-    "release:tag": "bash scripts/tag-release.sh"
+    "release:tag": "bash scripts/tag-release.sh",
+    "build:website": "bash website/build.sh",
+    "dev:website": "bash website/build.sh --watch"
   },
   "devDependencies": {
     "@auth/core": "^0.37.4",
@@ -53,5 +58,6 @@
     "node": ">=20",
     "pnpm": ">=9"
   },
-  "version": "0.1.30"
+  "version": "0.1.30",
+  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
 }

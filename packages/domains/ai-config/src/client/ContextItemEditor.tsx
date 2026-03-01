@@ -14,11 +14,15 @@ export function ContextItemEditor({ item, onUpdate, onDelete, onClose }: Context
   const [slug, setSlug] = useState(item.slug)
   const [content, setContent] = useState(item.content)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const save = async (patch: Omit<UpdateAiConfigItemInput, 'id'>) => {
     setSaving(true)
+    setError(null)
     try {
       await onUpdate(patch)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
@@ -29,9 +33,13 @@ export function ContextItemEditor({ item, onUpdate, onDelete, onClose }: Context
       <div className="space-y-1">
         <Label className="text-xs">Filename</Label>
         <Input
+          data-testid="context-item-editor-slug"
           className="font-mono text-sm"
           value={slug}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setSlug(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+            setSlug(e.target.value)
+            setError(null)
+          }}
           onBlur={() => save({ slug })}
         />
       </div>
@@ -39,15 +47,23 @@ export function ContextItemEditor({ item, onUpdate, onDelete, onClose }: Context
       <div className="space-y-1">
         <Label className="text-xs">Content</Label>
         <Textarea
+          data-testid="context-item-editor-content"
           className="min-h-48 font-mono text-sm"
           value={content}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+            setContent(e.target.value)
+            setError(null)
+          }}
           onBlur={() => save({ content })}
         />
       </div>
 
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
+
       <div className="flex items-center justify-between gap-2 pt-1">
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" variant="ghost" onClick={onClose} data-testid="context-item-editor-close">
           Close
         </Button>
         <div className="flex items-center gap-2">

@@ -94,19 +94,19 @@ test('default template constant', () => {
 })
 
 test('resolve {project} token (posix)', () => {
-  expect(resolveWorktreeBasePathTemplate('{project}/..', '/Users/kalle/dev/slayzone')).toBe('/Users/kalle/dev')
+  expect(resolveWorktreeBasePathTemplate('{project}/..', '/home/user/dev/myapp')).toBe('/home/user/dev')
 })
 
 test('resolve {project} token trims trailing slash', () => {
-  expect(resolveWorktreeBasePathTemplate('{project}/..', '/Users/kalle/dev/slayzone/')).toBe('/Users/kalle/dev')
+  expect(resolveWorktreeBasePathTemplate('{project}/..', '/home/user/dev/myapp/')).toBe('/home/user/dev')
 })
 
 test('resolve {project} token (windows)', () => {
-  expect(resolveWorktreeBasePathTemplate('{project}\\..', 'C:\\Users\\kalle\\dev\\slayzone')).toBe('C:\\Users\\kalle\\dev')
+  expect(resolveWorktreeBasePathTemplate('{project}\\..', 'C:\\Users\\user\\dev\\myapp')).toBe('C:\\Users\\user\\dev')
 })
 
 test('template without token is returned unchanged', () => {
-  expect(resolveWorktreeBasePathTemplate('/tmp/worktrees', '/Users/kalle/dev/slayzone')).toBe('/tmp/worktrees')
+  expect(resolveWorktreeBasePathTemplate('/tmp/worktrees', '/home/user/dev/myapp')).toBe('/tmp/worktrees')
 })
 
 test('normalizes explicit dot segments', () => {

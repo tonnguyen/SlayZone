@@ -30,8 +30,8 @@ import type { Project } from '@slayzone/projects/shared'
 interface AppSidebarProps {
   projects: Project[]
   tasks: Task[]
-  selectedProjectId: string | null
-  onSelectProject: (id: string | null) => void
+  selectedProjectId: string
+  onSelectProject: (id: string) => void
   onAddProject: () => void
   onProjectSettings: (project: Project) => void
   onProjectDelete: (project: Project) => void
@@ -104,30 +104,13 @@ export function AppSidebar({
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   return (
-    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-16 min-h-svh"}>
+    <Sidebar collapsible="none" className={zenMode ? "!w-0 min-h-svh overflow-hidden" : "w-18 min-h-svh"}>
       {/* Draggable region for window movement - clears traffic lights */}
       <div className="h-10 window-drag-region" />
       <SidebarContent className="py-4 pt-0">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="flex flex-col items-center gap-2">
-              {/* All projects button */}
-              <SidebarMenuItem>
-                <button
-                  onClick={() => onSelectProject(null)}
-                  className={cn(
-                    'w-10 h-10 rounded-lg flex items-center justify-center',
-                    'text-xs font-semibold bg-muted transition-all',
-                    'hover:scale-105',
-                    selectedProjectId === null &&
-                      'ring-2 ring-primary ring-offset-2 ring-offset-background'
-                  )}
-                  title="All projects"
-                >
-                  All
-                </button>
-              </SidebarMenuItem>
-
               {/* Project blobs */}
               {projects.map((project) => (
                 <SidebarMenuItem key={project.id}>

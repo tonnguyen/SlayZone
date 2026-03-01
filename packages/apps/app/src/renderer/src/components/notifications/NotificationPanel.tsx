@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { Button, cn, Tooltip, TooltipTrigger, TooltipContent } from '@slayzone/ui'
 import type { AttentionTask } from './useAttentionTasks'
 import type { Project } from '@slayzone/projects/shared'
+import { groupAttentionTasksByStatus } from './grouping'
 
 interface NotificationPanelProps {
   attentionTasks: AttentionTask[]
@@ -11,7 +12,7 @@ interface NotificationPanelProps {
   onFilterToggle: () => void
   onNavigate: (taskId: string) => void
   onCloseTerminal: (sessionId: string) => void
-  selectedProjectId: string | null
+  selectedProjectId: string
   currentProjectName?: string
 }
 
@@ -22,16 +23,6 @@ function formatIdleTime(lastOutputTime: number): string {
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
   return `${hours}h`
-}
-
-const STATUS_ORDER = ['in_progress', 'todo', 'backlog', 'inbox', 'review', 'done'] as const
-const STATUS_LABELS: Record<string, string> = {
-  inbox: 'Inbox',
-  backlog: 'Backlog',
-  todo: 'Todo',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done'
 }
 
 export function NotificationPanel({
@@ -50,20 +41,10 @@ export function NotificationPanel({
   }
 
   // Group tasks by status
-  const groupedTasks = useMemo(() => {
-    const groups = new Map<string, AttentionTask[]>()
-    for (const item of attentionTasks) {
-      const status = item.task.status
-      if (!groups.has(status)) groups.set(status, [])
-      groups.get(status)!.push(item)
-    }
-    // Sort by STATUS_ORDER
-    return STATUS_ORDER.filter((s) => groups.has(s)).map((status) => ({
-      status,
-      label: STATUS_LABELS[status] || status,
-      tasks: groups.get(status)!
-    }))
-  }, [attentionTasks])
+  const groupedTasks = useMemo(
+    () => groupAttentionTasksByStatus(attentionTasks, projects, filterCurrentProject, selectedProjectId),
+    [attentionTasks, projects, selectedProjectId, filterCurrentProject]
+  )
 
   return (
     <div className="flex flex-col h-full">

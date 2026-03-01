@@ -16,6 +16,55 @@ export interface ChangelogEntry {
 // Newest first. Only user-facing versions with meaningful changes.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '0.2.0',
+    date: '2026-03-01',
+    tagline: 'Your workflow, your rules',
+    items: [
+      {
+        category: 'feature',
+        title: 'Custom task status workflows',
+        description:
+          'Define your own statuses per project — name them, group them, reorder them. Kanban columns follow your workflow.',
+      },
+      {
+        category: 'feature',
+        title: 'Git diff folder actions',
+        description:
+          'Stage, unstage, and discard entire folders at once. Confirmation modals protect against accidental discards.',
+      },
+      {
+        category: 'feature',
+        title: 'Per-provider skill sync',
+        description:
+          'SKILL.md files sync independently per AI provider — Claude, Codex, Gemini each get their own context.',
+      },
+      {
+        category: 'feature',
+        title: 'Context manager',
+        description:
+          'Browse, diff, and manually sync project context files across providers from a dedicated panel.',
+      },
+      {
+        category: 'improvement',
+        title: 'Per-project processes',
+        description:
+          'Background processes are now scoped to the active project instead of global.',
+      },
+      {
+        category: 'improvement',
+        title: 'Auto-switch project',
+        description:
+          'Clicking a task tab automatically switches to its project — no more manual selection.',
+      },
+      {
+        category: 'fix',
+        title: 'Browser tab stability',
+        description:
+          'Fixed a race condition that could lose non-main tab URLs when switching quickly.',
+      },
+    ],
+  },
+  {
     version: '0.1.69',
     date: '2026-02-26',
     tagline: 'Search everything',

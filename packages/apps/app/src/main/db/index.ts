@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 import { runMigrations } from './migrations'
+import { normalizeProjectStatusData } from './status-normalization'
 
 const LEGACY_APP_NAME = 'omgslayzone'
 const LEGACY_DB_NAMES = ['omgslayzone.sqlite', 'omgslayzone.dev.sqlite'] as const
@@ -106,11 +107,11 @@ export function getDatabase(): Database.Database {
   if (!db) {
     migrateLegacyDatabaseIfNeeded()
     const dbPath = getDatabasePath()
-    console.log('Database path:', dbPath)
     db = new Database(dbPath)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
     runMigrations(db)
+    normalizeProjectStatusData(db)
   }
   return db
 }
@@ -121,4 +122,3 @@ export function closeDatabase(): void {
     db = null
   }
 }
-

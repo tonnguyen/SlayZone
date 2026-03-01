@@ -1,5 +1,7 @@
 export { KanbanBoard } from './KanbanBoard'
-export { FilterBar } from './FilterBar'
+export { KanbanListView } from './KanbanListView'
+export { FilterBarB as FilterBar } from './FilterBarB'
 export { useTasksData } from './useTasksData'
 export { useFilterState } from './useFilterState'
 export { applyFilters, type Column, type GroupKey } from './kanban'
+export { getViewConfig, type ViewConfig } from './FilterState'

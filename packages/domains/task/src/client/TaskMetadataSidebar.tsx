@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { CalendarIcon, ChevronRight, EllipsisIcon, ExternalLinkIcon, RefreshCwIcon, UnlinkIcon, X } from 'lucide-react'
-import type { Task, TaskStatus } from '@slayzone/task/shared'
-import { statusOptions, priorityOptions } from '@slayzone/task/shared'
+import type { Task } from '@slayzone/task/shared'
+import { priorityOptions } from '@slayzone/task/shared'
+import type { Project } from '@slayzone/projects/shared'
+import { isTerminalStatus } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { ExternalLink } from '@slayzone/integrations/shared'
 import {
@@ -16,7 +18,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@slayzone/ui'
 import { Calendar } from '@slayzone/ui'
 import { Button } from '@slayzone/ui'
 import { Checkbox } from '@slayzone/ui'
-import { cn, Collapsible, CollapsibleTrigger, CollapsibleContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@slayzone/ui'
+import {
+  buildStatusOptions,
+  cn,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@slayzone/ui'
 import { ProjectSelect } from '@slayzone/projects'
 
 interface TaskMetadataSidebarProps {
@@ -36,16 +48,19 @@ export function TaskMetadataSidebar({
 }: TaskMetadataSidebarProps): React.JSX.Element {
   const [allTasks, setAllTasks] = useState<Task[]>([])
   const [blockers, setBlockers] = useState<Task[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
 
   // Load all tasks and current blockers
   useEffect(() => {
     const loadData = async () => {
-      const [tasks, currentBlockers] = await Promise.all([
+      const [tasks, currentBlockers, allProjects] = await Promise.all([
         window.api.db.getTasks(),
-        window.api.taskDependencies.getBlockers(task.id)
+        window.api.taskDependencies.getBlockers(task.id),
+        window.api.db.getProjects()
       ])
       setAllTasks(tasks.filter((t) => t.id !== task.id))
       setBlockers(currentBlockers)
+      setProjects(allProjects)
     }
     loadData()
   }, [task.id])
@@ -63,10 +78,14 @@ export function TaskMetadataSidebar({
     setBlockers(blockers.filter((b) => b.id !== blockerTaskId))
   }
 
-  const availableBlockers = allTasks.filter(
-    (t) => !blockers.some((b) => b.id === t.id) && t.status !== 'done'
-  )
-  const handleStatusChange = async (status: TaskStatus): Promise<void> => {
+  const columnsByProject = new Map(projects.map((project) => [project.id, project.columns_config]))
+  const availableBlockers = allTasks.filter((t) => (
+    !blockers.some((b) => b.id === t.id) && !isTerminalStatus(t.status, columnsByProject.get(t.project_id))
+  ))
+  const selectedProject = projects.find((project) => project.id === task.project_id)
+  const statusOptions = buildStatusOptions(selectedProject?.columns_config)
+
+  const handleStatusChange = async (status: string): Promise<void> => {
     const updated = await window.api.db.updateTask({ id: task.id, status })
     onUpdate(updated)
   }

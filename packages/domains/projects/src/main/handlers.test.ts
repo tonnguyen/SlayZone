@@ -4,6 +4,7 @@
  */
 import { createTestHarness, test, expect, describe } from '../../../../shared/test-utils/ipc-harness.js'
 import { registerProjectHandlers } from './handlers.js'
+import type { ColumnConfig } from '../shared/types.js'
 
 const h = await createTestHarness()
 registerProjectHandlers(h.ipcMain as never, h.db)
@@ -18,8 +19,26 @@ describe('db:projects:create', () => {
   })
 
   test('creates with path', () => {
-    const p = h.invoke('db:projects:create', { name: 'Beta', color: '#00f', path: '/tmp/beta' }) as { path: string }
+    const p = h.invoke('db:projects:create', { name: 'Beta', color: '#0000ff', path: '/tmp/beta' }) as { path: string }
     expect(p.path).toBe('/tmp/beta')
+  })
+
+  test('creates with custom columns config', () => {
+    const columns: ColumnConfig[] = [
+      { id: 'queue', label: 'Queue', color: 'gray', position: 2, category: 'unstarted' },
+      { id: 'doing', label: 'Doing', color: 'blue', position: 3, category: 'started' },
+      { id: 'closed', label: 'Closed', color: 'green', position: 9, category: 'completed' },
+    ]
+    const p = h.invoke('db:projects:create', {
+      name: 'Columns Project',
+      color: '#aabbcc',
+      columnsConfig: columns
+    }) as { columns_config: ColumnConfig[] | null }
+    expect(p.columns_config).toEqual([
+      { id: 'queue', label: 'Queue', color: 'gray', position: 0, category: 'unstarted' },
+      { id: 'doing', label: 'Doing', color: 'blue', position: 1, category: 'started' },
+      { id: 'closed', label: 'Closed', color: 'green', position: 2, category: 'completed' },
+    ])
   })
 })
 
@@ -62,11 +81,122 @@ describe('db:projects:update', () => {
     const p = h.invoke('db:projects:update', { id: gamma.id }) as { name: string }
     expect(p.name).toBe('Gamma')
   })
+
+  test('updates columns config', () => {
+    const all = h.invoke('db:projects:getAll') as { id: string; name: string }[]
+    const project = all.find((p) => p.name === 'Columns Project')!
+    const taskId = crypto.randomUUID()
+    h.db.prepare(`
+      INSERT INTO tasks (id, project_id, title, status, priority, "order")
+      VALUES (?, ?, 'Needs remap', 'doing', 3, 0)
+    `).run(taskId, project.id)
+
+    const p = h.invoke('db:projects:update', {
+      id: project.id,
+      columnsConfig: [
+        { id: 'todo', label: 'Todo', color: 'blue', position: 0, category: 'unstarted' },
+        { id: 'done', label: 'Done', color: 'green', position: 1, category: 'completed' },
+      ]
+    }) as { columns_config: ColumnConfig[] | null }
+    expect(p.columns_config).toEqual([
+      { id: 'todo', label: 'Todo', color: 'blue', position: 0, category: 'unstarted' },
+      { id: 'done', label: 'Done', color: 'green', position: 1, category: 'completed' },
+    ])
+
+    const remapped = h.db
+      .prepare('SELECT status FROM tasks WHERE id = ?')
+      .get(taskId) as { status: string }
+    expect(remapped.status).toBe('todo')
+  })
+
+  test('clears columns config when set to null', () => {
+    const all = h.invoke('db:projects:getAll') as { id: string; name: string }[]
+    const project = all.find((p) => p.name === 'Columns Project')!
+    const taskId = crypto.randomUUID()
+    h.db.prepare(`
+      INSERT INTO tasks (id, project_id, title, status, priority, "order")
+      VALUES (?, ?, 'Custom status task', 'custom_status', 3, 0)
+    `).run(taskId, project.id)
+
+    const p = h.invoke('db:projects:update', { id: project.id, columnsConfig: null }) as {
+      columns_config: ColumnConfig[] | null
+    }
+    expect(p.columns_config).toBeNull()
+
+    const remapped = h.db
+      .prepare('SELECT status FROM tasks WHERE id = ?')
+      .get(taskId) as { status: string }
+    expect(remapped.status).toBe('inbox')
+  })
+
+  test('reconciles linear state mappings when columns config changes', () => {
+    h.db.exec(`
+      CREATE TABLE IF NOT EXISTS integration_project_mappings (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        connection_id TEXT NOT NULL,
+        external_team_id TEXT NOT NULL,
+        external_team_key TEXT NOT NULL,
+        external_project_id TEXT DEFAULT NULL,
+        sync_mode TEXT NOT NULL DEFAULT 'one_way',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS integration_state_mappings (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        project_mapping_id TEXT NOT NULL,
+        local_status TEXT NOT NULL,
+        state_id TEXT NOT NULL,
+        state_type TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(provider, project_mapping_id, local_status)
+      );
+    `)
+
+    const all = h.invoke('db:projects:getAll') as { id: string; name: string }[]
+    const project = all.find((p) => p.name === 'Columns Project')!
+    const mappingId = crypto.randomUUID()
+    h.db.prepare(`
+      INSERT OR REPLACE INTO integration_project_mappings (
+        id, project_id, provider, connection_id, external_team_id, external_team_key, external_project_id, sync_mode
+      ) VALUES (?, ?, 'linear', 'conn-1', 'team-1', 'ENG', NULL, 'two_way')
+    `).run(mappingId, project.id)
+    h.db.prepare(`
+      INSERT OR REPLACE INTO integration_state_mappings (
+        id, provider, project_mapping_id, local_status, state_id, state_type
+      ) VALUES
+        (?, 'linear', ?, 'todo_old', 'st-unstarted', 'unstarted'),
+        (?, 'linear', ?, 'done_old', 'st-completed', 'completed')
+    `).run(crypto.randomUUID(), mappingId, crypto.randomUUID(), mappingId)
+
+    h.invoke('db:projects:update', {
+      id: project.id,
+      columnsConfig: [
+        { id: 'queued', label: 'Queued', color: 'gray', position: 0, category: 'unstarted' },
+        { id: 'shipped', label: 'Shipped', color: 'green', position: 1, category: 'completed' },
+      ]
+    })
+
+    const rows = h.db.prepare(`
+      SELECT local_status, state_id, state_type
+      FROM integration_state_mappings
+      WHERE provider = 'linear' AND project_mapping_id = ?
+      ORDER BY local_status
+    `).all(mappingId) as Array<{ local_status: string; state_id: string; state_type: string }>
+
+    expect(rows).toEqual([
+      { local_status: 'queued', state_id: 'st-unstarted', state_type: 'unstarted' },
+      { local_status: 'shipped', state_id: 'st-completed', state_type: 'completed' },
+    ])
+  })
 })
 
 describe('db:projects:delete', () => {
   test('deletes existing', () => {
-    const p = h.invoke('db:projects:create', { name: 'Temp', color: '#000' }) as { id: string }
+    const p = h.invoke('db:projects:create', { name: 'Temp', color: '#000000' }) as { id: string }
     expect(h.invoke('db:projects:delete', p.id)).toBe(true)
   })
 

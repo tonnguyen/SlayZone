@@ -102,6 +102,7 @@ const api: ElectronAPI = {
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    isContextManagerEnabled: () => ipcRenderer.invoke('app:is-context-manager-enabled'),
     onGoHome: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on('app:go-home', handler)
@@ -146,6 +147,11 @@ const api: ElectronAPI = {
       const handler = () => callback()
       ipcRenderer.on('app:close-current-focus', handler)
       return () => ipcRenderer.removeListener('app:close-current-focus', handler)
+    },
+    onReloadBrowser: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('app:reload-browser', handler)
+      return () => ipcRenderer.removeListener('app:reload-browser', handler)
     },
     onCloseActiveTask: (callback: () => void) => {
       const handler = () => callback()
@@ -265,7 +271,7 @@ const api: ElectronAPI = {
     getWorkingDiff: (path) => ipcRenderer.invoke('git:getWorkingDiff', path),
     stageFile: (path, filePath) => ipcRenderer.invoke('git:stageFile', path, filePath),
     unstageFile: (path, filePath) => ipcRenderer.invoke('git:unstageFile', path, filePath),
-    discardFile: (path, filePath) => ipcRenderer.invoke('git:discardFile', path, filePath),
+    discardFile: (path, filePath, untracked?) => ipcRenderer.invoke('git:discardFile', path, filePath, untracked),
     stageAll: (path) => ipcRenderer.invoke('git:stageAll', path),
     unstageAll: (path) => ipcRenderer.invoke('git:unstageAll', path),
     getUntrackedFileDiff: (repoPath, filePath) => ipcRenderer.invoke('git:getUntrackedFileDiff', repoPath, filePath),
@@ -308,8 +314,8 @@ const api: ElectronAPI = {
     deleteItem: (id) => ipcRenderer.invoke('ai-config:delete-item', id),
     listProjectSelections: (projectId) => ipcRenderer.invoke('ai-config:list-project-selections', projectId),
     setProjectSelection: (input) => ipcRenderer.invoke('ai-config:set-project-selection', input),
-    removeProjectSelection: (projectId, itemId) =>
-      ipcRenderer.invoke('ai-config:remove-project-selection', projectId, itemId),
+    removeProjectSelection: (projectId, itemId, provider?) =>
+      ipcRenderer.invoke('ai-config:remove-project-selection', projectId, itemId, provider),
     discoverContextFiles: (projectPath) => ipcRenderer.invoke('ai-config:discover-context-files', projectPath),
     readContextFile: (filePath, projectPath) => ipcRenderer.invoke('ai-config:read-context-file', filePath, projectPath),
     writeContextFile: (filePath, content, projectPath) =>
@@ -317,13 +323,17 @@ const api: ElectronAPI = {
     getContextTree: (projectPath, projectId) =>
       ipcRenderer.invoke('ai-config:get-context-tree', projectPath, projectId),
     loadGlobalItem: (input) => ipcRenderer.invoke('ai-config:load-global-item', input),
-    syncLinkedFile: (projectId, projectPath, itemId) =>
-      ipcRenderer.invoke('ai-config:sync-linked-file', projectId, projectPath, itemId),
+    syncLinkedFile: (projectId, projectPath, itemId, provider?) =>
+      ipcRenderer.invoke('ai-config:sync-linked-file', projectId, projectPath, itemId, provider),
     unlinkFile: (projectId, itemId) => ipcRenderer.invoke('ai-config:unlink-file', projectId, itemId),
     renameContextFile: (oldPath, newPath, projectPath) =>
       ipcRenderer.invoke('ai-config:rename-context-file', oldPath, newPath, projectPath),
     deleteContextFile: (filePath, projectPath, projectId) =>
       ipcRenderer.invoke('ai-config:delete-context-file', filePath, projectPath, projectId),
+    deleteGlobalFile: (filePath) =>
+      ipcRenderer.invoke('ai-config:delete-global-file', filePath),
+    createGlobalFile: (provider, category, slug) =>
+      ipcRenderer.invoke('ai-config:create-global-file', provider, category, slug),
     discoverMcpConfigs: (projectPath) =>
       ipcRenderer.invoke('ai-config:discover-mcp-configs', projectPath),
     writeMcpServer: (input) =>
@@ -350,10 +360,24 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('ai-config:save-global-instructions', content),
     getRootInstructions: (projectId, projectPath) =>
       ipcRenderer.invoke('ai-config:get-root-instructions', projectId, projectPath),
+    saveInstructionsContent: (projectId, projectPath, content) =>
+      ipcRenderer.invoke('ai-config:save-instructions-content', projectId, projectPath, content),
     saveRootInstructions: (projectId, projectPath, content) =>
       ipcRenderer.invoke('ai-config:save-root-instructions', projectId, projectPath, content),
+    readProviderInstructions: (projectPath, provider) =>
+      ipcRenderer.invoke('ai-config:read-provider-instructions', projectPath, provider),
+    pushProviderInstructions: (projectId, projectPath, provider, content) =>
+      ipcRenderer.invoke('ai-config:push-provider-instructions', projectId, projectPath, provider, content),
+    pullProviderInstructions: (projectId, projectPath, provider) =>
+      ipcRenderer.invoke('ai-config:pull-provider-instructions', projectId, projectPath, provider),
     getProjectSkillsStatus: (projectId, projectPath) =>
       ipcRenderer.invoke('ai-config:get-project-skills-status', projectId, projectPath),
+    readProviderSkill: (projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:read-provider-skill', projectPath, provider, itemId),
+    getExpectedSkillContent: (projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:get-expected-skill-content', projectPath, provider, itemId),
+    pullProviderSkill: (projectId, projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:pull-provider-skill', projectId, projectPath, provider, itemId),
     getGlobalFiles: () => ipcRenderer.invoke('ai-config:get-global-files')
   },
   fs: {
@@ -413,6 +437,10 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('webview:enable-device-emulation', webviewId, params),
     disableDeviceEmulation: (webviewId) =>
       ipcRenderer.invoke('webview:disable-device-emulation', webviewId),
+    registerBrowserPanel: (taskId, webContentsId) =>
+      ipcRenderer.invoke('webview:register-browser-panel', taskId, webContentsId),
+    unregisterBrowserPanel: (taskId) =>
+      ipcRenderer.invoke('webview:unregister-browser-panel', taskId),
   },
   exportImport: {
     exportAll: () => ipcRenderer.invoke('export-import:export-all'),
@@ -420,14 +448,14 @@ const api: ElectronAPI = {
     import: () => ipcRenderer.invoke('export-import:import')
   },
   processes: {
-    create: (taskId, label, command, cwd, autoRestart) =>
-      ipcRenderer.invoke('processes:create', taskId, label, command, cwd, autoRestart),
-    spawn: (taskId, label, command, cwd, autoRestart) =>
-      ipcRenderer.invoke('processes:spawn', taskId, label, command, cwd, autoRestart),
+    create: (projectId, taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:create', projectId, taskId, label, command, cwd, autoRestart),
+    spawn: (projectId, taskId, label, command, cwd, autoRestart) =>
+      ipcRenderer.invoke('processes:spawn', projectId, taskId, label, command, cwd, autoRestart),
     update: (processId, updates) => ipcRenderer.invoke('processes:update', processId, updates),
     kill: (processId) => ipcRenderer.invoke('processes:kill', processId),
     restart: (processId) => ipcRenderer.invoke('processes:restart', processId),
-    listForTask: (taskId) => ipcRenderer.invoke('processes:listForTask', taskId),
+    listForTask: (taskId, projectId) => ipcRenderer.invoke('processes:listForTask', taskId, projectId),
     listAll: () => ipcRenderer.invoke('processes:listAll'),
     killTask: (taskId) => ipcRenderer.invoke('processes:killTask', taskId),
     onLog: (cb) => {

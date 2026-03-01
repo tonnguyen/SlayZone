@@ -2,9 +2,10 @@ import type { TerminalMode } from '@slayzone/terminal/shared'
 import type { BrowserTabsState } from '@slayzone/task-browser/shared'
 import type { EditorOpenFilesState } from '@slayzone/file-editor/shared'
 
-// keep in sync with TASK_STATUS_ORDER in @slayzone/ui
-export const TASK_STATUSES = ['inbox', 'backlog', 'todo', 'in_progress', 'review', 'done'] as const
-export type TaskStatus = (typeof TASK_STATUSES)[number]
+// Built-in starter statuses used as defaults for new projects.
+export const BUILTIN_STATUSES = ['inbox', 'backlog', 'todo', 'in_progress', 'review', 'done', 'canceled'] as const
+export const TASK_STATUSES = BUILTIN_STATUSES
+export type TaskStatus = string
 export type MergeState = 'uncommitted' | 'conflicts' | 'rebase-conflicts'
 
 export interface MergeContext {
@@ -208,7 +209,7 @@ export interface UpdateTaskInput {
   title?: string
   description?: string | null
   assignee?: string | null
-  status?: TaskStatus
+  status?: string
   priority?: number
   dueDate?: string | null
   projectId?: string

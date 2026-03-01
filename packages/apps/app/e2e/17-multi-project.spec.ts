@@ -1,4 +1,4 @@
-import { test, expect, seed, goHome, clickProject, clickAll } from './fixtures/electron'
+import { test, expect, seed, goHome, clickProject, projectBlob } from './fixtures/electron'
 import { TEST_PROJECT_PATH } from './fixtures/electron'
 
 test.describe('Multi-project & persistence', () => {
@@ -22,7 +22,7 @@ test.describe('Multi-project & persistence', () => {
     }
     await s.refreshData()
     await goHome(mainWindow)
-    await expect(mainWindow.getByText('Alpha Project').first()).toBeVisible({ timeout: 5_000 })
+    await expect(projectBlob(mainWindow, 'AL')).toBeVisible({ timeout: 5_000 })
   })
 
   test('switching projects shows correct tasks', async ({ mainWindow }) => {
@@ -37,13 +37,6 @@ test.describe('Multi-project & persistence', () => {
 
     await expect(mainWindow.getByText('Beta task one')).toBeVisible({ timeout: 5_000 })
     await expect(mainWindow.getByText('Alpha task one')).not.toBeVisible()
-  })
-
-  test('All view shows tasks from both projects', async ({ mainWindow }) => {
-    await clickAll(mainWindow)
-
-    await expect(mainWindow.getByText('Alpha task one')).toBeAttached({ timeout: 5_000 })
-    await expect(mainWindow.getByText('Beta task one')).toBeAttached()
   })
 
   test('search finds tasks across projects', async ({ mainWindow }) => {

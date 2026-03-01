@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "bundler",
+    "paths": {
+      "*": ["./*"],
+      "@slayzone/projects/shared": ["../../domains/projects/src/shared/index.ts"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

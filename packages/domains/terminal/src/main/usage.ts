@@ -9,6 +9,38 @@ import { fetchGlmUsage } from './adapters/glm-usage'
 
 const TIMEOUT_MS = 10_000
 
+// ── Provider metadata ────────────────────────────────────────────────
+
+interface ProviderMeta { id: string; label: string; cli: string; vendor: string }
+const CLAUDE: ProviderMeta = { id: 'claude', label: 'Claude', cli: 'claude', vendor: 'Anthropic' }
+const CODEX: ProviderMeta = { id: 'codex', label: 'Codex', cli: 'codex', vendor: 'OpenAI' }
+
+// ── Error helpers ────────────────────────────────────────────────────
+
+function usageError(p: ProviderMeta, error: string): ProviderUsage {
+  return { provider: p.id, label: p.label, fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null, error, fetchedAt: Date.now() }
+}
+
+function httpError(status: number, p: ProviderMeta): string {
+  if (status === 401) return `Token expired — re-authenticate with \`${p.cli}\``
+  if (status === 403) return `Access denied — check your ${p.label} plan`
+  if (status === 429) return 'Too many requests — try again later'
+  if (status >= 500) return `${p.vendor} API error (${status})`
+  return `HTTP ${status}`
+}
+
+function friendlyError(e: unknown): string {
+  if (!(e instanceof Error)) return 'Unknown error'
+  const msg = e.message
+  if (msg.includes('ENOTFOUND') || msg.includes('ECONNREFUSED') || msg.includes('ERR_NETWORK'))
+    return 'Network error — check your connection'
+  if (msg.includes('ETIMEDOUT') || msg.includes('UND_ERR_CONNECT_TIMEOUT'))
+    return 'Request timed out'
+  if (msg.includes('CERT') || msg.includes('SSL'))
+    return 'SSL error — VPN or proxy may be interfering'
+  return msg
+}
+
 // ── Claude (Anthropic OAuth API) ─────────────────────────────────────
 
 function getKeychainToken(): Promise<string | null> {
@@ -42,11 +74,8 @@ function mapWindow(w: { utilization: number; resets_at: string } | null): UsageW
 }
 
 async function fetchClaudeUsage(): Promise<ProviderUsage> {
-  const now = Date.now()
   const token = await getKeychainToken()
-  if (!token) {
-    return { provider: 'claude', label: 'Claude', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null, error: 'No OAuth token', fetchedAt: now }
-  }
+  if (!token) return usageError(CLAUDE, `Not logged in — run \`${CLAUDE.cli}\` to authenticate`)
 
   const res = await fetch('https://api.anthropic.com/api/oauth/usage', {
     headers: {
@@ -56,20 +85,18 @@ async function fetchClaudeUsage(): Promise<ProviderUsage> {
     }
   })
 
-  if (!res.ok) {
-    return { provider: 'claude', label: 'Claude', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null, error: `HTTP ${res.status}`, fetchedAt: now }
-  }
+  if (!res.ok) return usageError(CLAUDE, httpError(res.status, CLAUDE))
 
   const data = await res.json()
   return {
-    provider: 'claude',
-    label: 'Claude',
+    provider: CLAUDE.id,
+    label: CLAUDE.label,
     fiveHour: mapWindow(data.five_hour),
     sevenDay: mapWindow(data.seven_day),
     sevenDayOpus: mapWindow(data.seven_day_opus),
     sevenDaySonnet: mapWindow(data.seven_day_sonnet),
     error: null,
-    fetchedAt: now
+    fetchedAt: Date.now()
   }
 }
 
@@ -98,11 +125,8 @@ function mapCodexWindow(w: { used_percent: number; reset_at: number } | null): U
 }
 
 async function fetchCodexUsage(): Promise<ProviderUsage> {
-  const now = Date.now()
   const auth = await getCodexAuth()
-  if (!auth) {
-    return { provider: 'codex', label: 'Codex', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null, error: 'No auth token', fetchedAt: now }
-  }
+  if (!auth) return usageError(CODEX, `Not logged in — run \`${CODEX.cli}\` to authenticate`)
 
   // Electron's net module uses Chromium's HTTP stack (HTTP/2) which bypasses Cloudflare JA3 fingerprint checks
   const res = await net.fetch('https://chatgpt.com/backend-api/wham/usage', {
@@ -114,21 +138,19 @@ async function fetchCodexUsage(): Promise<ProviderUsage> {
     }
   })
 
-  if (!res.ok) {
-    return { provider: 'codex', label: 'Codex', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null, error: `HTTP ${res.status}`, fetchedAt: now }
-  }
+  if (!res.ok) return usageError(CODEX, httpError(res.status, CODEX))
 
   const data = await res.json()
   const rl = data.rate_limit
   return {
-    provider: 'codex',
-    label: 'Codex',
+    provider: CODEX.id,
+    label: CODEX.label,
     fiveHour: mapCodexWindow(rl?.primary_window),
     sevenDay: mapCodexWindow(rl?.secondary_window),
     sevenDayOpus: null,
     sevenDaySonnet: null,
     error: null,
-    fetchedAt: now
+    fetchedAt: Date.now()
   }
 }
 
@@ -137,18 +159,12 @@ async function fetchCodexUsage(): Promise<ProviderUsage> {
 export function registerUsageHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('usage:fetch', async (): Promise<ProviderUsage[]> => {
     const fetchers = [
-      fetchClaudeUsage().catch((e): ProviderUsage => ({
-        provider: 'claude', label: 'Claude', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null,
-        error: e instanceof Error ? e.message : 'Unknown error', fetchedAt: Date.now()
-      })),
-      fetchCodexUsage().catch((e): ProviderUsage => ({
-        provider: 'codex', label: 'Codex', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null,
-        error: e instanceof Error ? e.message : 'Unknown error', fetchedAt: Date.now()
-      })),
-      fetchGlmUsage().catch((e): ProviderUsage => ({
-        provider: 'glm', label: 'GLM (Z.AI)', fiveHour: null, sevenDay: null, sevenDayOpus: null, sevenDaySonnet: null,
-        error: e instanceof Error ? e.message : 'Unknown error', fetchedAt: Date.now()
-      }))
+      fetchClaudeUsage().catch((e): ProviderUsage => usageError(CLAUDE, friendlyError(e))),
+      fetchCodexUsage().catch((e): ProviderUsage => usageError(CODEX, friendlyError(e))),
+      fetchGlmUsage().catch((e): ProviderUsage => {
+        const GLM: ProviderMeta = { id: 'glm', label: 'GLM (Z.AI)', cli: 'glm', vendor: 'Z.AI' }
+        return usageError(GLM, friendlyError(e))
+      })
     ]
     return Promise.all(fetchers)
   })

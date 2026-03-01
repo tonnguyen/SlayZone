@@ -1,13 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
+import type { Project } from '@slayzone/projects/shared'
+import { getDefaultStatus } from '@slayzone/projects/shared'
 import {
   updateTaskSchema,
   type UpdateTaskFormData,
-  statusOptions,
   priorityOptions
 } from '@slayzone/task/shared'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@slayzone/ui'
@@ -31,7 +32,7 @@ import {
 } from '@slayzone/ui'
 import { Popover, PopoverContent, PopoverTrigger } from '@slayzone/ui'
 import { Calendar } from '@slayzone/ui'
-import { cn } from '@slayzone/ui'
+import { buildStatusOptions, cn } from '@slayzone/ui'
 
 interface EditTaskDialogProps {
   task: Task | null
@@ -46,6 +47,7 @@ export function EditTaskDialog({
   onOpenChange,
   onUpdated
 }: EditTaskDialogProps): React.JSX.Element {
+  const [projects, setProjects] = useState<Project[]>([])
   const form = useForm<UpdateTaskFormData>({
     resolver: zodResolver(updateTaskSchema),
     defaultValues: {
@@ -71,6 +73,22 @@ export function EditTaskDialog({
       })
     }
   }, [task, form])
+
+  useEffect(() => {
+    if (!open) return
+    window.api.db.getProjects().then((list) => setProjects(list))
+  }, [open])
+
+  const selectedProject = projects.find((project) => project.id === task?.project_id)
+  const projectStatusOptions = buildStatusOptions(selectedProject?.columns_config)
+
+  useEffect(() => {
+    if (!task) return
+    const currentStatus = form.getValues('status')
+    if (!projectStatusOptions.some((option) => option.value === currentStatus)) {
+      form.setValue('status', getDefaultStatus(selectedProject?.columns_config))
+    }
+  }, [task, projectStatusOptions, selectedProject, form])
 
   const onSubmit = async (data: UpdateTaskFormData): Promise<void> => {
     const updated = await window.api.db.updateTask({
@@ -134,7 +152,7 @@ export function EditTaskDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {statusOptions.map((opt) => (
+                        {projectStatusOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>

@@ -10,26 +10,26 @@ export type Tab =
 interface ViewState {
   tabs: Tab[]
   activeTabIndex: number
-  selectedProjectId: string | null
+  selectedProjectId: string
 }
 
 const defaultViewState: ViewState = {
   tabs: [{ type: 'home' }],
   activeTabIndex: 0,
-  selectedProjectId: null
+  selectedProjectId: ''
 }
 
 export function useViewState(): [
   Tab[],
   number,
-  string | null,
+  string,
   Dispatch<SetStateAction<Tab[]>>,
   Dispatch<SetStateAction<number>>,
-  Dispatch<SetStateAction<string | null>>
+  Dispatch<SetStateAction<string>>
 ] {
   const [tabs, setTabsInternal] = useState<Tab[]>(defaultViewState.tabs)
   const [activeTabIndex, setActiveTabIndexInternal] = useState(defaultViewState.activeTabIndex)
-  const [selectedProjectId, setSelectedProjectIdInternal] = useState<string | null>(
+  const [selectedProjectId, setSelectedProjectIdInternal] = useState<string>(
     defaultViewState.selectedProjectId
   )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -54,7 +54,7 @@ export function useViewState(): [
             setActiveTabIndexInternal(clampedIndex)
           }
           // Load selectedProjectId
-          if (parsed.selectedProjectId !== undefined) {
+          if (typeof parsed.selectedProjectId === 'string') {
             setSelectedProjectIdInternal(parsed.selectedProjectId)
           }
         } catch {
@@ -67,7 +67,7 @@ export function useViewState(): [
 
   // Debounced save
   const save = useCallback(
-    (newTabs: Tab[], newIndex: number, newProjectId: string | null) => {
+    (newTabs: Tab[], newIndex: number, newProjectId: string) => {
       if (!isLoadedRef.current) return
 
       if (debounceRef.current) {
@@ -123,7 +123,7 @@ export function useViewState(): [
   )
 
   const setSelectedProjectId = useCallback(
-    (newId: SetStateAction<string | null>) => {
+    (newId: SetStateAction<string>) => {
       setSelectedProjectIdInternal((prev) => {
         const resolved = typeof newId === 'function' ? newId(prev) : newId
         setTimeout(triggerSave, 0)

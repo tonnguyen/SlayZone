@@ -8,6 +8,7 @@ import { BUILTIN_PANEL_IDS, getProviderConversationId, getProviderFlags, setProv
 import type { BrowserTabsState } from '@slayzone/task-browser/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { Project } from '@slayzone/projects/shared'
+import { getDefaultStatus, getDoneStatus, getStatusByCategory, isTerminalStatus } from '@slayzone/projects/shared'
 import { DEV_SERVER_URL_PATTERN, SESSION_ID_COMMANDS, SESSION_ID_UNAVAILABLE } from '@slayzone/terminal/shared'
 import type { TerminalMode, ValidationResult } from '@slayzone/terminal/shared'
 import { Button, PanelToggle, DevServerToast, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@slayzone/ui'
@@ -36,8 +37,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
   ContextMenuRadioGroup,
-  ContextMenuRadioItem,
-  taskStatusOptions
+  ContextMenuRadioItem
 } from '@slayzone/ui'
 import { DeleteTaskDialog } from './DeleteTaskDialog'
 import {
@@ -57,7 +57,7 @@ import { RichTextEditor } from '@slayzone/editor'
 import { markSkipCache, usePty } from '@slayzone/terminal'
 import { TerminalContainer, type TerminalContainerHandle } from '@slayzone/task-terminals'
 import { UnifiedGitPanel, type UnifiedGitPanelHandle, type GitTabId } from '@slayzone/worktrees'
-import { cn, getTaskStatusStyle, projectColorBg, useAppearance } from '@slayzone/ui'
+import { buildStatusOptions, cn, getColumnStatusStyle, projectColorBg, useAppearance } from '@slayzone/ui'
 import { BrowserPanel, type BrowserPanelHandle } from '@slayzone/task-browser'
 import { FileEditorView, QuickOpenDialog, type FileEditorViewHandle } from '@slayzone/file-editor/client'
 import type { EditorOpenFilesState } from '@slayzone/file-editor/shared'
@@ -69,15 +69,17 @@ import { RegionSelector } from './RegionSelector'
 import { ProcessesPanel } from './ProcessesPanel'
 // ErrorBoundary should be provided by the app when rendering this component
 
-function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
+function SortableSubTask({ sub, columns, statusOptions, onNavigate, onUpdate, onDelete }: {
   sub: Task
+  columns?: Project['columns_config']
+  statusOptions: Array<{ value: string; label: string }>
   onNavigate?: (id: string) => void
   onUpdate: (id: string, updates: Record<string, unknown>) => void
   onDelete: (id: string) => void
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
-  const statusStyle = getTaskStatusStyle(sub.status)
+  const statusStyle = getColumnStatusStyle(sub.status, columns)
   const StatusIcon = statusStyle?.icon
 
   return (
@@ -101,7 +103,7 @@ function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
             <TooltipContent side="bottom" className="text-xs">{statusStyle?.label ?? sub.status}</TooltipContent>
           </Tooltip>
           <span
-            className={cn("text-xs flex-1 truncate", sub.status === 'done' && "line-through text-muted-foreground")}
+            className={cn("text-xs flex-1 truncate", isTerminalStatus(sub.status, columns ?? null) && "line-through text-muted-foreground")}
             onClick={() => onNavigate?.(sub.id)}
           >
             {sub.title}
@@ -115,7 +117,7 @@ function SortableSubTask({ sub, onNavigate, onUpdate, onDelete }: {
           <ContextMenuSubTrigger>Status</ContextMenuSubTrigger>
           <ContextMenuSubContent>
             <ContextMenuRadioGroup value={sub.status} onValueChange={(v) => onUpdate(sub.id, { status: v })}>
-              {taskStatusOptions.map((s) => (
+              {statusOptions.map((s) => (
                 <ContextMenuRadioItem key={s.value} value={s.value}>{s.label}</ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -172,6 +174,16 @@ export function TaskDetailPage({
   const [tags, setTags] = useState<Tag[]>([])
   const [taskTagIds, setTaskTagIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const statusOptions = useMemo(() => buildStatusOptions(project?.columns_config), [project?.columns_config])
+  const completedStatus = useMemo(() => getDoneStatus(project?.columns_config), [project?.columns_config])
+  const startedStatus = useMemo(
+    () => getStatusByCategory('started', project?.columns_config) ?? getDefaultStatus(project?.columns_config),
+    [project?.columns_config]
+  )
+  const startedStatusLabel = useMemo(
+    () => statusOptions.find((option) => option.value === startedStatus)?.label ?? 'In Progress',
+    [statusOptions, startedStatus]
+  )
 
   // Sub-tasks
   const [subTasks, setSubTasks] = useState<Task[]>([])
@@ -792,6 +804,8 @@ export function TaskDetailPage({
     })
   }, [isActive, setBrowserTabs])
 
+  // Cmd+R browser reload is handled globally in App.tsx
+
   // Clear quick run prompt after it's been passed to Terminal
   useEffect(() => {
     if (!task) return
@@ -1055,14 +1069,12 @@ export function TaskDetailPage({
 
   const handleGenerateDescription = async (): Promise<void> => {
     if (!task || generatingDescription) return
-    console.log('[generate] Starting for title:', task.title)
     setGeneratingDescription(true)
     try {
       const result = await window.api.ai.generateDescription(
         task.title,
         task.terminal_mode
       )
-      console.log('[generate] Result:', result)
       if (result.success && result.description) {
         setDescriptionValue(result.description)
         const updated = await window.api.db.updateTask({
@@ -1087,7 +1099,7 @@ export function TaskDetailPage({
       projectId: task.project_id,
       title: subTaskTitle.trim(),
       parentId: task.id,
-      status: 'todo'
+      status: getDefaultStatus(project?.columns_config)
     })
     if (sub) setSubTasks(prev => [...prev, sub])
     setSubTaskTitle('')
@@ -1288,7 +1300,7 @@ export function TaskDetailPage({
 
   const handleConfirmInProgress = async (): Promise<void> => {
     if (!task) return
-    const updated = await window.api.db.updateTask({ id: task.id, status: 'in_progress' })
+    const updated = await window.api.db.updateTask({ id: task.id, status: startedStatus })
     handleTaskUpdate(updated)
   }
 
@@ -1387,13 +1399,13 @@ export function TaskDetailPage({
               </Tooltip>
             )}
 
-            {!task.is_temporary && task.status !== 'in_progress' && (
+            {!task.is_temporary && task.status !== startedStatus && (
               <button
                 type="button"
                 onClick={handleConfirmInProgress}
                 className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20 dark:text-yellow-400 transition-colors cursor-pointer"
               >
-                Set status to <em>In Progress</em>
+                Set status to <em>{startedStatusLabel}</em>
               </button>
             )}
 
@@ -1468,7 +1480,7 @@ export function TaskDetailPage({
           className={cn(
             "min-w-0 shrink-0 overflow-hidden flex flex-col transition-shadow duration-200",
             !compact && "rounded-md bg-surface-1 border border-border",
-            !compact && multipleVisiblePanels && focusedPanel === 'terminal' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]"
+            !compact && multipleVisiblePanels && focusedPanel === 'terminal' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]"
           )}
           style={compact ? { flex: 1 } : containerWidth > 0 ? { width: resolvedWidths.terminal } : { flex: 1 }}
         >
@@ -1751,7 +1763,7 @@ export function TaskDetailPage({
 
         {/* Browser Panel */}
         {!compact && panelVisibility.browser && (
-          <div data-panel-id="browser" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'browser' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.browser }}>
+          <div data-panel-id="browser" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'browser' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths.browser }}>
             <BrowserPanel
               ref={browserPanelRef}
               className="h-full"
@@ -1780,7 +1792,7 @@ export function TaskDetailPage({
 
         {/* File Editor Panel */}
         {!compact && panelVisibility.editor && project?.path && (
-          <div data-panel-id="editor" className={cn("shrink-0 overflow-hidden rounded-md bg-surface-1 border border-border transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'editor' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.editor }}>
+          <div data-panel-id="editor" className={cn("shrink-0 overflow-hidden rounded-md bg-surface-1 border border-border transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'editor' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths.editor }}>
             <FileEditorView
               ref={fileEditorRefCallback}
               projectPath={task.worktree_path || project.path}
@@ -1808,7 +1820,7 @@ export function TaskDetailPage({
                   onReset={resetAllPanels}
                 />
               )}
-              <div data-panel-id={wp.id} className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden transition-shadow duration-200", multipleVisiblePanels && focusedPanel === wp.id && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths[wp.id] }}>
+              <div data-panel-id={wp.id} className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden transition-shadow duration-200", multipleVisiblePanels && focusedPanel === wp.id && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths[wp.id] }}>
                 <WebPanelView
                   panelId={wp.id}
                   url={task.web_panel_urls?.[wp.id] || wp.baseUrl}
@@ -1840,11 +1852,12 @@ export function TaskDetailPage({
 
         {/* Git Panel */}
         {!compact && panelVisibility.diff && (
-          <div data-panel-id="diff" data-testid="task-git-panel" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'diff' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.diff }}>
+          <div data-panel-id="diff" data-testid="task-git-panel" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'diff' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths.diff }}>
             <UnifiedGitPanel
               ref={gitPanelRef}
               task={task}
               projectPath={project?.path ?? null}
+              completedStatus={completedStatus}
               visible={panelVisibility.diff}
               defaultTab={gitDefaultTab}
               pollIntervalMs={5000}
@@ -1868,7 +1881,7 @@ export function TaskDetailPage({
 
         {/* Settings Panel */}
         {!compact && panelVisibility.settings && (
-        <div data-panel-id="settings" data-testid="task-settings-panel" className={cn("shrink-0 rounded-md bg-surface-1 border border-border p-3 flex flex-col gap-4 overflow-y-auto transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'settings' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.settings }}>
+        <div data-panel-id="settings" data-testid="task-settings-panel" className={cn("shrink-0 rounded-md bg-surface-1 border border-border p-3 flex flex-col gap-4 overflow-y-auto transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'settings' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths.settings }}>
           {/* Description */}
           <div className="flex flex-col min-h-0 relative">
             <RichTextEditor
@@ -1907,7 +1920,7 @@ export function TaskDetailPage({
               Sub-tasks
               {subTasks.length > 0 && (
                 <span className="ml-auto text-muted-foreground/60 text-[10px]">
-                  {subTasks.filter(s => s.status === 'done').length}/{subTasks.length}
+                  {subTasks.filter((s) => isTerminalStatus(s.status, project?.columns_config ?? null)).length}/{subTasks.length}
                 </span>
               )}
             </CollapsibleTrigger>
@@ -1919,6 +1932,8 @@ export function TaskDetailPage({
                   <SortableSubTask
                     key={sub.id}
                     sub={sub}
+                    columns={project?.columns_config}
+                    statusOptions={statusOptions}
                     onNavigate={onNavigateToTask}
                     onUpdate={handleUpdateSubTask}
                     onDelete={handleDeleteSubTask}
@@ -2002,8 +2017,8 @@ export function TaskDetailPage({
 
         {/* Processes Panel — dev mode only */}
         {import.meta.env.DEV && !compact && panelVisibility.processes && (
-          <div data-panel-id="processes" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'processes' && "shadow-[0_0_18px_rgba(249,115,22,0.25)]")} style={{ width: resolvedWidths.processes }}>
-            <ProcessesPanel taskId={task.id} cwd={task.worktree_path || project?.path} terminalSessionId={getMainSessionId(task.id)} />
+          <div data-panel-id="processes" className={cn("shrink-0 rounded-md bg-surface-1 border border-border overflow-hidden flex flex-col transition-shadow duration-200", multipleVisiblePanels && focusedPanel === 'processes' && "shadow-[0_0_18px_rgba(255,255,255,0.25)]")} style={{ width: resolvedWidths.processes }}>
+            <ProcessesPanel taskId={task.id} projectId={project?.id ?? null} cwd={task.worktree_path || project?.path} terminalSessionId={getMainSessionId(task.id)} />
           </div>
         )}
       </div>

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { File, FilePlus, Save, Trash2 } from 'lucide-react'
 import { Button, Input, Label, Textarea, cn } from '@slayzone/ui'
-import type { GlobalFileEntry } from '../shared'
-import { GLOBAL_PROVIDER_PATHS } from '../shared/provider-registry'
+import type { CliProvider, GlobalFileEntry } from '../shared'
+import { GLOBAL_PROVIDER_PATHS, isConfigurableCliProvider } from '../shared/provider-registry'
 
 export function GlobalContextFiles() {
   const [entries, setEntries] = useState<GlobalFileEntry[]>([])
@@ -12,7 +12,7 @@ export function GlobalContextFiles() {
   const [originalContent, setOriginalContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [creatingFile, setCreatingFile] = useState<{ provider: string; category: 'skill' | 'command' } | null>(null)
+  const [creatingFile, setCreatingFile] = useState<{ provider: CliProvider; category: 'skill' } | null>(null)
   const [newFileName, setNewFileName] = useState('')
 
   const loadFiles = useCallback(async () => {
@@ -60,17 +60,14 @@ export function GlobalContextFiles() {
 
   const deleteFile = async (entry: GlobalFileEntry) => {
     try {
-      // Use writeContextFile to verify path is allowed, then delete via fs
-      // Actually we need a delete handler — but the existing deleteContextFile requires projectId.
-      // For now, write empty and remove from list. The file still exists but is empty.
-      // TODO: proper global file delete handler
-      await window.api.aiConfig.writeContextFile(entry.path, '', '')
+      await window.api.aiConfig.deleteGlobalFile(entry.path)
       if (selectedPath === entry.path) {
         setSelectedPath(null)
         setContent('')
         setOriginalContent('')
       }
       await loadFiles()
+      setMessage('Deleted')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to delete')
     }
@@ -78,22 +75,22 @@ export function GlobalContextFiles() {
 
   const handleCreateFile = async () => {
     if (!creatingFile || !newFileName.trim()) return
-    const spec = GLOBAL_PROVIDER_PATHS[creatingFile.provider]
-    if (!spec) return
-    const dir = creatingFile.category === 'skill' ? spec.skillsDir : spec.commandsDir
-    if (!dir) return
-
     const slug = newFileName.trim().replace(/\.md$/, '')
-    const home = '~'
-    const relativePath = `${home}/${spec.baseDir}/${dir}/${slug}.md`
-    // Resolve ~ to actual home
-    const absolutePath = relativePath.replace(/^~/, await getHomePath())
 
     try {
-      await window.api.aiConfig.writeContextFile(absolutePath, '', '')
+      const created = await window.api.aiConfig.createGlobalFile(
+        creatingFile.provider,
+        creatingFile.category,
+        slug
+      )
+      const text = await window.api.aiConfig.readContextFile(created.path, '')
+      setSelectedPath(created.path)
+      setContent(text)
+      setOriginalContent(text)
       await loadFiles()
       setCreatingFile(null)
       setNewFileName('')
+      setMessage('Created')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to create')
     }
@@ -101,13 +98,9 @@ export function GlobalContextFiles() {
 
   const dirty = content !== originalContent
 
-  // Group entries by provider
-  const byProvider = new Map<string, GlobalFileEntry[]>()
-  for (const entry of entries) {
-    const list = byProvider.get(entry.provider) ?? []
-    list.push(entry)
-    byProvider.set(entry.provider, list)
-  }
+  const providerSections = Object.entries(GLOBAL_PROVIDER_PATHS)
+    .filter(([provider]) => isConfigurableCliProvider(provider))
+    .map(([provider, spec]) => ({ provider: provider as CliProvider, spec }))
 
   // Resizable split
   const [splitWidth, setSplitWidth] = useState(350)
@@ -141,15 +134,15 @@ export function GlobalContextFiles() {
       {/* Left: file list */}
       <div className="flex flex-col overflow-y-auto p-3" style={{ width: splitWidth }}>
         <div className="flex-1 space-y-5">
-          {[...byProvider.entries()].map(([provider, files]) => {
-            const spec = GLOBAL_PROVIDER_PATHS[provider]
-            if (!spec) return null
+          {providerSections.map(({ provider, spec }) => {
+            const files = entries
+              .filter((entry) => entry.provider === provider)
+              .sort((a, b) => a.name.localeCompare(b.name))
             const instructions = files.filter((f) => f.category === 'instructions')
             const skills = files.filter((f) => f.category === 'skill')
-            const commands = files.filter((f) => f.category === 'command')
 
             return (
-              <div key={provider}>
+              <div key={provider} data-testid={`global-files-provider-${provider}`}>
                 <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{spec.label}</p>
                 <div className="space-y-0.5">
                   {instructions.map((entry) => (
@@ -175,41 +168,20 @@ export function GlobalContextFiles() {
                       ))}
                     </div>
                   )}
-                  {commands.length > 0 && (
-                    <div className="mt-1">
-                      <p className="px-1 py-0.5 text-[10px] text-muted-foreground">Commands</p>
-                      {commands.map((entry) => (
-                        <FileRow
-                          key={entry.path}
-                          entry={entry}
-                          selected={selectedPath === entry.path}
-                          onClick={() => openFile(entry)}
-                          onDelete={() => deleteFile(entry)}
-                          indent
-                        />
-                      ))}
-                    </div>
+                  {instructions.length === 0 && skills.length === 0 && (
+                    <p className="px-1 py-0.5 text-[10px] text-muted-foreground">No files yet</p>
                   )}
-                  {/* Add buttons for providers with skills/commands dirs */}
+                  {/* Add button for providers with skills dir */}
                   <div className="flex gap-1 pt-1">
                     {spec.skillsDir && (
                       <Button
+                        data-testid={`global-files-add-skill-${provider}`}
                         size="sm"
                         variant="ghost"
                         className="h-6 text-[10px]"
-                        onClick={() => { setCreatingFile({ provider, category: 'skill' }); setNewFileName('') }}
+                        onClick={() => { setCreatingFile({ provider: provider as CliProvider, category: 'skill' }); setNewFileName('') }}
                       >
                         <FilePlus className="mr-0.5 size-3" /> Skill
-                      </Button>
-                    )}
-                    {spec.commandsDir && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-[10px]"
-                        onClick={() => { setCreatingFile({ provider, category: 'command' }); setNewFileName('') }}
-                      >
-                        <FilePlus className="mr-0.5 size-3" /> Command
                       </Button>
                     )}
                   </div>
@@ -229,6 +201,7 @@ export function GlobalContextFiles() {
               New {creatingFile.category} in {GLOBAL_PROVIDER_PATHS[creatingFile.provider]?.label}
             </p>
             <Input
+              data-testid="global-files-new-name"
               className="font-mono text-xs"
               placeholder="my-file"
               value={newFileName}
@@ -237,7 +210,7 @@ export function GlobalContextFiles() {
               autoFocus
             />
             <div className="flex gap-1">
-              <Button size="sm" className="h-6 flex-1 text-[11px]" onClick={handleCreateFile}>Create</Button>
+              <Button data-testid="global-files-create" size="sm" className="h-6 flex-1 text-[11px]" onClick={handleCreateFile}>Create</Button>
               <Button size="sm" variant="ghost" className="h-6 flex-1 text-[11px]" onClick={() => setCreatingFile(null)}>Cancel</Button>
             </div>
           </div>
@@ -279,13 +252,6 @@ export function GlobalContextFiles() {
       </div>
     </div>
   )
-}
-
-// Resolve ~ to home directory via a simple IPC workaround
-async function getHomePath(): Promise<string> {
-  // readContextFile with ~/.claude/CLAUDE.md already works — extract home from any global path
-  // Simpler: just use the known pattern from entries
-  return ''  // Not needed — we build absolute paths in the handler
 }
 
 function FileRow({ entry, selected, onClick, onDelete, indent }: {

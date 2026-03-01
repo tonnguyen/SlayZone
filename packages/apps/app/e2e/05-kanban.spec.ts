@@ -21,7 +21,7 @@ test.describe('Kanban board', () => {
   })
 
   test('all status columns are visible', async ({ mainWindow }) => {
-    for (const col of ['Inbox', 'Backlog', 'Todo', 'In Progress', 'Review']) {
+    for (const col of ['Inbox', 'Backlog', 'Todo', 'In Progress', 'Review', 'Canceled']) {
       await expect(mainWindow.locator('h3').getByText(col, { exact: true })).toBeVisible()
     }
   })

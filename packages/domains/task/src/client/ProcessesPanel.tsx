@@ -16,6 +16,7 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 interface ProcessEntry {
   id: string
   taskId: string | null
+  projectId: string | null
   label: string
   command: string
   cwd: string
@@ -31,7 +32,7 @@ interface AddFormState {
   label: string
   command: string
   autoRestart: boolean
-  scope: 'task' | 'global'
+  scope: 'task' | 'project'
 }
 
 interface SuggestionItem {
@@ -104,7 +105,7 @@ function StatusBadge({ status }: { status: ProcessStatus }) {
   )
 }
 
-const EMPTY_FORM: AddFormState = { label: '', command: '', autoRestart: false, scope: 'task' }
+const EMPTY_FORM: AddFormState = { label: '', command: '', autoRestart: false, scope: 'project' }
 
 function ProcessRow({
   proc,
@@ -244,7 +245,7 @@ function SectionHeader({ label }: { label: string }) {
   )
 }
 
-export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: string | null; cwd?: string | null; terminalSessionId?: string }) {
+export function ProcessesPanel({ taskId, projectId, cwd, terminalSessionId }: { taskId: string | null; projectId: string | null; cwd?: string | null; terminalSessionId?: string }) {
   const [processes, setProcesses] = useState<ProcessEntry[]>([])
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
   const [view, setView] = useState<'list' | 'new'>('list')
@@ -257,8 +258,8 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
   const labelRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    window.api.processes.listForTask(taskId).then((list) => setProcesses(list as ProcessEntry[]))
-  }, [taskId])
+    window.api.processes.listForTask(taskId, projectId).then((list) => setProcesses(list as ProcessEntry[]))
+  }, [taskId, projectId])
 
   useEffect(() => {
     if (!cwd) return
@@ -326,9 +327,9 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
   }, [view])
 
   const refreshList = useCallback(async () => {
-    const list = await window.api.processes.listForTask(taskId)
+    const list = await window.api.processes.listForTask(taskId, projectId)
     setProcesses(list as ProcessEntry[])
-  }, [taskId])
+  }, [taskId, projectId])
 
   const toggleLog = useCallback((id: string) => {
     setExpandedLogs(prev => {
@@ -344,11 +345,13 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
     setSaving(true)
     setSaveError(null)
     try {
-      const tid = form.scope === 'global' ? null : taskId
+      const isProject = form.scope === 'project'
+      const tid = isProject ? null : taskId
+      const pid = isProject ? projectId : null
       if (editingId) {
-        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid })
+        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid, projectId: pid })
       } else {
-        await window.api.processes.create(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
+        await window.api.processes.create(pid, tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
       }
       await refreshList()
       setEditingId(null)
@@ -359,21 +362,23 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
     } finally {
       setSaving(false)
     }
-  }, [taskId, cwd, form, editingId, refreshList])
+  }, [taskId, projectId, cwd, form, editingId, refreshList])
 
   const handleSpawn = useCallback(async () => {
     if (!form.label.trim() || !form.command.trim()) return
     setSaving(true)
     setSaveError(null)
     try {
-      const tid = form.scope === 'global' ? null : taskId
+      const isProject = form.scope === 'project'
+      const tid = isProject ? null : taskId
+      const pid = isProject ? projectId : null
       if (editingId) {
-        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid })
+        await window.api.processes.update(editingId, { label: form.label.trim(), command: form.command.trim(), autoRestart: form.autoRestart, taskId: tid, projectId: pid })
         await window.api.processes.restart(editingId)
         await refreshList()
         setExpandedLogs(prev => new Set(prev).add(editingId))
       } else {
-        const id = await window.api.processes.spawn(tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
+        const id = await window.api.processes.spawn(pid, tid, form.label.trim(), form.command.trim(), cwd ?? '', form.autoRestart)
         await refreshList()
         setExpandedLogs(prev => new Set(prev).add(id))
       }
@@ -385,7 +390,7 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
     } finally {
       setSaving(false)
     }
-  }, [taskId, cwd, form, editingId, refreshList])
+  }, [taskId, projectId, cwd, form, editingId, refreshList])
 
   const handleKill = useCallback(async (id: string) => {
     await window.api.processes.kill(id)
@@ -411,12 +416,12 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
   const goToNew = useCallback(() => { setEditingId(null); setForm(EMPTY_FORM); setView('new') }, [])
   const goToEdit = useCallback((proc: ProcessEntry) => {
     setEditingId(proc.id)
-    setForm({ label: proc.label, command: proc.command, autoRestart: proc.autoRestart, scope: proc.taskId === null ? 'global' : 'task' })
+    setForm({ label: proc.label, command: proc.command, autoRestart: proc.autoRestart, scope: proc.taskId === null ? 'project' : 'task' })
     setView('new')
   }, [])
   const goToList = useCallback(() => { setView('list'); setEditingId(null); setForm(EMPTY_FORM) }, [])
 
-  const globalProcesses = useMemo(() => processes.filter(p => p.taskId === null), [processes])
+  const projectProcesses = useMemo(() => processes.filter(p => p.taskId === null), [processes])
   const taskProcesses = useMemo(() => taskId ? processes.filter(p => p.taskId === taskId) : [], [processes, taskId])
 
   const allSuggestions: SuggestionGroup[] = [
@@ -438,7 +443,7 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
                 <Info className="size-3 text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-default shrink-0" />
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-64">
-                Background processes (dev servers, watchers, etc.) that run alongside your task. Task-scoped processes start and stop with the task; global processes always run.
+                Background processes (dev servers, watchers, etc.) that run alongside your task. Task-scoped processes stop with the task; project processes are shared across all tasks in the project.
               </TooltipContent>
             </Tooltip>
             <div className="flex-1" />
@@ -487,10 +492,10 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-3">
-              {globalProcesses.length > 0 && (
+              {projectProcesses.length > 0 && (
                 <>
-                  <SectionHeader label="Global" />
-                  {globalProcesses.map(proc => (
+                  <SectionHeader label="Project" />
+                  {projectProcesses.map(proc => (
                     <ProcessRow
                       key={proc.id}
                       proc={proc}
@@ -539,7 +544,7 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
                 Scope
               </label>
               <div className="flex gap-1 p-0.5 rounded-lg bg-muted/50 border border-border w-fit">
-                {(['task', 'global'] as const).map(s => (
+                {(['project', 'task'] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setForm(f => ({ ...f, scope: s }))}
@@ -550,14 +555,14 @@ export function ProcessesPanel({ taskId, cwd, terminalSessionId }: { taskId: str
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {s === 'task' ? 'This task' : 'Global'}
+                    {s === 'task' ? 'This task' : 'Project'}
                   </button>
                 ))}
               </div>
               <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
                 {form.scope === 'task'
                   ? 'Stopped when this task is closed or deleted.'
-                  : 'Persists across all tasks for the entire session.'}
+                  : 'Shared across all tasks in this project.'}
               </p>
             </div>
 

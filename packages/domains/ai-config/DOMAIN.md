@@ -4,7 +4,7 @@ Centralized management for AI configuration:
 
 - Skills (reusable AI instructions)
 - Commands (prompt commands / runbooks)
-- Context Files (CLAUDE.md, AGENTS.md, .cursorrules, etc.)
+- Context Files (CLAUDE.md, AGENTS.md, etc.)
 - Project selections copied from global repository items
 
 ## Contracts (`shared/`)

@@ -563,8 +563,8 @@ const migrations: Migration[] = [
       // Seed CLI providers into existing ai_config_sources table
       const stmt = db.prepare(`INSERT OR IGNORE INTO ai_config_sources (id, name, kind, enabled, status) VALUES (?, ?, ?, ?, ?)`)
       stmt.run('provider-claude', 'Claude Code', 'claude', 1, 'active')
-      stmt.run('provider-codex', 'Codex CLI', 'codex', 0, 'active')
-      stmt.run('provider-gemini', 'Gemini CLI', 'gemini', 0, 'placeholder')
+      stmt.run('provider-codex', 'Codex', 'codex', 0, 'active')
+      stmt.run('provider-gemini', 'Gemini', 'gemini', 0, 'placeholder')
     }
   },
   {
@@ -715,6 +715,245 @@ const migrations: Migration[] = [
     version: 41,
     up: (db) => {
       db.exec(`DROP TABLE IF EXISTS diagnostics_events`)
+    }
+  },
+  {
+    version: 42,
+    up: (db) => {
+      // Idempotent for drifted local DBs where column exists but user_version < 42.
+      const projectColumns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>
+      const hasColumnsConfig = projectColumns.some((column) => column.name === 'columns_config')
+      if (!hasColumnsConfig) {
+        db.exec(`ALTER TABLE projects ADD COLUMN columns_config TEXT DEFAULT NULL`)
+      }
+    }
+  },
+  {
+    version: 43,
+    up: (db) => {
+      // Codex is temporarily not configurable in ai-config.
+      // Clean legacy persisted state so storage matches current behavior.
+
+      // 1) Remove codex-linked project selections.
+      db.prepare(`DELETE FROM ai_config_project_selections WHERE provider = 'codex'`).run()
+
+      // 2) Ensure codex is globally disabled in provider source state.
+      db.prepare(`UPDATE ai_config_sources SET enabled = 0, updated_at = datetime('now') WHERE kind = 'codex'`).run()
+
+      // 3) Strip codex from per-project provider settings payloads.
+      const rows = db.prepare(`
+        SELECT key, value
+        FROM settings
+        WHERE key LIKE 'ai_providers:%'
+      `).all() as Array<{ key: string; value: string }>
+      const updateStmt = db.prepare(`UPDATE settings SET value = ? WHERE key = ?`)
+
+      for (const row of rows) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(row.value)
+        } catch {
+          continue
+        }
+        if (!Array.isArray(parsed)) continue
+
+        const filtered = parsed.filter((provider): provider is string => typeof provider === 'string' && provider !== 'codex')
+        if (filtered.length !== parsed.length) {
+          updateStmt.run(JSON.stringify(filtered), row.key)
+        }
+      }
+    }
+  },
+  {
+    version: 44,
+    up: (db) => {
+      // Remove legacy providers that are no longer supported in ai-config.
+      const removedProviders = ['aider', 'grok']
+
+      // 1) Remove provider rows.
+      db.prepare(`
+        DELETE FROM ai_config_sources
+        WHERE kind IN (${removedProviders.map(() => '?').join(', ')})
+      `).run(...removedProviders)
+
+      // 2) Remove project selections linked to removed providers.
+      db.prepare(`
+        DELETE FROM ai_config_project_selections
+        WHERE provider IN (${removedProviders.map(() => '?').join(', ')})
+      `).run(...removedProviders)
+
+      // 3) Strip removed providers from per-project provider settings payloads.
+      const rows = db.prepare(`
+        SELECT key, value
+        FROM settings
+        WHERE key LIKE 'ai_providers:%'
+      `).all() as Array<{ key: string; value: string }>
+      const updateStmt = db.prepare(`UPDATE settings SET value = ? WHERE key = ?`)
+      const removedSet = new Set(removedProviders)
+
+      for (const row of rows) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(row.value)
+        } catch {
+          continue
+        }
+        if (!Array.isArray(parsed)) continue
+
+        const filtered = parsed.filter((provider): provider is string => typeof provider === 'string' && !removedSet.has(provider))
+        if (filtered.length !== parsed.length) {
+          updateStmt.run(JSON.stringify(filtered), row.key)
+        }
+      }
+    }
+  },
+  {
+    version: 45,
+    up: (db) => {
+      // Repair drifted schemas where user_version was already 42+ but projects.columns_config was never created.
+      const projectColumns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>
+      const hasColumnsConfig = projectColumns.some((column) => column.name === 'columns_config')
+      if (!hasColumnsConfig) {
+        db.exec(`ALTER TABLE projects ADD COLUMN columns_config TEXT DEFAULT NULL`)
+      }
+    }
+  },
+  {
+    version: 46,
+    up: (db) => {
+      // Enforce unique item slugs per logical scope after repairing any legacy duplicates.
+      const rows = db.prepare(`
+        SELECT id, scope, project_id, type, slug
+        FROM ai_config_items
+        ORDER BY created_at ASC, id ASC
+      `).all() as Array<{
+        id: string
+        scope: 'global' | 'project'
+        project_id: string | null
+        type: string
+        slug: string
+      }>
+
+      const updateSlug = db.prepare('UPDATE ai_config_items SET slug = ?, name = ?, updated_at = datetime(\'now\') WHERE id = ?')
+      const seenByBucket = new Map<string, Set<string>>()
+
+      for (const row of rows) {
+        const bucket = row.scope === 'global'
+          ? `global:${row.type}`
+          : `project:${row.project_id ?? ''}:${row.type}`
+        const seen = seenByBucket.get(bucket) ?? new Set<string>()
+        seenByBucket.set(bucket, seen)
+
+        const baseSlug = row.slug || 'untitled'
+        if (!seen.has(baseSlug)) {
+          seen.add(baseSlug)
+          continue
+        }
+
+        let suffix = 2
+        let nextSlug = `${baseSlug}-${suffix}`
+        while (seen.has(nextSlug)) {
+          suffix += 1
+          nextSlug = `${baseSlug}-${suffix}`
+        }
+
+        updateSlug.run(nextSlug, nextSlug, row.id)
+        seen.add(nextSlug)
+      }
+
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_config_items_global_type_slug
+          ON ai_config_items(type, slug)
+          WHERE scope = 'global';
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_config_items_project_project_type_slug
+          ON ai_config_items(project_id, type, slug)
+          WHERE scope = 'project';
+      `)
+    }
+  },
+  {
+    version: 47,
+    up: (db) => {
+      // Canonicalize legacy slugs (normalize format + preserve uniqueness) per logical scope/type bucket.
+      // v46 already introduced unique slug indexes, so drop/recreate them around normalization
+      // to avoid transient collisions while renaming rows into canonical form.
+      db.exec(`
+        DROP INDEX IF EXISTS ux_ai_config_items_global_type_slug;
+        DROP INDEX IF EXISTS ux_ai_config_items_project_project_type_slug;
+      `)
+
+      const normalizeSlug = (value: string): string => {
+        return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled'
+      }
+
+      const rows = db.prepare(`
+        SELECT id, scope, project_id, type, slug
+        FROM ai_config_items
+        ORDER BY created_at ASC, id ASC
+      `).all() as Array<{
+        id: string
+        scope: 'global' | 'project'
+        project_id: string | null
+        type: string
+        slug: string
+      }>
+
+      const updateSlug = db.prepare('UPDATE ai_config_items SET slug = ?, name = ?, updated_at = datetime(\'now\') WHERE id = ?')
+      const seenByBucket = new Map<string, Set<string>>()
+
+      for (const row of rows) {
+        const bucket = row.scope === 'global'
+          ? `global:${row.type}`
+          : `project:${row.project_id ?? ''}:${row.type}`
+        const seen = seenByBucket.get(bucket) ?? new Set<string>()
+        seenByBucket.set(bucket, seen)
+
+        const baseSlug = normalizeSlug(row.slug || 'untitled')
+        let nextSlug = baseSlug
+        if (seen.has(nextSlug)) {
+          let suffix = 2
+          nextSlug = `${baseSlug}-${suffix}`
+          while (seen.has(nextSlug)) {
+            suffix += 1
+            nextSlug = `${baseSlug}-${suffix}`
+          }
+        }
+
+        if (nextSlug !== row.slug) {
+          updateSlug.run(nextSlug, nextSlug, row.id)
+        }
+        seen.add(nextSlug)
+      }
+
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_config_items_global_type_slug
+          ON ai_config_items(type, slug)
+          WHERE scope = 'global';
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_config_items_project_project_type_slug
+          ON ai_config_items(project_id, type, slug)
+          WHERE scope = 'project';
+      `)
+    }
+  },
+  {
+    version: 48,
+    up: (db) => {
+      // Remove legacy 'command' items and orphaned selections
+      db.exec(`
+        DELETE FROM ai_config_project_selections
+          WHERE item_id IN (SELECT id FROM ai_config_items WHERE type = 'command');
+        DELETE FROM ai_config_items WHERE type = 'command';
+      `)
+    }
+  },
+  {
+    version: 49,
+    up: (db) => {
+      db.exec(`
+        DELETE FROM processes WHERE task_id IS NULL;
+        ALTER TABLE processes ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE CASCADE;
+        CREATE INDEX IF NOT EXISTS idx_processes_project ON processes(project_id);
+      `)
     }
   }
 ]

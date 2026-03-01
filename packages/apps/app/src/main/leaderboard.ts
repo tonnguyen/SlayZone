@@ -4,6 +4,7 @@ import type { IpcMain } from 'electron'
 import type { Database } from 'better-sqlite3'
 import type { LocalLeaderboardStats } from '@slayzone/types'
 import { resolveUserShell } from '@slayzone/terminal/main'
+import { isCompletedStatus, parseColumnsConfig } from '@slayzone/projects/shared'
 
 interface CcusageDailyEntry {
   date: string
@@ -46,16 +47,20 @@ function runCcusage(): Promise<CcusageDailyEntry[]> {
 
 function getTodayCompletedTasks(db: Database): number {
   const today = new Date().toISOString().slice(0, 10)
-  const row = db
+  const rows = db
     .prepare(
-      `SELECT COUNT(*) as count FROM tasks
-       WHERE status = 'done'
-       AND is_temporary = 0
-       AND archived_at IS NULL
-       AND date(updated_at) = ?`
+      `SELECT t.status, p.columns_config
+       FROM tasks t
+       JOIN projects p ON p.id = t.project_id
+       WHERE t.is_temporary = 0
+       AND t.archived_at IS NULL
+       AND date(t.updated_at) = ?`
     )
-    .get(today) as { count: number } | undefined
-  return row?.count ?? 0
+    .all(today) as Array<{ status: string; columns_config: string | null }>
+
+  return rows.reduce((count, row) => (
+    isCompletedStatus(row.status, parseColumnsConfig(row.columns_config)) ? count + 1 : count
+  ), 0)
 }
 
 export function registerLeaderboardHandlers(ipcMain: IpcMain, db: Database): void {

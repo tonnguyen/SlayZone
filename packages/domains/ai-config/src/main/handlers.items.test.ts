@@ -31,7 +31,7 @@ describe('ai-config:create-item', () => {
 
   test('creates project-scoped item', () => {
     const item = h.invoke('ai-config:create-item', {
-      type: 'command', scope: 'project', projectId, slug: 'deploy', content: 'run deploy'
+      type: 'skill', scope: 'project', projectId, slug: 'deploy', content: 'run deploy'
     }) as { id: string; project_id: string; scope: string }
     expect(item.scope).toBe('project')
     expect(item.project_id).toBe(projectId)
@@ -50,6 +50,25 @@ describe('ai-config:create-item', () => {
       type: 'skill', scope: 'global', slug: '!!!', content: ''
     }) as { slug: string }
     expect(item.slug).toBe('untitled')
+  })
+
+  test('rejects duplicate global slug for same type', () => {
+    expect(() => h.invoke('ai-config:create-item', {
+      type: 'skill',
+      scope: 'global',
+      slug: 'my-skill',
+      content: ''
+    })).toThrow()
+  })
+
+  test('rejects duplicate project slug for same project and type', () => {
+    expect(() => h.invoke('ai-config:create-item', {
+      type: 'skill',
+      scope: 'project',
+      projectId,
+      slug: 'deploy',
+      content: ''
+    })).toThrow()
   })
 })
 
@@ -103,6 +122,20 @@ describe('ai-config:update-item', () => {
 
   test('returns null for nonexistent', () => {
     expect(h.invoke('ai-config:update-item', { id: 'nope', content: 'x' })).toBeNull()
+  })
+
+  test('rejects update when slug collides in same scope/type', () => {
+    const other = h.invoke('ai-config:create-item', {
+      type: 'skill',
+      scope: 'global',
+      slug: 'another-skill',
+      content: ''
+    }) as { id: string }
+
+    expect(() => h.invoke('ai-config:update-item', {
+      id: other.id,
+      slug: 'new-name'
+    })).toThrow()
   })
 })
 

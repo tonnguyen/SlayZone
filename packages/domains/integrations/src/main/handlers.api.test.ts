@@ -7,8 +7,10 @@
 import { createTestHarness, expect } from '../../../../shared/test-utils/ipc-harness.js'
 import { registerIntegrationHandlers } from './handlers'
 import { _mock } from '../../../../shared/test-utils/mock-linear-client.js'
-import { safeStorage } from 'electron'
+import { storeCredential } from './credentials'
 import type { LinearIssueSummary } from '../shared'
+
+process.env.SLAYZONE_ALLOW_PLAINTEXT_CREDENTIALS = '1'
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 const FIXTURES: Record<string, LinearIssueSummary> = {
@@ -70,10 +72,7 @@ const ALL_ISSUES = Object.values(FIXTURES)
 function seedConnection(db: import('better-sqlite3').Database): string {
   const id = 'conn-test-api'
   const ref = 'cred-test-api'
-  const encrypted = safeStorage.encryptString('lin_test_key')
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
-    `integration:credential:${ref}`, encrypted.toString('base64')
-  )
+  storeCredential(db, ref, 'lin_test_key')
   db.prepare(`
     INSERT OR REPLACE INTO integration_connections
       (id, provider, workspace_id, workspace_name, account_label, credential_ref, enabled)
@@ -128,10 +127,7 @@ try {
   expect(result.id).toBe(connId)
   // Restore credential
   const conn = h.db.prepare('SELECT credential_ref FROM integration_connections WHERE id = ?').get(connId) as any
-  const encrypted = safeStorage.encryptString('lin_test_key')
-  h.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
-    `integration:credential:${conn.credential_ref}`, encrypted.toString('base64')
-  )
+  storeCredential(h.db, conn.credential_ref, 'lin_test_key')
   ok('re-connect updates existing')
 } catch (e) { no('re-connect updates existing', e) }
 

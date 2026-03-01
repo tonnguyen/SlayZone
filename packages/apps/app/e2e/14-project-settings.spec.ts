@@ -44,8 +44,56 @@ test.describe('Project settings & context menu', () => {
     await expect(mainWindow.locator('#edit-name')).toBeVisible({ timeout: 3_000 })
   })
 
+  test('deleting a column remaps tasks to the project default status', async ({ mainWindow }) => {
+    const s = seed(mainWindow)
+    const projects = await s.getProjects()
+    const project = projects.find((p: { id: string; name: string }) => p.name === 'Settings Test')
+    if (!project) throw new Error('Settings Test project not found')
+
+    const remapTask = await s.createTask({
+      projectId: project.id,
+      title: 'Needs status remap',
+      status: 'review'
+    })
+    await s.refreshData()
+
+    const settingsHeading = mainWindow.getByRole('heading', { name: 'Project Settings' })
+    const isOpen = await settingsHeading.isVisible().catch(() => false)
+    if (!isOpen) {
+      const blob = projectBlob(mainWindow, projectAbbrev)
+      await blob.click({ button: 'right' })
+      await mainWindow.getByRole('menuitem', { name: 'Settings' }).click()
+      await expect(settingsHeading).toBeVisible({ timeout: 5_000 })
+    }
+
+    await mainWindow.getByTestId('settings-tab-columns').click()
+    await expect(mainWindow.getByTestId('project-column-review')).toBeVisible({ timeout: 3_000 })
+    await mainWindow.getByTestId('delete-project-column-review').click()
+    await expect(mainWindow.getByTestId('project-column-review')).not.toBeVisible({ timeout: 3_000 })
+    await mainWindow.getByTestId('save-project-columns').click()
+
+    const updatedTasks = await s.getTasks()
+    const updatedTask = updatedTasks.find((t: { id: string; status: string }) => t.id === remapTask.id)
+    expect(updatedTask?.status).toBe('inbox')
+
+    const refreshedProjects = await s.getProjects()
+    const refreshedProject = refreshedProjects.find((p: { id: string }) => p.id === project.id) as {
+      columns_config: Array<{ id: string }> | null
+    }
+    expect(Boolean(refreshedProject?.columns_config?.some((column) => column.id === 'review'))).toBe(false)
+  })
+
   test('edit project name in settings dialog', async ({ mainWindow }) => {
     const nameInput = mainWindow.locator('#edit-name')
+    if (!(await nameInput.isVisible().catch(() => false))) {
+      const blob = projectBlob(mainWindow, projectAbbrev)
+      await blob.click({ button: 'right' })
+      await mainWindow.getByRole('menuitem', { name: 'Settings' }).click()
+      await expect(mainWindow.getByRole('heading', { name: 'Project Settings' })).toBeVisible({ timeout: 5_000 })
+      await mainWindow.getByRole('button', { name: 'General', exact: true }).click()
+      await expect(nameInput).toBeVisible({ timeout: 3_000 })
+    }
+
     await nameInput.clear()
     await nameInput.fill('Xylo Project')
 

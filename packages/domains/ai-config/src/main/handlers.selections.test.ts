@@ -12,17 +12,18 @@ registerAiConfigHandlers(h.ipcMain as never, h.db)
 const projectId = crypto.randomUUID()
 h.db.prepare('INSERT INTO projects (id, name, color, path) VALUES (?, ?, ?, ?)').run(projectId, 'P', '#000', '/tmp/test-proj')
 const item = h.invoke('ai-config:create-item', { type: 'skill', scope: 'global', slug: 'sel-test', content: 'x' }) as { id: string }
-const item2 = h.invoke('ai-config:create-item', { type: 'command', scope: 'global', slug: 'sel-test-2', content: 'y' }) as { id: string }
+const item2 = h.invoke('ai-config:create-item', { type: 'skill', scope: 'global', slug: 'sel-test-2', content: 'y' }) as { id: string }
 
 // --- Selections ---
 
 describe('ai-config:set-project-selection', () => {
-  test('creates selection', () => {
+  test('creates selection and canonicalizes legacy claude skill paths', () => {
     h.invoke('ai-config:set-project-selection', { projectId, itemId: item.id, targetPath: '.claude/skills/sel-test.md' })
-    const sels = h.invoke('ai-config:list-project-selections', projectId) as { item_id: string; target_path: string }[]
+    const sels = h.invoke('ai-config:list-project-selections', projectId) as { item_id: string; target_path: string; provider: string }[]
     expect(sels).toHaveLength(1)
     expect(sels[0].item_id).toBe(item.id)
-    expect(sels[0].target_path).toBe('.claude/skills/sel-test.md')
+    expect(sels[0].target_path).toBe('.claude/skills/sel-test/SKILL.md')
+    expect(sels[0].provider).toBe('claude')
   })
 
   test('upserts on conflict (same project+item+provider)', () => {
@@ -33,9 +34,22 @@ describe('ai-config:set-project-selection', () => {
   })
 
   test('allows multiple items per project', () => {
-    h.invoke('ai-config:set-project-selection', { projectId, itemId: item2.id, targetPath: '.claude/commands/test.md' })
+    h.invoke('ai-config:set-project-selection', { projectId, itemId: item2.id, targetPath: '.claude/skills/test.md' })
     const sels = h.invoke('ai-config:list-project-selections', projectId) as unknown[]
     expect(sels.length).toBeGreaterThan(1)
+  })
+
+  test('supports provider-specific upserts', () => {
+    h.invoke('ai-config:set-project-selection', {
+      projectId,
+      itemId: item.id,
+      provider: 'codex',
+      targetPath: '.agents/skills/sel-test.md'
+    })
+    const sels = h.invoke('ai-config:list-project-selections', projectId) as Array<{ provider: string; target_path: string }>
+    const codexSel = sels.find((sel) => sel.provider === 'codex')
+    expect(codexSel).toBeTruthy()
+    expect(codexSel!.target_path).toBe('.agents/skills/sel-test/SKILL.md')
   })
 })
 
@@ -60,8 +74,9 @@ describe('ai-config:remove-project-selection', () => {
   test('removes by project+item+provider', () => {
     const result = h.invoke('ai-config:remove-project-selection', projectId, item.id, 'claude')
     expect(result).toBe(true)
-    const sels = h.invoke('ai-config:list-project-selections', projectId) as unknown[]
-    expect(sels).toHaveLength(0)
+    const sels = h.invoke('ai-config:list-project-selections', projectId) as Array<{ provider: string }>
+    expect(sels).toHaveLength(1)
+    expect(sels[0].provider).toBe('codex')
   })
 })
 
@@ -72,7 +87,9 @@ describe('ai-config:list-providers', () => {
     const providers = h.invoke('ai-config:list-providers') as { name: string; kind: string; enabled: number }[]
     expect(providers.length).toBeGreaterThan(0)
     const claude = providers.find(p => p.kind === 'claude')
+    const codex = providers.find(p => p.kind === 'codex')
     expect(claude).toBeTruthy()
+    expect(codex).toBeTruthy()
     expect(claude!.enabled).toBe(1)
   })
 })
@@ -99,10 +116,17 @@ describe('ai-config:get-project-providers', () => {
     // Should include enabled global providers
     expect(providers).toContain('claude')
   })
+
+  test('falls back to global providers when project provider settings JSON is malformed', () => {
+    h.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run(`ai_providers:${projectId}`, '{"broken":')
+    const providers = h.invoke('ai-config:get-project-providers', projectId) as string[]
+    expect(providers).toContain('claude')
+  })
 })
 
 describe('ai-config:set-project-providers', () => {
-  test('sets project-specific providers', () => {
+  test('persists configured project providers', () => {
     h.invoke('ai-config:set-project-providers', projectId, ['claude', 'codex'])
     const providers = h.invoke('ai-config:get-project-providers', projectId) as string[]
     expect(providers).toContain('claude')

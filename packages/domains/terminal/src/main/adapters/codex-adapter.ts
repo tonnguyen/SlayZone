@@ -1,8 +1,11 @@
+import { open, readdir, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { TerminalAdapter, SpawnConfig, PromptInfo, CodeMode, ActivityState, ErrorInfo, ValidationResult } from './types'
 import { buildExecCommand, getShellStartupArgs, resolveUserShell, whichBinary, validateShellEnv } from '../shell-env'
 
 /**
- * Adapter for OpenAI Codex CLI.
+ * Adapter for OpenAI Codex.
  * Codex uses a full-screen Ratatui TUI. State detection is binary:
  * working (shows interrupt/cancel hints) vs attention (idle timeout fallback).
  */
@@ -101,13 +104,55 @@ export class CodexAdapter implements TerminalAdapter {
         fix: node ? undefined : 'Install Node.js from https://nodejs.org'
       },
       {
-        check: 'Codex CLI found',
+        check: 'Codex found',
         ok: !!codex,
         detail: codex ?? 'codex not found in PATH',
         fix: codex ? undefined : 'npm install -g @openai/codex'
       }
     )
     return results
+  }
+
+  /**
+   * Detect session ID from Codex's local session files.
+   * Codex stores sessions at ~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<UUID>.jsonl.
+   * We find the file created after our spawn time whose cwd matches the task's
+   * working directory, then extract the UUID from its name.
+   */
+  async detectSessionFromDisk(spawnedAt: number, cwd: string): Promise<string | null> {
+    const now = new Date()
+    const dir = join(
+      homedir(), '.codex', 'sessions',
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    )
+
+    try {
+      const files = (await readdir(dir)).filter(f => f.endsWith('.jsonl')).sort().reverse()
+      for (const file of files) {
+        const info = await stat(join(dir, file))
+        // 5s grace window for clock skew between spawn timestamp and file creation
+        if (info.birthtimeMs < spawnedAt - 5000) break // files are sorted newest-first
+        const match = file.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i)
+        if (!match) continue
+        // Verify cwd matches to disambiguate concurrent sessions.
+        // Read only the first line (session_meta) — files can be multi-MB.
+        const fh = await open(join(dir, file), 'r')
+        const firstLine = (await fh.read({ buffer: Buffer.alloc(4096), length: 4096 })).buffer.toString('utf-8').split('\n', 1)[0]
+        await fh.close()
+        try {
+          const meta = JSON.parse(firstLine)
+          if (meta?.payload?.cwd && meta.payload.cwd !== cwd) continue
+        } catch {
+          // Malformed first line — skip cwd check, still usable
+        }
+        return match[1]
+      }
+    } catch {
+      // Directory doesn't exist or not readable
+    }
+    return null
   }
 
   detectPrompt(_data: string): PromptInfo | null {

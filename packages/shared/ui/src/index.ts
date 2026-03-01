@@ -5,9 +5,12 @@ export { useAppearance, AppearanceContext, type AppearanceSettings } from './App
 export { getTerminalStateStyle, type TerminalStateStyle } from './terminal-state'
 export {
   getTaskStatusStyle,
+  getColumnStatusStyle,
+  buildStatusOptions,
   TASK_STATUS_ORDER,
   taskStatusOptions,
-  type TaskStatusStyle
+  type TaskStatusStyle,
+  type ColumnStatusConfig
 } from './task-status'
 
 // Components
@@ -21,6 +24,7 @@ export * from './color-picker'
 export * from './command'
 export * from './context-menu'
 export * from './dialog'
+export * from './diff-view'
 export * from './dropdown-menu'
 export * from './form'
 export * from './input'

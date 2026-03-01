@@ -3,10 +3,8 @@ import {
   expect,
   seed,
   clickProject,
-  clickAll,
   clickAddProject,
   projectBlob,
-  goHome,
   TEST_PROJECT_PATH,
 } from './fixtures/electron'
 
@@ -36,9 +34,6 @@ test.describe('Projects', () => {
 
     await clickProject(mainWindow, 'SE')
     await expect(mainWindow.locator('textarea').first()).toHaveValue('Second Project', { timeout: 5_000 })
-
-    await clickAll(mainWindow)
-    await expect(mainWindow.locator('h1')).toContainText('All Tasks', { timeout: 5_000 })
   })
 
   test('delete project via API', async ({ mainWindow }) => {

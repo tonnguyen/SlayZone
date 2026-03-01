@@ -177,10 +177,18 @@ async function launchElectronWithRetry(args: {
     let stopAttemptLogCapture: (() => void) | undefined
 
     try {
+      const launchEnv: Record<string, string> = {}
+      for (const [key, value] of Object.entries(process.env)) {
+        if (value == null) continue
+        launchEnv[key] = value
+      }
+      // Prevent host shell dev-server overrides from leaking into deterministic e2e launches.
+      delete launchEnv.ELECTRON_RENDERER_URL
+
       app = await electron.launch({
         args: [MAIN_JS],
         executablePath: args.executablePath,
-        env: { ...process.env, PLAYWRIGHT: '1', SLAYZONE_DB_DIR: args.userDataDir },
+        env: { ...launchEnv, PLAYWRIGHT: '1', SLAYZONE_DB_DIR: args.userDataDir },
       })
 
       stopAttemptLogCapture = startProcessLogCapture(
@@ -377,6 +385,13 @@ export function seed(page: Page) {
       color?: string
       path?: string | null
       autoCreateWorktreeOnTaskCreate?: boolean | null
+      columnsConfig?: Array<{
+        id: string
+        label: string
+        color: string
+        position: number
+        category: 'triage' | 'backlog' | 'unstarted' | 'started' | 'completed' | 'canceled'
+      }> | null
     }) =>
       page.evaluate((d) => window.api.db.updateProject(d), data),
 
@@ -429,11 +444,6 @@ export async function clickProject(page: Page, abbrev: string) {
   await input.fill(abbrev)
   await page.keyboard.press('Enter')
   await input.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {})
-}
-
-/** Click the "All" button in the sidebar */
-export async function clickAll(page: Page) {
-  await sidebar(page).locator('button[title="All projects"]').click()
 }
 
 /** Click the + button in the sidebar to add a project */

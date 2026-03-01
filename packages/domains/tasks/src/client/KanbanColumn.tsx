@@ -5,8 +5,11 @@ import { CSS } from '@dnd-kit/utilities'
 import { MoreHorizontal, Plus } from 'lucide-react'
 import type { Task } from '@slayzone/task/shared'
 import type { Project } from '@slayzone/projects/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { getColumnById, isCompletedCategory } from '@slayzone/projects/shared'
 import type { Tag } from '@slayzone/tags/shared'
 import type { Column } from './kanban'
+import type { CardProperties } from './FilterState'
 import { KanbanCard } from './KanbanCard'
 import { TaskContextMenu } from './TaskContextMenu'
 import { Button } from '@slayzone/ui'
@@ -20,10 +23,12 @@ import { cn } from '@slayzone/ui'
 
 interface SortableKanbanCardProps {
   task: Task
+  columns?: ColumnConfig[] | null
   onTaskClick?: (task: Task, e: { metaKey: boolean }) => void
   project?: Project
   showProject?: boolean
   disableDrag?: boolean
+  cardProperties?: CardProperties
   isBlocked?: boolean
   isFocused?: boolean
   onMouseEnter?: () => void
@@ -38,10 +43,12 @@ interface SortableKanbanCardProps {
 
 function SortableKanbanCard({
   task,
+  columns,
   onTaskClick,
   project,
   showProject,
   disableDrag,
+  cardProperties,
   isBlocked,
   isFocused,
   onMouseEnter,
@@ -80,6 +87,7 @@ function SortableKanbanCard({
     <div ref={combinedRef} style={style} {...dragProps} onMouseEnter={onMouseEnter}>
       <KanbanCard
         task={task}
+        columns={columns}
         isDragging={isDragging}
         isFocused={isFocused}
         onClick={(e) => onTaskClick?.(task, e)}
@@ -87,6 +95,7 @@ function SortableKanbanCard({
         showProject={showProject}
         isBlocked={isBlocked}
         subTaskCount={subTaskCount}
+        cardProperties={cardProperties}
       />
     </div>
   )
@@ -97,6 +106,7 @@ function SortableKanbanCard({
       <TaskContextMenu
         task={task}
         projects={allProjects}
+        columns={columns}
         onUpdateTask={onUpdateTask}
         onArchiveTask={onArchiveTask}
         onDeleteTask={onDeleteTask}
@@ -111,6 +121,7 @@ function SortableKanbanCard({
 
 interface KanbanColumnProps {
   column: Column
+  columns?: ColumnConfig[] | null
   activeColumnId?: string | null
   overColumnId?: string | null
   onTaskClick?: (task: Task, e: { metaKey: boolean }) => void
@@ -118,6 +129,7 @@ interface KanbanColumnProps {
   projectsMap?: Map<string, Project>
   showProjectDot?: boolean
   disableDrag?: boolean
+  cardProperties?: CardProperties
   taskTags?: Map<string, string[]>
   tags?: Tag[]
   blockedTaskIds?: Set<string>
@@ -135,6 +147,7 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({
   column,
+  columns,
   activeColumnId,
   overColumnId,
   onTaskClick,
@@ -142,6 +155,7 @@ export function KanbanColumn({
   projectsMap,
   showProjectDot,
   disableDrag,
+  cardProperties,
   blockedTaskIds,
   subTaskCounts,
   focusedTaskId,
@@ -153,6 +167,8 @@ export function KanbanColumn({
   onDeleteTask,
   onArchiveAllTasks
 }: KanbanColumnProps): React.JSX.Element {
+  const columnConfig = getColumnById(column.id, columns)
+  const isCompletedColumn = columnConfig ? isCompletedCategory(columnConfig.category) : false
   const { setNodeRef } = useDroppable({
     id: column.id
   })
@@ -171,7 +187,7 @@ export function KanbanColumn({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {column.id === 'done' && onArchiveAllTasks && column.tasks.length > 0 && (
+          {isCompletedColumn && onArchiveAllTasks && column.tasks.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -214,10 +230,12 @@ export function KanbanColumn({
               <SortableKanbanCard
                 key={task.id}
                 task={task}
+                columns={columns}
                 onTaskClick={onTaskClick}
                 project={showProjectDot ? projectsMap?.get(task.project_id) : undefined}
                 showProject={showProjectDot}
                 disableDrag={disableDrag}
+                cardProperties={cardProperties}
                 isBlocked={blockedTaskIds?.has(task.id)}
                 isFocused={focusedTaskId === task.id}
                 onMouseEnter={() => onCardMouseEnter?.(task.id)}

@@ -1,20 +1,15 @@
-import type { Task, TaskStatus } from '@slayzone/task/shared'
-import { TASK_STATUS_ORDER, getTaskStatusStyle } from '@slayzone/ui'
-import type { FilterState, DueDateRange, SortKey } from './FilterState'
+import type { Task } from '@slayzone/task/shared'
+import type { ColumnConfig } from '@slayzone/projects/shared'
+import { isTerminalStatus, resolveColumns } from '@slayzone/projects/shared'
+import { type FilterState, type DueDateRange, type SortKey, type GroupKey, getViewConfig } from './FilterState'
 
-export type GroupKey = 'status' | 'priority' | 'due_date'
+export type { GroupKey }
 
 export interface Column {
   id: string
   title: string
   tasks: Task[]
 }
-
-export const STATUS_ORDER = TASK_STATUS_ORDER as unknown as TaskStatus[]
-
-export const STATUS_LABELS: Record<TaskStatus, string> = Object.fromEntries(
-  TASK_STATUS_ORDER.map((status) => [status, getTaskStatusStyle(status)!.label])
-) as Record<TaskStatus, string>
 
 export const PRIORITY_LABELS: Record<number, string> = {
   1: 'Urgent',
@@ -56,13 +51,23 @@ function sortTasks(tasks: Task[], sortBy: SortKey): Task[] {
   })
 }
 
-function groupByStatus(tasks: Task[], sortBy: SortKey): Column[] {
+function groupByStatus(tasks: Task[], sortBy: SortKey, columns?: ColumnConfig[] | null): Column[] {
   const sorted = sortTasks(tasks, sortBy)
-  return STATUS_ORDER.map((status) => ({
-    id: status,
-    title: STATUS_LABELS[status],
-    tasks: sorted.filter((t) => t.status === status)
+  const statusColumns = resolveColumns(columns)
+  const seen = new Set(statusColumns.map((column) => column.id))
+
+  const grouped = statusColumns.map((column) => ({
+    id: column.id,
+    title: column.label,
+    tasks: sorted.filter((t) => t.status === column.id)
   }))
+
+  const unknownTasks = sorted.filter((task) => !seen.has(task.status))
+  if (unknownTasks.length > 0) {
+    grouped.push({ id: '__unknown__', title: 'Unknown', tasks: unknownTasks })
+  }
+
+  return grouped
 }
 
 function groupByPriority(tasks: Task[], sortBy: SortKey): Column[] {
@@ -108,14 +113,25 @@ function groupByDueDate(tasks: Task[], sortBy: SortKey): Column[] {
   ]
 }
 
-export function groupTasksBy(tasks: Task[], groupBy: GroupKey, sortBy: SortKey = 'manual'): Column[] {
+export function groupTasksBy(
+  tasks: Task[],
+  groupBy: GroupKey,
+  sortBy: SortKey = 'manual',
+  columns?: ColumnConfig[] | null
+): Column[] {
   switch (groupBy) {
+    case 'none':
+    case 'active':
+      return [{ id: 'all', title: 'All Tasks', tasks: sortTasks(tasks, sortBy) }]
     case 'status':
-      return groupByStatus(tasks, sortBy)
+      return groupByStatus(tasks, sortBy, columns)
     case 'priority':
       return groupByPriority(tasks, sortBy)
     case 'due_date':
       return groupByDueDate(tasks, sortBy)
+    default:
+      // Runtime guard for unexpected persisted values.
+      return groupByStatus(tasks, sortBy, columns)
   }
 }
 
@@ -153,8 +169,10 @@ function matchesDueDateRange(dueDate: string | null, range: DueDateRange): boole
 export function applyFilters(
   tasks: Task[],
   filter: FilterState,
-  taskTags: Map<string, string[]>
+  taskTags: Map<string, string[]>,
+  columns?: ColumnConfig[] | null
 ): Task[] {
+  const vc = getViewConfig(filter)
   return tasks.filter((task) => {
     // Priority filter
     if (filter.priority !== null && task.priority !== filter.priority) {
@@ -175,18 +193,16 @@ export function applyFilters(
       }
     }
 
-    // Show done filter
-    if (!filter.showDone && task.status === 'done') {
-      return false
-    }
+    // Completed filter
+    if (isTerminalStatus(task.status, columns) && vc.completedFilter === 'none') return false
 
     // Show archived filter
-    if (!filter.showArchived && task.archived_at !== null) {
+    if (!vc.showArchived && task.archived_at !== null) {
       return false
     }
 
     // Hide sub-tasks unless toggle is on
-    if (!filter.showSubTasks && task.parent_id) {
+    if (!vc.showSubTasks && task.parent_id) {
       return false
     }
 
