@@ -368,6 +368,9 @@ export interface ElectronAPI {
     pushProviderInstructions: (projectId: string, projectPath: string, provider: CliProvider, content: string) => Promise<RootInstructionsResult>
     pullProviderInstructions: (projectId: string, projectPath: string, provider: CliProvider) => Promise<RootInstructionsResult>
     getProjectSkillsStatus: (projectId: string, projectPath: string) => Promise<ProjectSkillStatus[]>
+    readProviderSkill: (projectPath: string, provider: CliProvider, itemId: string) => Promise<ProviderFileContent>
+    getExpectedSkillContent: (projectPath: string, provider: CliProvider, itemId: string) => Promise<string>
+    pullProviderSkill: (projectId: string, projectPath: string, provider: CliProvider, itemId: string) => Promise<ProjectSkillStatus>
     getGlobalFiles: () => Promise<GlobalFileEntry[]>
   }
   fs: {

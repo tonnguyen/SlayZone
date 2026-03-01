@@ -372,6 +372,12 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('ai-config:pull-provider-instructions', projectId, projectPath, provider),
     getProjectSkillsStatus: (projectId, projectPath) =>
       ipcRenderer.invoke('ai-config:get-project-skills-status', projectId, projectPath),
+    readProviderSkill: (projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:read-provider-skill', projectPath, provider, itemId),
+    getExpectedSkillContent: (projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:get-expected-skill-content', projectPath, provider, itemId),
+    pullProviderSkill: (projectId, projectPath, provider, itemId) =>
+      ipcRenderer.invoke('ai-config:pull-provider-skill', projectId, projectPath, provider, itemId),
     getGlobalFiles: () => ipcRenderer.invoke('ai-config:get-global-files')
   },
   fs: {

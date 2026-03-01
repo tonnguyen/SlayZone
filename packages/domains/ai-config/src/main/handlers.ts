@@ -1095,6 +1095,84 @@ export function registerAiConfigHandlers(ipcMain: IpcMain, db: Database): void {
     return results
   })
 
+  function recomputeSingleSkillStatus(projectId: string, projectPath: string, itemId: string): ProjectSkillStatus {
+    const providers = getEnabledProviders(projectId)
+    const resolvedProject = path.resolve(projectPath)
+
+    const item = db.prepare('SELECT * FROM ai_config_items WHERE id = ?').get(itemId) as AiConfigItem | undefined
+    if (!item) throw new Error('Item not found')
+
+    const selections = (db.prepare(`
+      SELECT * FROM ai_config_project_selections WHERE project_id = ? AND item_id = ?
+    `).all(projectId, itemId) as AiConfigProjectSelection[]).filter(s => isConfigurableCliProvider(s.provider))
+
+    const providerMap: ProjectSkillStatus['providers'] = {}
+    for (const provider of providers) {
+      const sel = selections.find(s => s.provider === provider)
+      if (sel) {
+        const effectiveTargetPath = getCanonicalSelectionTargetPath(provider, item.type, item.slug, sel.target_path)
+        const expectedContent = getSyncedItemContent(provider, item.type, item.slug, effectiveTargetPath, item.content)
+        const filePath = path.isAbsolute(effectiveTargetPath)
+          ? effectiveTargetPath
+          : path.join(resolvedProject, effectiveTargetPath)
+        let status: ProviderSyncStatus = 'not_synced'
+        if (fs.existsSync(filePath)) {
+          const diskHash = contentHash(fs.readFileSync(filePath, 'utf-8'))
+          const itemHash = contentHash(expectedContent)
+          status = diskHash === itemHash ? 'synced' : 'out_of_sync'
+        }
+        providerMap[provider] = { path: effectiveTargetPath, status }
+      } else {
+        providerMap[provider] = { path: '', status: 'not_synced' }
+      }
+    }
+
+    return { item, providers: providerMap }
+  }
+
+  ipcMain.handle('ai-config:read-provider-skill', (_event, projectPath: string, provider: CliProvider, itemId: string): ProviderFileContent => {
+    const item = db.prepare('SELECT * FROM ai_config_items WHERE id = ?').get(itemId) as AiConfigItem | undefined
+    if (!item) return { provider, content: '', exists: false }
+
+    const skillPath = getSkillPath(provider, item.slug)
+    if (!skillPath) return { provider, content: '', exists: false }
+
+    const filePath = path.join(path.resolve(projectPath), skillPath)
+    if (!isPathAllowed(filePath, projectPath)) return { provider, content: '', exists: false }
+    if (!fs.existsSync(filePath)) return { provider, content: '', exists: false }
+    return { provider, content: fs.readFileSync(filePath, 'utf-8'), exists: true }
+  })
+
+  ipcMain.handle('ai-config:get-expected-skill-content', (_event, _projectPath: string, provider: CliProvider, itemId: string): string => {
+    const item = db.prepare('SELECT * FROM ai_config_items WHERE id = ?').get(itemId) as AiConfigItem | undefined
+    if (!item) throw new Error('Item not found')
+
+    const skillPath = getSkillPath(provider, item.slug)
+    if (!skillPath) return item.content
+
+    return getSyncedItemContent(provider, item.type, item.slug, skillPath, item.content)
+  })
+
+  ipcMain.handle('ai-config:pull-provider-skill', (_event, projectId: string, projectPath: string, provider: CliProvider, itemId: string): ProjectSkillStatus => {
+    const item = db.prepare('SELECT * FROM ai_config_items WHERE id = ?').get(itemId) as AiConfigItem | undefined
+    if (!item) throw new Error('Item not found')
+
+    const skillPath = getSkillPath(provider, item.slug)
+    if (!skillPath) throw new Error(`No skill path for ${provider}`)
+
+    const filePath = path.join(path.resolve(projectPath), skillPath)
+    if (!isPathAllowed(filePath, projectPath)) throw new Error('Path not allowed')
+    if (!fs.existsSync(filePath)) throw new Error('Skill file does not exist')
+
+    const diskContent = fs.readFileSync(filePath, 'utf-8')
+    const strippedContent = stripLeadingFrontmatter(diskContent).replace(/^\n+/, '')
+
+    db.prepare("UPDATE ai_config_items SET content = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(strippedContent, itemId)
+
+    return recomputeSingleSkillStatus(projectId, projectPath, itemId)
+  })
+
   // --- Provider management ---
 
   ipcMain.handle('ai-config:list-providers', () => {

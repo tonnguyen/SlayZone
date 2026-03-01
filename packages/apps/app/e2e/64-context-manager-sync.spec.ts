@@ -216,7 +216,7 @@ test.describe('Context manager sync flow', () => {
 
     const resyncDialog = await openProjectContextSection(mainWindow, 'skills')
     const skillRow = resyncDialog.getByTestId(`project-context-item-skill-${skillSlug}`)
-    await expect(skillRow).toContainText('stale', { timeout: 5_000 })
+    await expect(skillRow).toContainText('Stale', { timeout: 5_000 })
 
     await resyncDialog.getByRole('button', { name: 'Overview' }).click()
     await resyncDialog.getByTestId('project-context-sync-all').click()
@@ -264,9 +264,12 @@ test.describe('Context manager sync flow', () => {
     }, { id: projectId, slug: localSkillSlug, content: localSkillContent })
 
     const projectDialog = await openProjectContextSection(mainWindow, 'skills')
-    const syncButton = projectDialog.getByTestId(`project-context-sync-skill-${localSkillSlug}`)
-    await expect(syncButton).toBeVisible({ timeout: 5_000 })
-    await syncButton.click()
+    const skillRow = projectDialog.getByTestId(`project-context-item-skill-${localSkillSlug}`)
+    await expect(skillRow).toBeVisible({ timeout: 5_000 })
+    await skillRow.click()
+    const pushAllButton = projectDialog.getByTestId(`skill-push-all-${localSkillSlug}`)
+    await expect(pushAllButton).toBeVisible({ timeout: 5_000 })
+    await pushAllButton.click()
 
     await expect.poll(() => fs.existsSync(localClaudeSkillPath())).toBe(true)
     await expect.poll(() => fs.existsSync(localCodexSkillPath())).toBe(true)

@@ -146,6 +146,7 @@ export function ProjectInstructions({ projectId, projectPath, onChanged }: Proje
   return (
     <div className="space-y-4">
       <Textarea
+        data-testid="instructions-textarea"
         className="min-h-[300px] resize-y font-mono text-sm"
         placeholder={isProject
           ? 'Write your project instructions here. Use the buttons below to write to provider files.'
@@ -160,7 +161,7 @@ export function ProjectInstructions({ projectId, projectPath, onChanged }: Proje
           <div className="flex items-center justify-end">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" onClick={handleSyncAll} disabled={syncingAll || !!syncingProvider}>
+                <Button data-testid="instructions-push-all" size="sm" onClick={handleSyncAll} disabled={syncingAll || !!syncingProvider}>
                   {syncingAll && <Loader2 className="size-3.5 animate-spin" />}
                   Config → All Files
                 </Button>
@@ -180,7 +181,7 @@ export function ProjectInstructions({ projectId, projectPath, onChanged }: Proje
               const disk = diskContents[provider]
 
               return (
-                <div key={provider} className="rounded-lg border">
+                <div key={provider} data-testid={`instructions-provider-card-${provider}`} className="rounded-lg border">
                   <div
                     className={cn(
                       'flex items-center gap-3 px-3 py-2.5',
@@ -197,6 +198,7 @@ export function ProjectInstructions({ projectId, projectPath, onChanged }: Proje
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
+                            data-testid={`instructions-pull-${provider}`}
                             size="sm"
                             variant="outline"
                             disabled={isPulling || syncingAll}
@@ -212,6 +214,7 @@ export function ProjectInstructions({ projectId, projectPath, onChanged }: Proje
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
+                          data-testid={`instructions-push-${provider}`}
                           size="sm"
                           variant={isStale ? 'default' : 'outline'}
                           disabled={isPushing || syncingAll}
