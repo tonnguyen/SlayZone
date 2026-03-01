@@ -107,7 +107,6 @@ export function getDatabase(): Database.Database {
   if (!db) {
     migrateLegacyDatabaseIfNeeded()
     const dbPath = getDatabasePath()
-    console.log('Database path:', dbPath)
     db = new Database(dbPath)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')

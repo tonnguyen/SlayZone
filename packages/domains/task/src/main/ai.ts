@@ -30,29 +30,23 @@ async function runAiCommand(mode: TerminalMode, prompt: string): Promise<string>
     const cmd = mode === 'claude-code' ? claudePath : 'codex'
     const args = mode === 'claude-code' ? ['--print', '--allow-dangerously-skip-permissions', prompt] : [prompt]
 
-    console.log('[ai] Running:', cmd, args)
-
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     let error = ''
 
     proc.stdout?.on('data', (d) => {
       output += d.toString()
-      console.log('[ai] stdout:', d.toString())
     })
     proc.stderr?.on('data', (d) => {
       error += d.toString()
-      console.log('[ai] stderr:', d.toString())
     })
 
     proc.on('close', (code) => {
-      console.log('[ai] Exit code:', code)
       if (code === 0) resolve(output.trim())
       else reject(new Error(error || `Exit code ${code}`))
     })
 
     proc.on('error', (err) => {
-      console.log('[ai] Error:', err)
       reject(err)
     })
 

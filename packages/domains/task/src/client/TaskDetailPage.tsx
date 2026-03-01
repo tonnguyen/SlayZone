@@ -1069,14 +1069,12 @@ export function TaskDetailPage({
 
   const handleGenerateDescription = async (): Promise<void> => {
     if (!task || generatingDescription) return
-    console.log('[generate] Starting for title:', task.title)
     setGeneratingDescription(true)
     try {
       const result = await window.api.ai.generateDescription(
         task.title,
         task.terminal_mode
       )
-      console.log('[generate] Result:', result)
       if (result.success && result.description) {
         setDescriptionValue(result.description)
         const updated = await window.api.db.updateTask({
