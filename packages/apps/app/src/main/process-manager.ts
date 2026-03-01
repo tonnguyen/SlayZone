@@ -106,6 +106,7 @@ function doSpawn(proc: ManagedProcess): void {
   })
 
   child.on('exit', (code) => {
+    if (proc.child !== child) return // stale exit from restarted process
     proc.pid = null
     proc.child = null
     proc.exitCode = code
@@ -207,6 +208,7 @@ export function killTaskProcesses(taskId: string): void {
     if (proc.taskId === taskId) {
       proc.autoRestart = false
       proc.child?.kill()
+      proc.child = null
       processes.delete(id)
     }
   }
@@ -227,6 +229,7 @@ export function killAllProcesses(): void {
   for (const proc of processes.values()) {
     proc.autoRestart = false
     proc.child?.kill()
+    proc.child = null
   }
   processes.clear()
 }
