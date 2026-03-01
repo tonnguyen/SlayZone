@@ -283,6 +283,14 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
   onTabsChangeRef.current = onTabsChange
   createNewTabRef.current = createNewTab
 
+  // Eagerly update tabsRef + notify parent. Prevents stale-ref races when
+  // multiple webview events (did-navigate, page-title-updated, page-favicon-updated)
+  // fire in the same React batch before a re-render can refresh the ref.
+  const commitTabsUpdate = useRef((next: BrowserTabsState) => {
+    tabsRef.current = next
+    onTabsChangeRef.current(next)
+  }).current
+
   // Webview event listeners — attach once, read latest state via refs
   useEffect(() => {
     const wv = webviewRef.current
@@ -296,7 +304,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
 
       const t = tabsRef.current
       if (t.activeTabId) {
-        onTabsChangeRef.current({
+        commitTabsUpdate({
           ...t,
           tabs: t.tabs.map(tab =>
             tab.id === t.activeTabId ? { ...tab, url } : tab
@@ -312,7 +320,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       const title = (e as CustomEvent).detail?.title || ''
       const t = tabsRef.current
       if (t.activeTabId && title) {
-        onTabsChangeRef.current({
+        commitTabsUpdate({
           ...t,
           tabs: t.tabs.map(tab =>
             tab.id === t.activeTabId ? { ...tab, title } : tab
@@ -326,7 +334,7 @@ export const BrowserPanel = forwardRef<BrowserPanelHandle, BrowserPanelProps>(fu
       const favicon = favicons?.[0]
       const t = tabsRef.current
       if (t.activeTabId && favicon) {
-        onTabsChangeRef.current({
+        commitTabsUpdate({
           ...t,
           tabs: t.tabs.map(tab =>
             tab.id === t.activeTabId ? { ...tab, favicon } : tab
